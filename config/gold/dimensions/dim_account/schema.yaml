@@ -1,0 +1,90 @@
+
+version: "1.0"
+layer: gold
+database: gold
+table: user_daily_metrics2
+
+metadata:
+  display_name: "User Daily Metrics"
+  description: |
+    Daily aggregated user metrics for executive dashboards.
+    Includes user counts, new user tracking, cohort analysis.
+  
+  owner: analytics-team
+  domain: analytics
+  tags: [gold, metrics, daily, users, dashboard]
+  
+  transformation_type: sql_aggregation
+  
+  upstream_dependencies:
+    - silver.salesforce_user
+  
+  downstream_dependencies: []
+
+clickhouse:
+  engine: SummingMergeTree
+  partition_by: toYYYYMM(metric_date)
+  order_by:
+    - metric_date
+    - organization_id
+  
+  settings:
+    index_granularity: 8192
+
+columns:
+  - name: metric_date
+    type: Date
+    nullable: false
+    description: "Date of metrics calculation"
+    primary_key: true
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    
+  - name: total_users
+    type: UInt64
+    nullable: false
+    description: "Total distinct users"
+    
+  - name: active_users
+    type: UInt64
+    nullable: false
+    description: "Active users (is_active=1)"
+    
+  - name: inactive_users
+    type: UInt64
+    nullable: false
+    description: "Inactive users (is_active=0)"
+    
+  - name: new_users
+    type: UInt64
+    nullable: false
+    description: "Users created today"
+    
+  - name: top_email_domains
+    type: Array(String)
+    nullable: false
+    description: "Top 5 email domains"
+    
+  - name: avg_user_age_days
+    type: Float64
+    nullable: false
+    description: "Average user age in days"
+    
+  - name: users_0_30_days
+    type: UInt64
+    nullable: false
+    description: "Users aged 0-30 days"
+    
+  - name: users_31_90_days
+    type: UInt64
+    nullable: false
+    description: "Users aged 31-90 days"
+    
+  - name: _calculated_at
+    type: DateTime
+    nullable: false
+    description: "Calculation timestamp"
+    system_column: true

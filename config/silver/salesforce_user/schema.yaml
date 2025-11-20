@@ -1,0 +1,179 @@
+version: "1.0"
+layer: silver
+database: silver
+table: salesforce_user
+
+
+metadata:
+  display_name: "Salesforce Users (Cleaned)"
+  description: |
+    Cleaned and transformed Salesforce user data from Bronze layer.
+  
+  owner: data-engineering
+  domain: salesforce
+  tags:
+    - salesforce
+    - users
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - username
+    - email
+    - first_name
+    - last_name
+    - full_name
+    - email_domain
+  update_frequency: hourly
+  retention_days: 730  
+  upstream_dependencies:
+    - bronze.salesforce.user_raw
+  downstream_dependencies: 
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - user_id
+  primary_key:
+    - user_id
+  ttl: "processing_date + INTERVAL 730 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: status_idx
+      expression: status
+      type: set
+      granularity: 4
+    - name: email_domain_idx
+      expression: email_domain
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: user_id
+    type: String
+    nullable: false
+    description: "Salesforce User ID (18-character unique identifier)"
+    primary_key: true
+    example: "005XX000001AbCdEFG"
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-12345"  
+  - name: username
+    type: String
+    nullable: false
+    description: "User's login username (trimmed, email format)"
+    pii: true
+    example: "john@glynac.com"
+  - name: email
+    type: String
+    nullable: false
+    description: "User's email address (trimmed)"
+    pii: true
+    example: "john@glynac.com"
+  - name: first_name
+    type: String
+    nullable: false
+    description: "User's first name (trimmed)"
+    pii: true
+    example: "John"
+  - name: last_name
+    type: String
+    nullable: false
+    description: "User's last name (trimmed)"
+    pii: true
+    example: "Doe"
+  - name: full_name
+    type: String
+    nullable: false
+    description: "User's full name (first + last, trimmed)"
+    pii: true
+    example: "John Doe"
+  - name: email_domain
+    type: String
+    nullable: false
+    description: "Extracted email domain (e.g., company.com)"
+    example: "company.com"  
+  - name: is_active
+    type: UInt8
+    nullable: false
+    description: "Active status flag (1=active, 0=inactive)"
+    allowed_values: [0, 1]
+    example: 1
+  - name: status
+    type: LowCardinality(String)
+    nullable: false
+    description: "Status text (active/inactive/unknown)"
+    allowed_values: [active, inactive, unknown]
+    example: "active"  
+  - name: profile_id
+    type: String
+    nullable: false
+    description: "Salesforce Profile ID (trimmed)"
+    example: "00eXX000001AbCdEFG"  
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "User creation timestamp (parsed from string)"
+    example: "2023-01-15 10:30:00.000"
+  - name: last_modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification timestamp (parsed from string)"
+    example: "2025-10-18 14:20:00.000"
+  - name: extracted_at
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Extraction timestamp from Salesforce API"
+    example: "2025-10-18 14:30:00.000"
+  - name: user_age_days
+    type: Int32
+    nullable: false
+    description: "Number of days since user was created"
+    example: 1000  
+  - name: source_service
+    type: String
+    nullable: false
+    description: "Source system identifier"
+    example: "salesforce"
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Source scan identifier"
+    example: "scan_20251018_143022"
+  - name: page_number
+    type: Int32
+    nullable: false
+    description: "Source page number"
+    example: 1  
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Processing date (partition key)"
+    partition_key: true
+    example: "2025-10-18"  
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-10-18 15:30:45"
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "bronze.salesforce.user_raw"
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-10-18 14:30:22.123"

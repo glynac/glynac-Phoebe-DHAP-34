@@ -1,0 +1,136 @@
+# ============================================================================
+# ClickHouse-MinIO Infrastructure Monitoring Configuration
+# ============================================================================
+
+# Service Endpoints
+# NOTE: Use ${VAR_NAME} to reference Airflow Variables
+services:
+  clickhouse:
+    host: "${CLICKHOUSE_HTTP_ENDPOINT}"
+    user: "${CLICKHOUSE_USER}"
+    password: "${CLICKHOUSE_PASSWORD}"
+    database: "infrastructure_monitoring"
+    timeout: 15
+
+  minio:
+    endpoint: "${MINIO_CONSOLE_ENDPOINT}"  # Console endpoint
+    api_endpoint: "${MINIO_API_ENDPOINT}"  # API endpoint
+    access_key: "${MINIO_ACCESS_KEY}"
+    secret_key: "${MINIO_SECRET_KEY}"
+    secure: false
+
+  teams:
+    webhook_url: "${TEAMS_WEBHOOK_URL}"
+
+# Alert Thresholds
+thresholds:
+  minio_storage:
+    warning_gb: 3.0    # Warn when MinIO storage > 3GB
+    critical_gb: 5.0   # Critical when MinIO storage > 5GB
+  
+  clickhouse_storage:
+    warning_gb: 10.0   # Warn when ClickHouse storage > 10GB
+    critical_gb: 15.0  # Critical when ClickHouse storage > 15GB
+  
+  queries:
+    slow_query_ms: 1000              # Queries slower than 1000ms
+    high_query_count: 100            # Alert if user runs >100 queries in monitoring period
+    failed_query_threshold: 10       # Alert if >10 failed queries
+  
+  performance:
+    max_latency_ms: 2000            # Max acceptable query latency
+    min_qps: 0.1                    # Minimum expected queries per second
+    max_memory_gb: 8.0              # Max memory usage
+
+# Monitoring Tables Configuration
+tables:
+  minio_storage_metrics:
+    retention_days: 180
+    partition_by: "toYYYYMM(check_timestamp)"
+    order_by: "(check_timestamp, bucket_name)"
+  
+  query_analytics:
+    retention_days: 180
+    partition_by: "toYYYYMM(check_timestamp)"
+    order_by: "(check_timestamp, user_name)"
+  
+  performance_metrics:
+    retention_days: 180
+    partition_by: "toYYYYMM(check_timestamp)"
+    order_by: "(check_timestamp, metric_type, metric_name)"
+  
+  alert_history:
+    retention_days: 365
+    partition_by: "toYYYYMM(check_timestamp)"
+    order_by: "(check_timestamp, alert_type, severity)"
+
+# DAG Configuration
+dag:
+  dag_id: "clickhouse_minio_infrastructure_monitoring"
+  schedule_interval: "*/15 * * * *"  # Every 15 minutes
+  catchup: false
+  max_active_runs: 1
+  tags:
+    - monitoring
+    - clickhouse
+    - minio
+    - infrastructure
+    - performance
+  
+  default_args:
+    owner: "data-engineering"
+    depends_on_past: false
+    email_on_failure: false
+    email_on_retry: false
+    retries: 1
+    retry_delay_minutes: 2
+
+# Monitoring Features
+features:
+  enable_minio_monitoring: true
+  enable_query_analytics: true
+  enable_performance_metrics: true
+  enable_teams_notifications: true
+  enable_alert_history: true
+  
+  # Advanced features
+  check_individual_buckets: true
+  track_query_patterns: true
+  analyze_slow_queries: true
+
+# Notification Settings
+notifications:
+  teams:
+    enabled: true
+    include_storage_details: true
+    include_bucket_breakdown: true
+    include_top_users: true
+    max_top_users: 5
+    send_on_success: true
+    send_on_failure: true
+    send_on_warning: true
+  
+  alert_conditions:
+    # Only send alerts if conditions met
+    min_alert_interval_minutes: 15 
+    suppress_repeated_alerts: true
+    alert_on_recovery: false
+
+# Monitoring Periods
+monitoring:
+  query_analysis_window_minutes: 15  
+  performance_sample_window_minutes: 15
+  
+  # What to track
+  track_metrics:
+    - avg_query_latency_ms
+    - query_throughput_qps
+    - current_connections
+    - memory_usage_gb
+    - running_queries
+
+# Health Check
+health_check:
+  enabled: true
+  timeout_seconds: 10
+  retry_count: 3

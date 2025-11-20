@@ -1,0 +1,56 @@
+# ============================================================
+# GLOBAL CONFIGURATION
+# Shared settings across all layers
+# ============================================================
+
+# MinIO Configuration
+# NOTE: Use ${VAR_NAME} to reference Airflow Variables
+minio:
+  endpoint: "${MINIO_ENDPOINT}"
+  access_key: "${MINIO_ACCESS_KEY}"
+  secret_key: "${MINIO_SECRET_KEY}"
+  bucket_default: "${MINIO_BUCKET_DEFAULT}"
+  ssl: false
+  region: "us-east-1"
+
+# ClickHouse Configuration
+# NOTE: Use ${VAR_NAME} to reference Airflow Variables
+clickhouse:
+  host: "${CLICKHOUSE_HOST}"
+  port: 9000
+  user: "${CLICKHOUSE_USER}"
+  password: "${CLICKHOUSE_PASSWORD}"
+  database_default: "default"
+
+  settings:
+    max_execution_time: 300
+    max_memory_usage: 10000000000
+    connect_timeout: 10
+    send_timeout: 300
+    receive_timeout: 300
+
+# Airflow Settings
+airflow:
+  dag_default_args:
+    owner: "data-engineering"
+    retries: 3
+    retry_delay_minutes: 5
+    execution_timeout_minutes: 30
+    email_on_failure: true
+    email_on_retry: false
+
+  # EMAIL RECIPIENTS
+  # NOTE: Use ${VAR_NAME} to reference Airflow Variables
+  email_recipients:
+    - "${EMAIL_RECIPIENTS}"
+  
+  pools:
+    bronze_pool:
+      slots: 5
+      description: "Pool for bronze layer tasks"
+
+
+# Logging
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

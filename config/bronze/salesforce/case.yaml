@@ -1,0 +1,358 @@
+version: "1.0"
+layer: bronze
+database: salesforce
+table: case_raw
+
+
+source:
+  type: minio
+  bucket: main-data
+  path: salesforce/case
+  format: orc
+  file_pattern: "part-*"
+  partitions:
+    - name: glynac_organization_id
+      type: String
+      description: "Organization identifier"
+      required: true
+    - name: processing_date
+      type: String
+      description: "Date when data was processed (YYYY-MM-DD format)"
+      required: true
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+    input_format_orc_import_nested: 1
+    input_format_orc_skip_columns_with_unsupported_types_in_schema_inference: 0
+    input_format_orc_row_batch_size: 10000
+
+
+schema:
+  mode: manual
+  columns:
+    - name: scan_id
+      type: String
+      nullable: false
+      description: "Unique identifier for the data extraction scan"
+      example: "scan_20251018_143022"
+      category: metadata
+    - name: service
+      type: String
+      nullable: false
+      description: "Source service identifier"
+      example: "salesforce_case"
+      category: metadata
+    - name: batch_timestamp
+      type: String
+      nullable: false
+      description: "Timestamp when batch was processed (ISO 8601 format)"
+      example: "2025-10-18T14:30:22.000Z"
+      category: metadata
+    - name: page_number
+      type: Int32
+      nullable: false
+      description: "Page number in paginated data extraction"
+      example: 1
+      category: metadata
+    - name: table_name
+      type: String
+      nullable: false
+      description: "Source table name from Salesforce"
+      example: "salesforce_cases"
+      category: metadata
+    - name: case_id
+      type: String
+      nullable: false
+      description: "Salesforce Case ID (18-character unique identifier)"
+      example: "500XX000001AbCdEFG"
+      category: data
+      primary_key: true
+    - name: case_number
+      type: String
+      nullable: true
+      description: "Human-readable case number"
+      example: "00001234"
+      category: data
+    - name: subject
+      type: String
+      nullable: true
+      description: "Case subject line"
+      example: "Issue with product installation"
+      category: data
+    - name: description
+      type: String
+      nullable: true
+      description: "Detailed case description"
+      example: "Customer unable to install software on Windows 11"
+      category: data
+    - name: status
+      type: String
+      nullable: false
+      description: "Current case status"
+      example: "New"
+      category: data
+      allowed_values: ["New", "Working", "Escalated", "Closed"]
+    - name: priority
+      type: String
+      nullable: false
+      description: "Case priority level"
+      example: "High"
+      category: data
+      allowed_values: ["Low", "Medium", "High", "Critical"]
+    - name: case_type
+      type: String
+      nullable: true
+      description: "Type/category of case"
+      example: "Problem"
+      category: data
+    - name: origin
+      type: String
+      nullable: true
+      description: "How the case was created"
+      example: "Web"
+      category: data
+      allowed_values: ["Web", "Phone", "Email"]
+    - name: reason
+      type: String
+      nullable: true
+      description: "Reason for case creation"
+      example: "Installation"
+      category: data
+    - name: is_closed
+      type: UInt8
+      nullable: false
+      description: "Whether case is closed (1=closed, 0=open)"
+      example: 0
+      category: data
+      allowed_values: [0, 1]
+    - name: is_escalated
+      type: UInt8
+      nullable: false
+      description: "Whether case has been escalated (1=escalated, 0=not)"
+      example: 0
+      category: data
+      allowed_values: [0, 1]
+    - name: account_id
+      type: String
+      nullable: true
+      description: "Related Account ID"
+      example: "001XX000003DGb2QAG"
+      category: relationship
+    - name: account_name
+      type: String
+      nullable: true
+      description: "Related account name"
+      example: "Acme Corporation"
+      category: relationship
+    - name: account_phone
+      type: String
+      nullable: true
+      description: "Account phone number"
+      example: "+1-555-0123"
+      category: relationship
+      pii: true
+    - name: contact_id
+      type: String
+      nullable: true
+      description: "Related Contact ID"
+      example: "003XX000001AbCdEFG"
+      category: relationship
+    - name: contact_name
+      type: String
+      nullable: true
+      description: "Contact person name"
+      example: "John Doe"
+      category: relationship
+      pii: true
+    - name: contact_email
+      type: String
+      nullable: true
+      description: "Contact email address"
+      example: "john.doe@example.com"
+      category: relationship
+      pii: true
+    - name: contact_phone
+      type: String
+      nullable: true
+      description: "Contact phone number"
+      example: "+1-555-0124"
+      category: relationship
+      pii: true
+    - name: owner_id
+      type: String
+      nullable: true
+      description: "Case owner (user) ID"
+      example: "005XX000001AbCdEFG"
+      category: relationship
+    - name: owner_name
+      type: String
+      nullable: true
+      description: "Case owner name"
+      example: "Jane Smith"
+      category: relationship
+    - name: owner_email
+      type: String
+      nullable: true
+      description: "Case owner email"
+      example: "jane.smith@company.com"
+      category: relationship
+      pii: true
+    - name: created_by_id
+      type: String
+      nullable: true
+      description: "User ID who created the case"
+      example: "005XX000001AbCdXYZ"
+      category: relationship
+    - name: created_by_name
+      type: String
+      nullable: true
+      description: "Name of user who created the case"
+      example: "Bob Johnson"
+      category: relationship
+    - name: created_date
+      type: String
+      nullable: true
+      description: "Case creation timestamp (ISO 8601 string format)"
+      example: "2025-10-01T10:30:00.000Z"
+      category: data
+    - name: last_modified_date
+      type: String
+      nullable: true
+      description: "Last modification timestamp (ISO 8601 string format)"
+      example: "2025-10-18T14:20:00.000Z"
+      category: data
+    - name: closed_date
+      type: String
+      nullable: true
+      description: "Case closure timestamp (ISO 8601 string format, null if not closed)"
+      example: "2025-10-15T16:45:00.000Z"
+      category: data
+    - name: extracted_at
+      type: String
+      nullable: true
+      description: "Timestamp when data was extracted from Salesforce API"
+      example: "2025-10-18T14:30:00.000Z"
+      category: metadata
+    - name: source_service
+      type: String
+      nullable: false
+      description: "Source system identifier"
+      example: "salesforce"
+      category: metadata
+    - name: processing_timestamp
+      type: String
+      nullable: false
+      description: "Flink processing timestamp when record was written to MinIO"
+      example: "2025-10-18T14:30:22.123Z"
+      category: metadata
+  validation:
+    enabled: true
+    on_mismatch: fail
+    allow_extra_columns: true
+    allow_missing_columns: false
+    required_columns:
+      - scan_id
+      - case_id
+      - glynac_organization_id
+      - processing_date
+      - processing_timestamp
+
+validation:
+  enabled: true
+  checks:
+    - name: table_not_empty
+      description: "Table should have at least one row"
+      query: "SELECT count() > 0 FROM {database}.{table}"
+      severity: warning
+    - name: has_recent_data
+      description: "Should have data from last 7 days"
+      query: "SELECT max(toDate(processing_date)) >= today() - 7 FROM {database}.{table}"
+      severity: warning
+    - name: no_null_case_ids
+      description: "case_id should never be null"
+      query: "SELECT countIf(case_id IS NULL OR case_id = '') as null_count FROM {database}.{table}"
+      expect:
+        null_count: 0
+      severity: error
+    - name: valid_status_values
+      description: "status should be valid"
+      query: "SELECT countIf(status NOT IN ('New', 'Working', 'Escalated', 'Closed', 'Unknown')) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: warning
+    - name: valid_priority_values
+      description: "priority should be valid"
+      query: "SELECT countIf(priority NOT IN ('Low', 'Medium', 'High', 'Critical', 'Unknown')) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: warning
+    - name: valid_is_closed_values
+      description: "is_closed should only be 0 or 1"
+      query: "SELECT countIf(is_closed NOT IN (0, 1)) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: error
+    - name: valid_is_escalated_values
+      description: "is_escalated should only be 0 or 1"
+      query: "SELECT countIf(is_escalated NOT IN (0, 1)) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: error
+    - name: closed_cases_have_closed_date
+      description: "Cases with is_closed=1 should have closed_date"
+      query: "SELECT countIf(is_closed = 1 AND (closed_date IS NULL OR closed_date = '')) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: warning
+    - name: check_partition_distribution
+      description: "Check data is properly distributed across partitions"
+      query: |
+        SELECT 
+          count(DISTINCT concat(glynac_organization_id, '-', processing_date)) as partition_count
+        FROM {database}.{table}
+      severity: info
+
+metadata:
+  display_name: "Salesforce Cases (Raw)"
+  owner: data-engineering-team
+  description: |
+    Raw Salesforce case data loaded from ORC files in MinIO.
+    
+    Partitioning:
+    - By organization (glynac_organization_id)
+    - By processing date (processing_date in YYYY-MM-DD format)
+  
+  source_system: salesforce
+  source_topic: sf-stream-cases
+  source_processor: flink
+  update_frequency: realtime
+  
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - account_phone
+    - contact_name
+    - contact_email
+    - contact_phone
+    - owner_email
+  
+  retention_days: 730
+  
+  schema_version: "1.0"
+  last_schema_change: "2025-10-18"
+  schema_changelog:
+    - version: "1.0"
+      date: "2025-10-18"
+      changes: "Initial schema based on Flink ORC output"
+      author: "data-engineering-team"
+  
+  tags:
+    - salesforce
+    - cases
+    - support
+    - bronze
+    - raw
+    - pii
+    - realtime

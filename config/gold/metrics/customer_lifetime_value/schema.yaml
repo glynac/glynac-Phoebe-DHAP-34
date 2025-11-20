@@ -1,0 +1,116 @@
+version: "1.0"
+layer: gold
+category: metrics
+
+database: gold
+table: customer_lifetime_value
+
+metadata:
+  display_name: "Customer Lifetime Value"
+  description: "CLV calculation using SQL preprocessing + Python modeling"
+  owner: "data-engineering"
+  tags: ["metrics", "clv", "hybrid", "customers"]
+  transformation_type: hybrid  # SQL + Python
+  refresh_frequency: "daily"
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_options:
+    version_column: _calculated_at
+  partition_by: toYYYYMM(calculation_date)
+  order_by:
+    - calculation_date
+    - organization_id
+    - customer_id
+
+schema:
+  columns:
+    # Customer identifiers
+    - name: customer_id
+      type: String
+      nullable: false
+    
+    - name: organization_id
+      type: String
+      nullable: false
+    
+    - name: calculation_date
+      type: Date
+      nullable: false
+    
+    # Customer history
+    - name: first_purchase_date
+      type: Date
+      nullable: false
+    
+    - name: last_purchase_date
+      type: Date
+      nullable: false
+    
+    - name: total_orders
+      type: UInt32
+      nullable: false
+    
+    - name: total_revenue
+      type: Float64
+      nullable: false
+    
+    - name: avg_order_value
+      type: Float64
+      nullable: false
+    
+    # RFM metrics
+    - name: recency_days
+      type: UInt32
+      nullable: false
+    
+    - name: frequency
+      type: UInt32
+      nullable: false
+    
+    - name: monetary
+      type: Float64
+      nullable: false
+    
+    - name: customer_lifespan_days
+      type: UInt32
+      nullable: false
+    
+    # Calculated metrics
+    - name: purchase_rate
+      type: Float64
+      nullable: false
+    
+    - name: predicted_clv
+      type: Float64
+      nullable: false
+    
+    # RFM scores
+    - name: recency_score
+      type: UInt8
+      nullable: false
+    
+    - name: frequency_score
+      type: UInt8
+      nullable: false
+    
+    - name: monetary_score
+      type: UInt8
+      nullable: false
+    
+    - name: rfm_score
+      type: UInt8
+      nullable: false
+    
+    - name: customer_segment
+      type: String
+      nullable: false
+    
+    # Metadata
+    - name: _calculated_at
+      type: DateTime
+      nullable: false
+    
+    - name: _execution_date
+      type: String
+      nullable: false

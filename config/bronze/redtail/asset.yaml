@@ -1,0 +1,129 @@
+version: "1.0"
+layer: bronze
+database: redtail
+table: asset
+
+metadata:
+  description: "Raw Redtail asset data with investment positions, cost basis, and performance metrics"
+  owner: "data-engineering-team"
+
+source:
+  type: minio
+  bucket: main-data
+  path: redtail/asset
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    - name: scan_id
+      type: String
+      nullable: false
+    - name: entity_type
+      type: String
+      nullable: false
+    - name: batch_timestamp
+      type: String
+      nullable: false
+    - name: batch_number
+      type: Int32
+      nullable: false
+    - name: batch_offset
+      type: Int64
+      nullable: false
+    - name: message_type
+      type: String
+      nullable: false
+    - name: status
+      type: String
+      nullable: false
+    - name: rec_id
+      type: Int64
+      nullable: false
+    - name: account_id
+      type: Int64
+      nullable: false
+    - name: investment_id
+      type: Int64
+      nullable: false
+    - name: asset_id
+      type: Int64
+      nullable: false
+    - name: quantity
+      type: String
+      nullable: false
+    - name: cost_basis
+      type: String
+      nullable: false
+    - name: cost_basis_per_unit
+      type: String
+      nullable: false
+    - name: current_price
+      type: String
+      nullable: false
+    - name: current_value
+      type: String
+      nullable: false
+    - name: unrealized_gain_loss
+      type: String
+      nullable: false
+    - name: unrealized_gain_loss_percent
+      type: String
+      nullable: false
+    - name: allocation_percent
+      type: String
+      nullable: false
+    - name: target_allocation
+      type: String
+      nullable: false
+    - name: purchase_date
+      type: String
+      nullable: false
+    - name: last_update_date
+      type: String
+      nullable: false
+    - name: is_core_position
+      type: UInt8
+      nullable: false
+    - name: is_active
+      type: UInt8
+      nullable: false
+    - name: rec_add
+      type: String
+      nullable: false
+    - name: rec_add_user
+      type: Int64
+      nullable: false
+    - name: rec_edit
+      type: String
+      nullable: false
+    - name: rec_edit_user
+      type: Int64
+      nullable: false
+    - name: investment_data
+      type: String
+      nullable: false
+    - name: notes
+      type: String
+      nullable: false
+    - name: processing_timestamp
+      type: String
+      nullable: false
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{table}"
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"

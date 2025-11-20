@@ -1,0 +1,101 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.SALESFORCE_USER
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(user_id IS NULL) as null_user_id,
+        countIf(username IS NULL) as null_username,
+        countIf(email IS NULL) as null_email,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM silver.salesforce_user
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_user_id: 0
+      null_username: 0
+      null_email: 0
+      null_processing_date: 0
+  
+  - name: user_id_unique_per_partition
+    type: uniqueness
+    description: "user_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT user_id, processing_date, count() as cnt
+      FROM silver.salesforce_user
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY user_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_users_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver users should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_users
+      FROM silver.salesforce_user s
+      LEFT JOIN salesforce.user_raw b
+        ON s.user_id = b.user_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.user_id IS NULL
+    expect:
+      orphaned_users: 0
+  
+
+  - name: valid_status_values
+    type: accepted_values
+    description: "status must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.salesforce_user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status NOT IN ('active', 'inactive', 'unknown')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_is_active_values
+    type: accepted_values
+    description: "is_active must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.salesforce_user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: email_format_valid
+    type: assertion
+    description: "Email should contain @ symbol"
+    severity: warning
+    query: |
+      SELECT count() as invalid_email_count
+      FROM silver.salesforce_user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND email NOT LIKE '%@%'
+    expect:
+      invalid_email_count: 0
+
+  - name: user_age_reasonable
+    type: assertion
+    description: "User age should be reasonable (>= 0 and < 10000 days)"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.salesforce_user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (user_age_days < 0 OR user_age_days > 10000)
+    expect:
+      invalid_count: 0
+  

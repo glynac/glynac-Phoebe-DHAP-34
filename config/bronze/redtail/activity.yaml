@@ -1,0 +1,98 @@
+version: "1.0"
+layer: bronze
+database: redtail
+table: activity
+
+metadata:
+  description: "Raw Redtail activity data from MinIO"
+  owner: data-engineering
+
+source:
+  type: minio
+  bucket: main-data
+  path: redtail/activity
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    - name: scan_id
+      type: String
+    - name: glynac_organization_id
+      type: String
+    - name: entity_type
+      type: String
+    - name: batch_timestamp
+      type: String
+    - name: batch_number
+      type: Int32
+    - name: batch_offset
+      type: Int64
+    - name: message_type
+      type: String
+    - name: batch_status
+      type: String
+    - name: activity_id
+      type: Int32
+    - name: rec_id
+      type: Int32
+    - name: activity_type
+      type: String
+    - name: category
+      type: String
+    - name: subcategory
+      type: String
+    - name: subject
+      type: String
+    - name: description
+      type: String
+    - name: contact_id
+      type: Int32
+    - name: owner_id
+      type: Int32
+    - name: activity_status
+      type: String
+    - name: priority
+      type: String
+    - name: activity_date
+      type: String
+    - name: duration_minutes
+      type: Int32
+    - name: outcome
+      type: String
+    - name: location
+      type: String
+    - name: tags
+      type: String
+    - name: follow_up_required
+      type: UInt8
+    - name: follow_up_date
+      type: String
+    - name: notes
+      type: String
+    - name: rec_add
+      type: String
+    - name: rec_edit
+      type: String
+    - name: processing_timestamp
+      type: String
+    - name: processing_date
+      type: Date
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{table}"
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"

@@ -1,0 +1,120 @@
+version: "1.0"
+layer: bronze
+database: redtail
+table: call
+
+metadata:
+  description: "Raw Redtail call records from CRM system"
+  owner: data-engineering
+
+source:
+  type: minio
+  bucket: main-data
+  path: redtail/call
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    - name: scan_id
+      type: String
+      nullable: false
+    - name: entity_type
+      type: String
+      nullable: false
+    - name: batch_timestamp
+      type: String
+      nullable: false
+    - name: batch_number
+      type: Int32
+      nullable: false
+    - name: batch_size
+      type: Int32
+      nullable: false
+    - name: message_status
+      type: String
+      nullable: false
+    - name: call_id
+      type: Int32
+      nullable: false
+    - name: rec_id
+      type: Int32
+      nullable: false
+    - name: call_type
+      type: String
+      nullable: false
+    - name: call_status
+      type: String
+      nullable: false
+    - name: phone_number
+      type: String
+      nullable: true
+    - name: contact_id
+      type: Int32
+      nullable: false
+    - name: user_id
+      type: Int32
+      nullable: false
+    - name: call_date
+      type: String
+      nullable: true
+    - name: call_time
+      type: String
+      nullable: true
+    - name: duration_seconds
+      type: Int32
+      nullable: false
+    - name: duration_minutes
+      type: Int32
+      nullable: false
+    - name: subject
+      type: String
+      nullable: true
+    - name: notes
+      type: String
+      nullable: true
+    - name: disposition
+      type: String
+      nullable: true
+    - name: outcome
+      type: String
+      nullable: true
+    - name: follow_up_required
+      type: UInt8
+      nullable: false
+    - name: follow_up_date
+      type: String
+      nullable: true
+    - name: has_recording
+      type: UInt8
+      nullable: false
+    - name: recording_url
+      type: String
+      nullable: true
+    - name: rec_add
+      type: String
+      nullable: true
+    - name: rec_edit
+      type: String
+      nullable: true
+    - name: processing_timestamp
+      type: String
+      nullable: false
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{table}"
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"

@@ -1,0 +1,356 @@
+version: "1.0"
+layer: bronze
+database: salesforce
+table: contact_raw
+
+source:
+  type: minio
+  bucket: main-data
+  path: salesforce/contact
+  format: orc
+  file_pattern: "part-*"
+  partitions:
+    - name: glynac_organization_id
+      type: String
+      description: "Organization identifier"
+      required: true
+    - name: processing_date
+      type: Date
+      description: "Date when data was processed (YYYY-MM-DD format)"
+      required: true
+
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+    input_format_orc_import_nested: 1
+    input_format_orc_skip_columns_with_unsupported_types_in_schema_inference: 0
+    input_format_orc_row_batch_size: 10000
+
+
+schema:
+  mode: manual
+  columns:
+    - name: scan_id
+      type: String
+      nullable: false
+      description: "Unique identifier for the data extraction scan"
+      example: "scan_20251018_143022"
+      category: metadata
+    - name: service
+      type: String
+      nullable: false
+      description: "Source service identifier"
+      example: "salesforce_contact"
+      category: metadata
+    - name: batch_timestamp
+      type: String
+      nullable: false
+      description: "Timestamp when batch was processed (ISO 8601 format)"
+      example: "2025-10-18T14:30:22.000Z"
+      category: metadata
+    - name: page_number
+      type: Int32
+      nullable: false
+      description: "Page number in paginated data extraction"
+      example: 1
+      category: metadata
+    - name: table_name
+      type: String
+      nullable: false
+      description: "Source table name from Salesforce"
+      example: "salesforce_contacts"
+      category: metadata    
+    - name: contact_id
+      type: String
+      nullable: false
+      description: "Salesforce Contact ID (18-character unique identifier)"
+      example: "003XX000001AbCdEFG"
+      category: data
+      primary_key: true
+    - name: first_name
+      type: String
+      nullable: true
+      description: "Contact's first name"
+      example: "John"
+      category: data
+      pii: true
+    - name: last_name
+      type: String
+      nullable: true
+      description: "Contact's last name"
+      example: "Doe"
+      category: data
+      pii: true
+    - name: full_name
+      type: String
+      nullable: true
+      description: "Contact's full name (first + last)"
+      example: "John Doe"
+      category: data
+      pii: true    
+    - name: email
+      type: String
+      nullable: true
+      description: "Contact's email address"
+      example: "john.doe@company.com"
+      category: data
+      pii: true
+    - name: phone
+      type: String
+      nullable: true
+      description: "Contact's primary phone number"
+      example: "+1-555-123-4567"
+      category: data
+      pii: true
+    - name: mobile_phone
+      type: String
+      nullable: true
+      description: "Contact's mobile phone number"
+      example: "+1-555-987-6543"
+      category: data
+      pii: true
+    - name: title
+      type: String
+      nullable: true
+      description: "Contact's job title"
+      example: "Vice President of Sales"
+      category: data
+    - name: department
+      type: String
+      nullable: true
+      description: "Contact's department"
+      example: "Sales"
+      category: data
+    - name: birthdate
+      type: String
+      nullable: true
+      description: "Contact's birthdate (string format from Salesforce)"
+      example: "1985-03-15"
+      category: data
+      pii: true
+    - name: lead_source
+      type: String
+      nullable: true
+      description: "Source of the lead/contact"
+      example: "Web, Trade Show, Partner Referral"
+      category: data
+    - name: account_id
+      type: String
+      nullable: true
+      description: "Associated Salesforce Account ID"
+      example: "001XX000003DGb2QAG"
+      category: data
+    - name: account_name
+      type: String
+      nullable: true
+      description: "Associated account name"
+      example: "Acme Corporation"
+      category: data
+    
+    - name: mailing_street
+      type: String
+      nullable: true
+      description: "Mailing street address"
+      example: "123 Main Street, Suite 100"
+      category: data
+      pii: true
+      
+    - name: mailing_city
+      type: String
+      nullable: true
+      description: "Mailing city"
+      example: "San Francisco"
+      category: data
+      pii: true
+      
+    - name: mailing_state
+      type: String
+      nullable: true
+      description: "Mailing state/province"
+      example: "CA"
+      category: data
+      pii: true
+      
+    - name: mailing_postal_code
+      type: String
+      nullable: true
+      description: "Mailing postal/ZIP code"
+      example: "94105"
+      category: data
+      pii: true
+      
+    - name: mailing_country
+      type: String
+      nullable: true
+      description: "Mailing country"
+      example: "United States"
+      category: data
+      pii: true
+    
+    - name: owner_id
+      type: String
+      nullable: true
+      description: "Salesforce user ID of contact owner"
+      example: "005XX000001AbCdEFG"
+      category: data
+      
+    - name: created_date
+      type: String
+      nullable: true
+      description: "Contact creation timestamp (ISO 8601 string format from Salesforce)"
+      example: "2023-01-15T10:30:00.000Z"
+      category: data
+      
+    - name: last_modified_date
+      type: String
+      nullable: true
+      description: "Last modification timestamp (ISO 8601 string format from Salesforce)"
+      example: "2025-10-18T14:20:00.000Z"
+      category: data    
+    - name: extracted_at
+      type: String
+      nullable: true
+      description: "Timestamp when data was extracted from Salesforce API"
+      example: "2025-10-18T14:30:00.000Z"
+      category: metadata
+      
+    - name: source_service
+      type: String
+      nullable: false
+      description: "Source system identifier"
+      example: "salesforce"
+      category: metadata
+      
+    - name: processing_timestamp
+      type: String
+      nullable: false
+      description: "Flink processing timestamp when record was written to MinIO"
+      example: "2025-10-18T14:30:22.123Z"
+      category: metadata
+  
+  # Schema validation rules
+  validation:
+    enabled: true
+    on_mismatch: fail
+    allow_extra_columns: true     
+    allow_missing_columns: false   
+    
+    required_columns:
+      - scan_id
+      - contact_id
+      - glynac_organization_id
+      - processing_date
+      - processing_timestamp
+
+validation:
+  enabled: true
+  
+  checks:
+    - name: table_not_empty
+      description: "Table should have at least one row"
+      query: "SELECT count() > 0 FROM {database}.{table}"
+      severity: warning
+      
+    - name: has_recent_data
+      description: "Should have data from last 7 days"
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"
+      severity: warning
+      
+    - name: no_null_contact_ids
+      description: "contact_id should never be null"
+      query: "SELECT countIf(contact_id IS NULL OR contact_id = '') as null_count FROM {database}.{table}"
+      expect:
+        null_count: 0
+      severity: error
+      
+    - name: valid_email_format
+      description: "Emails should contain @ symbol (basic validation)"
+      query: |
+        SELECT countIf(email != '' AND position(email, '@') = 0) as invalid_emails 
+        FROM {database}.{table}
+      expect:
+        invalid_emails: 0
+      severity: warning
+      
+    - name: check_partition_distribution
+      description: "Check data is properly distributed across partitions"
+      query: |
+        SELECT 
+          count(DISTINCT concat(glynac_organization_id, '-', processing_date)) as partition_count
+        FROM {database}.{table}
+      severity: info
+      
+    - name: check_name_completeness
+      description: "At least one name field (first, last, or full) should be present"
+      query: |
+        SELECT 
+          countIf(
+            (first_name IS NULL OR first_name = '') AND 
+            (last_name IS NULL OR last_name = '') AND 
+            (full_name IS NULL OR full_name = '')
+          ) as no_name_count
+        FROM {database}.{table}
+      expect:
+        no_name_count: 0
+      severity: warning
+
+
+metadata:
+  display_name: "Salesforce Contacts (Raw)"
+  owner: data-engineering-team
+  
+  description: |
+    Raw Salesforce contact data loaded from ORC files in MinIO.
+    
+    No transformations applied - data exactly as produced by Flink.
+    All type conversions and cleaning happen in Silver layer.
+    
+    Partitioning:
+    - By organization (glynac_organization_id)
+    - By processing date (processing_date in YYYY-MM-DD format)
+
+  
+  source_system: salesforce
+  source_topic: sf-stream-contacts
+  source_processor: flink
+  update_frequency: realtime
+  
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - first_name
+    - last_name
+    - full_name
+    - email
+    - phone
+    - mobile_phone
+    - birthdate
+    - mailing_street
+    - mailing_city
+    - mailing_state
+    - mailing_postal_code
+    - mailing_country
+  
+  retention_days: 730  # 2 years
+  
+  # Schema versioning
+  schema_version: "1.0"
+  last_schema_change: "2025-10-18"
+  schema_changelog:
+    - version: "1.0"
+      date: "2025-10-18"
+      changes: "Initial schema based on Flink ORC output for contact data"
+      author: "data-engineering-team"
+  
+  tags:
+    - salesforce
+    - contacts
+    - crm
+    - bronze
+    - raw
+    - pii
+    - sensitive
+    - realtime
+  

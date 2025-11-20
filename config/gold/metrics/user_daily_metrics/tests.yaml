@@ -1,0 +1,14 @@
+tests:
+  # Data presence
+  - name: not_empty
+    description: "Table should not be empty"
+    query: "SELECT COUNT(*) > 0 FROM {database}.{table}"
+    expected: true
+    severity: critical
+  
+  # Metric validity
+  - name: total_users_positive
+    description: "Total users should be positive"
+    query: "SELECT MIN(total_users) > 0 FROM {database}.{table}"
+    expected: true
+    severity: warning

@@ -1,0 +1,359 @@
+version: "1.0"
+layer: bronze
+database: salesforce
+table: opportunity_raw
+
+
+source:
+  type: minio
+  bucket: main-data
+  path: salesforce/opportunity
+  format: orc
+  file_pattern: "part-*"
+  partitions:
+    - name: glynac_organization_id
+      type: String
+      description: "Organization identifier"
+      required: true
+      
+    - name: processing_date
+      type: Date
+      description: "Date when data was processed (YYYY-MM-DD format)"
+      required: true
+
+
+clickhouse:
+  engine: S3
+  
+  settings:
+    input_format_orc_allow_missing_columns: 1
+    input_format_orc_import_nested: 1
+    input_format_orc_skip_columns_with_unsupported_types_in_schema_inference: 0
+    input_format_orc_row_batch_size: 10000
+
+
+schema:
+  mode: manual
+  
+  columns:
+    # =========== SOURCE METADATA ===========
+    - name: scan_id
+      type: String
+      nullable: false
+      description: "Unique identifier for the data extraction scan"
+      example: "scan_20251018_143022"
+      category: metadata
+      
+    - name: service
+      type: String
+      nullable: false
+      description: "Source service identifier"
+      example: "salesforce_opportunity"
+      category: metadata
+      
+    - name: batch_timestamp
+      type: String
+      nullable: false
+      description: "Timestamp when batch was processed (ISO 8601 format)"
+      example: "2025-10-18T14:30:22.000Z"
+      category: metadata
+      
+    - name: page_number
+      type: Int32
+      nullable: false
+      description: "Page number in paginated data extraction"
+      example: 1
+      category: metadata
+      
+    - name: table_name
+      type: String
+      nullable: false
+      description: "Source table name from Salesforce"
+      example: "salesforce_opportunities"
+      category: metadata
+    
+    # =========== OPPORTUNITY CORE DATA ===========
+    - name: opportunity_id
+      type: String
+      nullable: false
+      description: "Salesforce Opportunity ID (18-character unique identifier)"
+      example: "006XX000001AbCdEFG"
+      category: data
+      primary_key: true
+      
+    - name: opportunity_name
+      type: String
+      nullable: false
+      description: "Opportunity name or deal title"
+      example: "Acme Corp - 1000 Licenses"
+      category: data
+      
+    - name: amount
+      type: Float64
+      nullable: true
+      description: "Opportunity amount in USD"
+      example: 150000.50
+      category: data
+      unit: USD
+      
+    - name: close_date
+      type: String
+      nullable: true
+      description: "Expected or actual close date (ISO 8601 string from Salesforce)"
+      example: "2025-12-31"
+      category: data
+      
+    - name: stage_name
+      type: String
+      nullable: false
+      description: "Current sales stage of the opportunity"
+      example: "Prospecting"
+      category: data
+      allowed_values:
+        - "Prospecting"
+        - "Qualification"
+        - "Needs Analysis"
+        - "Value Proposition"
+        - "Proposal/Price Quote"
+        - "Negotiation/Review"
+        - "Closed Won"
+        - "Closed Lost"
+      
+    - name: probability
+      type: Float64
+      nullable: true
+      description: "Probability of winning (0-100 percentage)"
+      example: 75.0
+      category: data
+      unit: percentage
+      
+    - name: opportunity_type
+      type: String
+      nullable: true
+      description: "Type of opportunity (New Business, Renewal, Upsell, etc.)"
+      example: "New Business"
+      category: data
+      
+    - name: lead_source
+      type: String
+      nullable: true
+      description: "Source of the lead/opportunity"
+      example: "Web"
+      category: data
+    
+    # =========== OPPORTUNITY STATUS FLAGS ===========
+    - name: is_closed
+      type: UInt8
+      nullable: false
+      description: "Whether opportunity is closed (1=closed, 0=open)"
+      example: 0
+      category: data
+      allowed_values: [0, 1]
+      
+    - name: is_won
+      type: UInt8
+      nullable: false
+      description: "Whether opportunity was won (1=won, 0=lost/open)"
+      example: 1
+      category: data
+      allowed_values: [0, 1]
+    
+    # =========== RELATIONSHIP DATA ===========
+    - name: account_id
+      type: String
+      nullable: true
+      description: "Related Salesforce Account ID"
+      example: "001XX000003DGb2QAG"
+      category: relationship
+      
+    - name: account_name
+      type: String
+      nullable: true
+      description: "Related account name (denormalized from Account object)"
+      example: "Acme Corporation"
+      category: relationship
+      
+    - name: owner_id
+      type: String
+      nullable: true
+      description: "Salesforce User ID of opportunity owner (sales rep)"
+      example: "005XX000001AbCdEFG"
+      category: relationship
+      
+    - name: owner_name
+      type: String
+      nullable: true
+      description: "Name of opportunity owner (denormalized from User object)"
+      example: "John Doe"
+      category: relationship
+    
+    # =========== AUDIT TIMESTAMPS ===========
+    - name: created_date
+      type: String
+      nullable: true
+      description: "Opportunity creation timestamp (ISO 8601 string from Salesforce)"
+      example: "2025-01-15T10:30:00.000Z"
+      category: data
+      
+    - name: last_modified_date
+      type: String
+      nullable: true
+      description: "Last modification timestamp (ISO 8601 string from Salesforce)"
+      example: "2025-10-18T14:20:00.000Z"
+      category: data
+    
+    # =========== EXTRACTION METADATA ===========
+    - name: extracted_at
+      type: String
+      nullable: true
+      description: "Timestamp when data was extracted from Salesforce API"
+      example: "2025-10-18T14:30:00.000Z"
+      category: metadata
+      
+    - name: source_service
+      type: String
+      nullable: false
+      description: "Source system identifier"
+      example: "salesforce"
+      category: metadata
+      
+    - name: processing_timestamp
+      type: String
+      nullable: false
+      description: "Flink processing timestamp when record was written to MinIO"
+      example: "2025-10-18T14:30:22.123Z"
+      category: metadata
+  
+  # Schema validation rules
+  validation:
+    enabled: true
+    on_mismatch: fail
+    allow_extra_columns: true
+    allow_missing_columns: false
+    
+    # Critical columns that MUST exist
+    required_columns:
+      - scan_id
+      - opportunity_id
+      - opportunity_name
+      - stage_name
+      - glynac_organization_id
+      - processing_date
+      - processing_timestamp
+
+
+validation:
+  enabled: true
+  
+  checks:
+    - name: table_not_empty
+      description: "Table should have at least one row"
+      query: "SELECT count() > 0 FROM {database}.{table}"
+      severity: warning
+      
+    - name: has_recent_data
+      description: "Should have data from last 7 days"
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"
+      severity: warning
+      
+    - name: no_null_opportunity_ids
+      description: "opportunity_id should never be null or empty"
+      query: "SELECT countIf(opportunity_id IS NULL OR opportunity_id = '' OR opportunity_id = 'NONE') as null_count FROM {database}.{table}"
+      expect:
+        null_count: 0
+      severity: error
+      
+    - name: valid_is_closed_values
+      description: "is_closed should only be 0 or 1"
+      query: "SELECT countIf(is_closed NOT IN (0, 1)) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: error
+      
+    - name: valid_is_won_values
+      description: "is_won should only be 0 or 1"
+      query: "SELECT countIf(is_won NOT IN (0, 1)) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: error
+      
+    - name: amount_non_negative
+      description: "Opportunity amount should not be negative"
+      query: "SELECT countIf(amount < 0) as negative_count FROM {database}.{table}"
+      expect:
+        negative_count: 0
+      severity: warning
+      
+    - name: probability_in_range
+      description: "Probability should be between 0 and 100"
+      query: "SELECT countIf(probability < 0 OR probability > 100) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: warning
+      
+    - name: closed_won_logic
+      description: "If is_won=1, then is_closed must also be 1"
+      query: "SELECT countIf(is_won = 1 AND is_closed = 0) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: warning
+      
+    - name: check_partition_distribution
+      description: "Check data is properly distributed across partitions"
+      query: |
+        SELECT 
+          count(DISTINCT concat(glynac_organization_id, '-', processing_date)) as partition_count
+        FROM {database}.{table}
+      severity: info
+
+
+metadata:
+  display_name: "Salesforce Opportunities (Raw)"
+  owner: data-engineering-team
+  
+  description: |
+    Raw Salesforce opportunity (sales deal) data loaded from ORC files in MinIO.
+  
+    No transformations applied - data exactly as produced by Flink.
+    All type conversions and cleaning happen in Silver layer.
+    
+    Partitioning:
+    - By organization (glynac_organization_id)
+    - By processing date (processing_date in YYYY-MM-DD format)
+  
+  source_system: salesforce
+  source_object: Opportunity
+  source_topic: sf-stream-opportunities
+  source_processor: flink
+  update_frequency: realtime
+  
+  data_classification: confidential
+  contains_pii: false 
+  
+  business_critical: true
+  sla_hours: 2 
+  
+  retention_days: 2555 
+  
+  # Schema versioning
+  schema_version: "1.0"
+  last_schema_change: "2025-10-18"
+  schema_changelog:
+    - version: "1.0"
+      date: "2025-10-18"
+      changes: "Initial schema based on Flink ORC output with denormalized Account and Owner data"
+      author: "data-engineering-team"
+  
+  tags:
+    - salesforce
+    - opportunities
+    - sales
+    - bronze
+    - raw
+    - realtime
+    - financial
+  
+  # Related tables
+  related_tables:
+    - salesforce.account_raw  
+    - salesforce.user_raw     

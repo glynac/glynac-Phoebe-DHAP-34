@@ -1,0 +1,335 @@
+# ============================================================
+# BRONZE LAYER: REDTAIL ACCOUNT
+# Raw data from Redtail CRM accounts stored in MinIO
+# ============================================================
+version: "1.0"
+layer: bronze
+database: redtail
+table: account_raw
+
+source:
+  type: minio
+  bucket: main-data
+  path: redtail/account
+  format: orc
+  
+  # Hive-style partitions from Flink
+  partitions:
+    - name: glynac_organization_id
+      type: String
+      required: true
+      description: "Organization identifier for data isolation"
+      
+    - name: processing_date
+      type: Date
+      required: true
+      description: "Date when data was processed (YYYY-MM-DD format)"
+
+clickhouse:
+  engine: S3
+  
+  settings:
+    input_format_orc_allow_missing_columns: 1
+    input_format_orc_import_nested: 1
+    input_format_orc_case_insensitive_column_matching: 1
+    input_format_orc_skip_columns_with_unsupported_types_in_schema_inference: 0
+
+
+schema:
+  mode: manual
+  
+  columns:
+
+    - name: scan_id
+      type: String
+      nullable: false
+      description: "Unique identifier for this scan/batch run"
+      source: orc
+      
+    - name: entity_type
+      type: String
+      nullable: false
+      description: "Entity type (always 'account' for this table)"
+      source: orc
+      
+    - name: batch_timestamp
+      type: String
+      nullable: false
+      description: "Timestamp when batch was processed (ISO 8601 format)"
+      source: orc
+      
+    - name: batch_number
+      type: Int32
+      nullable: false
+      description: "Sequential batch number in this scan"
+      source: orc
+      
+    - name: batch_offset
+      type: Int64
+      nullable: false
+      description: "Kafka offset for this batch"
+      source: orc
+      
+    - name: status
+      type: String
+      nullable: false
+      description: "Batch processing status"
+      source: orc
+      
+    - name: message_type
+      type: String
+      nullable: false
+      description: "Type of message (typically 'batch_data')"
+      source: orc
+
+    - name: rec_id
+      type: Int32
+      nullable: false
+      description: "Redtail internal record ID"
+      source: orc
+      
+    - name: account_id
+      type: Int32
+      nullable: false
+      description: "Primary account identifier from Redtail"
+      source: orc
+      
+    - name: account_number
+      type: String
+      nullable: true
+      description: "External account number (may be empty)"
+      source: orc
+    
+
+    - name: account_name
+      type: String
+      nullable: true
+      description: "Display name of the account"
+      source: orc
+      
+    - name: account_type
+      type: String
+      nullable: true
+      description: "Type/category of account (e.g., 'Checking', 'Savings', 'Investment')"
+      source: orc
+      
+    - name: account_status
+      type: String
+      nullable: true
+      description: "Current status of the account (e.g., 'Active', 'Closed')"
+      source: orc
+      
+    - name: description
+      type: String
+      nullable: true
+      description: "Additional account description or notes"
+      source: orc
+    
+
+    - name: institution_name
+      type: String
+      nullable: true
+      description: "Name of the financial institution"
+      source: orc
+      
+    - name: institution_type
+      type: String
+      nullable: true
+      description: "Type of institution (e.g., 'Bank', 'Brokerage')"
+      source: orc
+    
+    - name: contact_id
+      type: Int32
+      nullable: true
+      description: "Foreign key to contact/client record"
+      source: orc
+      
+    - name: portfolio_id
+      type: Int32
+      nullable: true
+      description: "Foreign key to portfolio record"
+      source: orc
+      
+    - name: contact_data
+      type: String
+      nullable: true
+      description: "Serialized contact information (JSON)"
+      source: orc
+      
+    - name: portfolio_data
+      type: String
+      nullable: true
+      description: "Serialized portfolio information (JSON)"
+      source: orc
+      
+    - name: account_assets_data
+      type: String
+      nullable: true
+      description: "Serialized account assets information (JSON)"
+      source: orc
+      
+    - name: account_assets_count
+      type: Int32
+      nullable: true
+      description: "Number of assets in this account"
+      source: orc
+    
+    - name: current_balance
+      type: String
+      nullable: true
+      description: "Current account balance (stored as string, convert in Silver)"
+      source: orc
+      
+    - name: available_balance
+      type: String
+      nullable: true
+      description: "Available balance (stored as string, convert in Silver)"
+      source: orc
+      
+    - name: currency
+      type: String
+      nullable: true
+      description: "Currency code (e.g., 'USD', 'EUR')"
+      source: orc
+    
+    - name: open_date
+      type: String
+      nullable: true
+      description: "Date when account was opened (parse in Silver layer)"
+      source: orc
+    
+    - name: tags
+      type: String
+      nullable: true
+      description: "Comma-separated tags for categorization"
+      source: orc
+      
+    - name: is_active
+      type: UInt8
+      nullable: false
+      description: "Whether account is currently active (1=active, 0=inactive)"
+      source: orc
+    
+    - name: rec_add
+      type: String
+      nullable: true
+      description: "Timestamp when record was added in Redtail"
+      source: orc
+      
+    - name: rec_add_user
+      type: Int32
+      nullable: true
+      description: "User ID who added the record"
+      source: orc
+      
+    - name: rec_edit
+      type: String
+      nullable: true
+      description: "Timestamp when record was last edited in Redtail"
+      source: orc
+      
+    - name: rec_edit_user
+      type: Int32
+      nullable: true
+      description: "User ID who last edited the record"
+      source: orc
+
+    - name: processing_timestamp
+      type: String
+      nullable: false
+      description: "Timestamp when Flink processed this record"
+      source: orc
+  
+  validation:
+    enabled: true
+    on_mismatch: fail
+    allow_extra_columns: true     
+    allow_missing_columns: false  
+
+
+validation:
+  enabled: true
+  
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{table}"
+      description: "Table should contain at least one row"
+      severity: error
+      
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"
+      description: "Data should be fresher than 7 days"
+      severity: warning
+      
+    - name: required_columns_not_null
+      query: |
+        SELECT 
+          countIf(scan_id = '') as empty_scan_ids,
+          countIf(account_id = 0) as zero_account_ids,
+          countIf(glynac_organization_id = '') as empty_org_ids
+        FROM {database}.{table}
+        WHERE empty_scan_ids = 0 
+          AND zero_account_ids = 0 
+          AND empty_org_ids = 0
+      description: "Critical fields should not be empty/zero"
+      severity: error
+      
+    - name: valid_partitions
+      query: |
+        SELECT count(DISTINCT glynac_organization_id) > 0 
+        FROM {database}.{table}
+      description: "Should have at least one organization partition"
+      severity: error
+      
+    - name: boolean_values_valid
+      query: |
+        SELECT count() = 0 
+        FROM {database}.{table} 
+        WHERE is_active NOT IN (0, 1)
+      description: "is_active should only be 0 or 1"
+      severity: error
+      
+    - name: no_duplicate_accounts_per_day
+      query: |
+        SELECT count() = 0 FROM (
+          SELECT account_id, processing_date, count() as cnt
+          FROM {database}.{table}
+          GROUP BY account_id, processing_date
+          HAVING cnt > 1
+        )
+      description: "Should not have duplicate account_id per processing_date"
+      severity: warning
+
+metadata:
+  display_name: "Redtail CRM Accounts (Raw)"
+  
+  description: |
+    Raw account data from Redtail CRM, ingested via Kafka and processed by Flink.
+  
+  owner: data-engineering
+  team: data-platform
+  
+  source_system: redtail-crm
+  source_type: kafka-stream
+  ingestion_tool: flink
+  
+  data_classification: confidential
+  contains_pii: true
+  pii_fields:
+    - account_number
+    - account_name
+    - contact_data
+    - current_balance
+    - available_balance
+  
+  refresh_frequency: real-time
+  sla: 15m
+    
+  tags:
+    - redtail
+    - crm
+    - accounts
+    - financial
+    - bronze
+    - raw
+  

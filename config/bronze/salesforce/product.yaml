@@ -1,0 +1,387 @@
+version: "1.0"
+layer: bronze
+database: salesforce
+table: product_raw
+
+
+source:
+  type: minio
+  bucket: main-data
+  path: salesforce/product
+  format: orc
+  file_pattern: "part-*"
+  partitions:
+    - name: glynac_organization_id
+      type: String
+      description: "Organization identifier"
+      required: true
+      
+    - name: processing_date
+      type: Date
+      description: "Date when data was processed (YYYY-MM-DD format)"
+      required: true
+
+
+clickhouse:
+  engine: S3
+  
+  settings:
+    input_format_orc_allow_missing_columns: 1
+    input_format_orc_import_nested: 1
+    input_format_orc_skip_columns_with_unsupported_types_in_schema_inference: 0
+    input_format_orc_row_batch_size: 10000
+
+
+schema:
+  mode: manual
+  
+  # Define all columns from Flink ORC output
+  columns:
+    # =========== SOURCE METADATA ===========
+    - name: scan_id
+      type: String
+      nullable: false
+      description: "Unique identifier for the data extraction scan"
+      example: "scan_20251018_143022"
+      category: metadata
+      
+    - name: service
+      type: String
+      nullable: false
+      description: "Source service identifier"
+      example: "salesforce_product"
+      category: metadata
+      
+    - name: batch_timestamp
+      type: String
+      nullable: false
+      description: "Timestamp when batch was processed (ISO 8601 format)"
+      example: "2025-10-18T14:30:22.000Z"
+      category: metadata
+      
+    - name: page_number
+      type: Int32
+      nullable: false
+      description: "Page number in paginated data extraction"
+      example: 1
+      category: metadata
+      
+    - name: table_name
+      type: String
+      nullable: false
+      description: "Source table name from Salesforce"
+      example: "salesforce_products"
+      category: metadata
+    
+    # =========== PRODUCT CORE DATA ===========
+    - name: product_id
+      type: String
+      nullable: false
+      description: "Salesforce Product2 ID (18-character unique identifier)"
+      example: "01tXX000001AbCdEFG"
+      category: data
+      primary_key: true
+      
+    - name: product_name
+      type: String
+      nullable: false
+      description: "Product name or title"
+      example: "Enterprise Software License - 100 Users"
+      category: data
+      searchable: true
+      
+    - name: product_code
+      type: String
+      nullable: true
+      description: "Internal product code or SKU"
+      example: "PROD-SW-ENT-100"
+      category: data
+      searchable: true
+      
+    - name: description
+      type: String
+      nullable: true
+      description: "Detailed product description"
+      example: "Annual subscription for enterprise software with 100 user licenses"
+      category: data
+      
+    - name: family
+      type: String
+      nullable: true
+      description: "Product family or category grouping"
+      example: "Software Licenses"
+      category: data
+      
+    - name: is_active
+      type: UInt8
+      nullable: false
+      description: "Whether product is active and available for sale (1=active, 0=inactive)"
+      example: 1
+      category: data
+      allowed_values: [0, 1]
+    
+    # =========== PRODUCT IDENTIFIERS ===========
+    - name: external_id
+      type: String
+      nullable: true
+      description: "External system identifier (for integration with other systems)"
+      example: "EXT-PROD-12345"
+      category: data
+      
+    - name: display_url
+      type: String
+      nullable: true
+      description: "URL for product display page or image"
+      example: "https://company.com/products/enterprise-license"
+      category: data
+      
+    - name: stock_keeping_unit
+      type: String
+      nullable: true
+      description: "Stock Keeping Unit (SKU) for inventory management"
+      example: "SKU-ENT-SW-100"
+      category: data
+      searchable: true
+      
+    - name: quantity_unit_of_measure
+      type: String
+      nullable: true
+      description: "Unit of measure for quantity (Each, License, Seat, etc.)"
+      example: "License"
+      category: data
+      allowed_values:
+        - "Each"
+        - "License"
+        - "Seat"
+        - "User"
+        - "Subscription"
+        - "Unit"
+    
+    # =========== CUSTOM FIELDS (Salesforce __c fields) ===========
+    - name: type__c
+      type: String
+      nullable: true
+      description: "Custom field: Product type classification"
+      example: "Software"
+      category: custom
+      custom_field: true
+      
+    - name: category__c
+      type: String
+      nullable: true
+      description: "Custom field: Product category"
+      example: "Enterprise Software"
+      category: custom
+      custom_field: true
+      
+    - name: brand__c
+      type: String
+      nullable: true
+      description: "Custom field: Product brand or manufacturer brand"
+      example: "Acme Software Inc"
+      category: custom
+      custom_field: true
+      
+    - name: model__c
+      type: String
+      nullable: true
+      description: "Custom field: Product model number or version"
+      example: "v2.5"
+      category: custom
+      custom_field: true
+      
+    - name: manufacturer__c
+      type: String
+      nullable: true
+      description: "Custom field: Manufacturer or vendor name"
+      example: "Acme Manufacturing"
+      category: custom
+      custom_field: true
+    
+    # =========== AUDIT FIELDS ===========
+    - name: created_by_id
+      type: String
+      nullable: true
+      description: "Salesforce User ID who created this product record"
+      example: "005XX000001AbCdEFG"
+      category: audit
+      
+    - name: last_modified_by_id
+      type: String
+      nullable: true
+      description: "Salesforce User ID who last modified this product record"
+      example: "005XX000001AbCdEFG"
+      category: audit
+      
+    - name: created_date
+      type: String
+      nullable: true
+      description: "Product record creation timestamp (ISO 8601 string from Salesforce)"
+      example: "2023-01-15T10:30:00.000Z"
+      category: audit
+      
+    - name: last_modified_date
+      type: String
+      nullable: true
+      description: "Last modification timestamp (ISO 8601 string from Salesforce)"
+      example: "2025-10-18T14:20:00.000Z"
+      category: audit
+      
+    - name: system_modstamp
+      type: String
+      nullable: true
+      description: "System modification stamp - last time record or related data changed"
+      example: "2025-10-18T14:20:00.000Z"
+      category: audit
+    
+    # =========== EXTRACTION METADATA ===========
+    - name: extracted_at
+      type: String
+      nullable: true
+      description: "Timestamp when data was extracted from Salesforce API"
+      example: "2025-10-18T14:30:00.000Z"
+      category: metadata
+      
+    - name: source_service
+      type: String
+      nullable: false
+      description: "Source system identifier"
+      example: "salesforce"
+      category: metadata
+      
+    - name: processing_timestamp
+      type: String
+      nullable: false
+      description: "Flink processing timestamp when record was written to MinIO"
+      example: "2025-10-18T14:30:22.123Z"
+      category: metadata
+  
+  # Schema validation rules
+  validation:
+    enabled: true
+    on_mismatch: fail
+    allow_extra_columns: true
+    allow_missing_columns: false
+    
+    # Critical columns that MUST exist
+    required_columns:
+      - scan_id
+      - product_id
+      - product_name
+      - is_active
+      - glynac_organization_id
+      - processing_date
+      - processing_timestamp
+
+
+validation:
+  enabled: true
+  
+  checks:
+    - name: table_not_empty
+      description: "Table should have at least one row"
+      query: "SELECT count() > 0 FROM {database}.{table}"
+      severity: warning
+      
+    - name: has_recent_data
+      description: "Should have data from last 7 days"
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{table}"
+      severity: warning
+      
+    - name: no_null_product_ids
+      description: "product_id should never be null or empty"
+      query: "SELECT countIf(product_id IS NULL OR product_id = '' OR product_id = 'NONE') as null_count FROM {database}.{table}"
+      expect:
+        null_count: 0
+      severity: error
+      
+    - name: no_null_product_names
+      description: "product_name should never be null or 'No Name'"
+      query: "SELECT countIf(product_name IS NULL OR product_name = '' OR product_name = 'No Name') as null_count FROM {database}.{table}"
+      expect:
+        null_count: 0
+      severity: warning
+      
+    - name: valid_is_active_values
+      description: "is_active should only be 0 or 1"
+      query: "SELECT countIf(is_active NOT IN (0, 1)) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: error
+      
+    - name: active_products_have_names
+      description: "Active products should have proper names"
+      query: "SELECT countIf(is_active = 1 AND (product_name IS NULL OR product_name = '')) as invalid_count FROM {database}.{table}"
+      expect:
+        invalid_count: 0
+      severity: warning
+      
+    - name: check_partition_distribution
+      description: "Check data is properly distributed across partitions"
+      query: |
+        SELECT 
+          count(DISTINCT concat(glynac_organization_id, '-', processing_date)) as partition_count
+        FROM {database}.{table}
+      severity: info
+    
+    - name: check_product_families
+      description: "Track distinct product families for monitoring"
+      query: |
+        SELECT 
+          count(DISTINCT family) as family_count
+        FROM {database}.{table}
+        WHERE family IS NOT NULL AND family != ''
+      severity: info
+
+
+metadata:
+  display_name: "Salesforce Products (Raw)"
+  owner: data-engineering-team
+  
+  description: |
+    Raw Salesforce product catalog data loaded from ORC files in MinIO.
+    
+    No transformations applied - data exactly as produced by Flink.
+    All type conversions and cleaning happen in Silver layer.
+    
+    Partitioning:
+    - By organization (glynac_organization_id)
+    - By processing date (processing_date in YYYY-MM-DD format)
+  
+  source_system: salesforce
+  source_object: Product2
+  source_topic: sf-stream-products
+  source_processor: flink
+  update_frequency: realtime
+  
+  data_classification: internal
+  contains_pii: false
+  
+  business_critical: true
+  sla_hours: 4 
+  
+  retention_days: 1825  #
+  
+  # Schema versioning
+  schema_version: "1.0"
+  last_schema_change: "2025-10-18"
+  schema_changelog:
+    - version: "1.0"
+      date: "2025-10-18"
+      changes: "Initial schema based on Flink ORC output with custom fields"
+      author: "data-engineering-team"
+      notes: "Includes Salesforce custom fields (__c) for extended product attributes"
+  
+  tags:
+    - salesforce
+    - products
+    - catalog
+    - inventory
+    - bronze
+    - raw
+    - realtime
+  
+  # Related tables
+  related_tables:
+    - salesforce.opportunity_raw     
+    - salesforce.pricebook_entry_raw  
