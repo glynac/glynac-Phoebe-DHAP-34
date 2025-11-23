@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: portfolio_allocation_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail portfolio allocation data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/portfolio_allocation
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -39,40 +40,40 @@ schema:
       type: Int64
     - name: message_type
       type: String
-    - name: batch_status
-      type: String
-    - name: client_id
-      type: Int32
-    - name: contact_id
-      type: Int32
-    - name: client_number
-      type: String
-    - name: client_type
-      type: String
-    - name: client_status
-      type: String
-    - name: service_level
-      type: String
-    - name: risk_profile
-      type: String
-    - name: assets_under_management
-      type: String
-    - name: onboarding_date
-      type: String
-    - name: review_date
-      type: String
-    - name: notes
+    - name: status
       type: String
     - name: rec_id
       type: Int32
-    - name: rec_add
+    - name: portfolio_id
+      type: Int32
+    - name: investment_id
+      type: Int32
+    - name: target_percentage
       type: String
-    - name: rec_edit
+    - name: current_percentage
+      type: String
+    - name: min_percentage
+      type: String
+    - name: max_percentage
+      type: String
+    - name: notes
+      type: String
+    - name: is_core_holding
+      type: Bool
+    - name: is_active
+      type: Bool
+    - name: rec_add
       type: String
     - name: rec_add_user
       type: Int32
+    - name: rec_edit
+      type: String
     - name: rec_edit_user
       type: Int32
+    - name: record_id
+      type: Int32
+    - name: investment_data
+      type: String
     - name: processing_timestamp
       type: String
     - name: processing_date

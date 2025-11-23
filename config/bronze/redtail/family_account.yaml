@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: family_account_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail family account data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/family_account
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -41,27 +42,15 @@ schema:
       type: String
     - name: batch_status
       type: String
-    - name: client_id
+    - name: family_id
       type: Int32
-    - name: contact_id
-      type: Int32
-    - name: client_number
+    - name: family_name
       type: String
-    - name: client_type
+    - name: account_number
       type: String
-    - name: client_status
+    - name: account_status
       type: String
-    - name: service_level
-      type: String
-    - name: risk_profile
-      type: String
-    - name: assets_under_management
-      type: String
-    - name: onboarding_date
-      type: String
-    - name: review_date
-      type: String
-    - name: notes
+    - name: total_value
       type: String
     - name: rec_id
       type: Int32
@@ -73,6 +62,8 @@ schema:
       type: Int32
     - name: rec_edit_user
       type: Int32
+    - name: notes
+      type: String
     - name: processing_timestamp
       type: String
     - name: processing_date

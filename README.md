@@ -1,261 +1,233 @@
 # Airflow DAG Configurations
 
-This repository contains all configuration files for Airflow DAGs in the Glynac data platform. It is part of a multi-repository architecture that separates configuration, code, and generated DAGs.
+This repository contains all configuration files (YAML, SQL) for Airflow DAGs in the Glynac data platform.
 
-## Repository Purpose
+## How It Works
 
-This repository contains ONLY configuration files (YAML and SQL). No Python code or DAG definitions are stored here. DAG files are automatically generated from these configurations by the [airflow-generated-dags](https://github.com/Glynac-AI/airflow-generated-dags) repository using the [airflow-shared-components](https://github.com/Glynac-AI/airflow-shared-components) package.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  airflow-dag-configs                         │
+│  (this repo)                                                 │
+│                                                              │
+│  config/bronze/redtail/call.yaml                            │
+│  config/silver/unified_contacts/dag.yaml                    │
+│  config/gold/dimensions/dim_account/query.sql               │
+│  config/stream-flink/redtail/account/main-processing.sql    │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           │ git push to main
+                           ▼
+              ┌────────────────────────────┐
+              │   GitHub Actions CI/CD     │
+              │   sync-to-minio.yml        │
+              └────────────┬───────────────┘
+                           │
+                           │ mc mirror
+                           ▼
+              ┌────────────────────────────┐
+              │         MinIO              │
+              │   airflow-configs bucket   │
+              └────────────┬───────────────┘
+                           │
+                           │ DAGs read at runtime
+                           ▼
+              ┌────────────────────────────┐
+              │   Airflow DAG Generators   │
+              │   (airflow-generated-dags) │
+              └────────────────────────────┘
+```
 
 ## Directory Structure
 
 ```
 airflow-dag-configs/
 ├── config/
-│   ├── global_config.yaml          # Global Airflow settings (MinIO, ClickHouse, etc.)
-│   ├── monitoring_config.yaml      # Monitoring and alerting configuration
-│   ├── bronze/                     # Bronze layer configs
-│   │   ├── redtail/               # Redtail source configs
-│   │   └── salesforce/            # Salesforce source configs
-│   ├── silver/                     # Silver layer transformation configs
-│   │   └── salesforce_user/       # Example: Salesforce user transformation
-│   │       ├── dag.yaml           # DAG configuration
-│   │       ├── schema.yaml        # Table schema
-│   │       ├── query.sql          # Transformation SQL
-│   │       └── tests.yaml         # Data quality tests
-│   ├── gold/                       # Gold layer analytics configs
-│   │   ├── dimensions/            # Dimension tables
-│   │   └── metrics/               # Metric tables
-│   └── stream-flink/              # Flink streaming SQL jobs
-│       ├── salesforce/            # Salesforce streaming jobs
-│       └── redtail/               # Redtail streaming jobs
-├── tests/                          # Configuration validation tests
-├── .github/workflows/              # CI/CD pipelines
-└── README.md                       # This file
+│   ├── global_config.yaml              # Global settings (MinIO, ClickHouse)
+│   ├── monitoring_config.yaml          # Monitoring configuration
+│   ├── bronze/                         # Bronze layer configs
+│   │   ├── redtail/
+│   │   │   ├── call.yaml
+│   │   │   └── account.yaml
+│   │   └── salesforce/
+│   │       └── contact.yaml
+│   ├── silver/                         # Silver layer configs
+│   │   └── {table_name}/
+│   │       ├── dag.yaml                # DAG configuration
+│   │       ├── schema.yaml             # Table schema
+│   │       └── query.sql               # Transformation SQL
+│   ├── gold/                           # Gold layer configs
+│   │   └── {category}/
+│   │       └── {table_name}/
+│   │           ├── dag.yaml
+│   │           ├── schema.yaml
+│   │           ├── query.sql
+│   │           └── test.yaml           # Data quality tests
+│   └── stream-flink/                   # Flink streaming SQL jobs
+│       └── {source}/
+│           └── {entity}/
+│               └── main-processing.sql
+├── tests/                              # Config validation tests
+└── .github/workflows/
+    ├── validate-configs.yml            # Validate YAML/SQL syntax
+    └── sync-to-minio.yml               # Sync to MinIO bucket
 ```
 
-## Configuration Types
+## Adding New Pipelines
 
-### Bronze Layer
-- **Purpose**: Ingest raw data from sources (Salesforce, Redtail, etc.)
-- **Files**: One YAML per table
-- **Location**: `config/bronze/{source}/{table}.yaml`
-- **Example**: `config/bronze/salesforce/account.yaml`
+### Bronze Layer (Raw Data Ingestion)
 
-### Silver Layer
-- **Purpose**: Transform and clean Bronze data
-- **Files**:
-  - `dag.yaml` - DAG configuration (schedule, dependencies)
-  - `schema.yaml` - Target table schema
-  - `query.sql` - Transformation SQL
-  - `tests.yaml` - Data quality tests
-- **Location**: `config/silver/{table_name}/`
-- **Example**: `config/silver/salesforce_user/`
+Create `config/bronze/{source}/{table}.yaml`:
 
-### Gold Layer
-- **Purpose**: Business-ready analytics tables (dimensions & metrics)
-- **Files**: Same as Silver layer
-- **Location**: `config/gold/{dimensions|metrics}/{table_name}/`
-- **Types**:
-  - **Dimensions**: Slowly changing dimensions (e.g., dim_account, dim_user)
-  - **Metrics**: Aggregated metrics (e.g., user_daily_metrics, revenue_metrics)
-
-### Flink Streaming
-- **Purpose**: Real-time data processing with Flink SQL
-- **Files**: `main-processing.sql` - Flink SQL job definition
-- **Location**: `config/stream-flink/{source}/{table}/main-processing.sql`
-- **Example**: `config/stream-flink/salesforce/account/main-processing.sql`
-
-## Configuration Schema
-
-### Bronze Layer YAML
 ```yaml
-table_name: account
-source_system: salesforce
-object_name: Account
-extraction_mode: incremental  # or: full
-incremental_field: SystemModstamp
-schedule: "0 */6 * * *"
+metadata:
+  description: "Ingest raw data from source"
+  owner: data-team
+
+source:
+  type: s3
+  path: s3://raw-data/{source}/{table}/
+  format: parquet
+
+schema:
+  columns:
+    - name: id
+      type: String
+    - name: created_at
+      type: DateTime
+
+schedule_interval: "@hourly"
 ```
 
-### Silver Layer DAG Configuration
+### Silver Layer (Transformation)
+
+Create `config/silver/{table_name}/` folder with:
+
+**dag.yaml**:
 ```yaml
-table_name: salesforce_user
-source_tables:
-  - bronze_salesforce_user
-schedule: "0 1 * * *"
-depends_on: []
-tags:
-  - silver
-  - salesforce
+dag:
+  description: "Transform raw data"
+  schedule_interval: "@daily"
+  owner: data-team
+
+dependencies:
+  - bronze_source_table
 ```
 
-### Silver Layer Schema
+**schema.yaml**:
 ```yaml
+table_name: my_silver_table
+database: silver
+engine: MergeTree()
+order_by: [id, created_at]
+
 columns:
-  - name: user_id
+  - name: id
     type: String
-    description: Unique user identifier
-  - name: email
+  - name: name
     type: String
-    description: User email address
-  - name: created_date
+  - name: created_at
     type: DateTime
-    description: User creation timestamp
 ```
 
-### Silver Layer Transformation SQL
+**query.sql**:
 ```sql
 SELECT
-    Id as user_id,
-    Email as email,
-    CreatedDate as created_date,
-    LastModifiedDate as last_modified_date
-FROM bronze.salesforce_user
-WHERE is_deleted = false
+    id,
+    COALESCE(name, 'Unknown') AS name,
+    created_at
+FROM bronze.source_table
+WHERE created_at >= '{{ ds }}'
 ```
 
-## Making Changes
+### Gold Layer (Analytics)
 
-### For Data Analysts
+Create `config/gold/{category}/{table_name}/` folder with same structure as silver.
 
-1. **Clone the repository**:
-   ```bash
-   git clone git@github-glynac:Glynac-AI/airflow-dag-configs.git
-   cd airflow-dag-configs
-   ```
+### Flink Streaming Jobs
 
-2. **Create a new branch**:
-   ```bash
-   git checkout -b feature/add-new-metric
-   ```
+Create `config/stream-flink/{source}/{entity}/main-processing.sql`:
 
-3. **Make your changes**:
-   - Edit existing configs or create new ones
-   - Follow the directory structure conventions
-   - Ensure YAML syntax is valid
+```sql
+-- Kafka source table
+CREATE TABLE source_kafka (
+    id STRING,
+    data STRING,
+    event_time TIMESTAMP(3)
+) WITH (
+    'connector' = 'kafka',
+    'topic' = 'my-topic',
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
+    'format' = 'json'
+);
 
-4. **Test locally** (optional):
-   ```bash
-   cd tests
-   pip install -r requirements.txt
-   pytest -v
-   ```
+-- MinIO sink table
+CREATE TABLE sink_s3 (
+    id STRING,
+    data STRING,
+    event_time TIMESTAMP(3)
+) WITH (
+    'connector' = 'filesystem',
+    'path' = '{{MINIO_S3_ENDPOINT}}/processed/',
+    'format' = 'parquet'
+);
 
-5. **Commit and push**:
-   ```bash
-   git add .
-   git commit -m "Add new metric: customer_lifetime_value"
-   git push origin feature/add-new-metric
-   ```
+-- Insert statement
+INSERT INTO sink_s3
+SELECT * FROM source_kafka;
+```
 
-6. **Create a Pull Request**:
-   - Go to GitHub and create a PR
-   - CI/CD will automatically validate your configs
-   - Once approved and merged, DAGs will be auto-generated
+## CI/CD Workflows
 
-### Adding a New Bronze Table
+### validate-configs.yml
+- Validates YAML syntax
+- Validates SQL syntax
+- Runs on all PRs
 
-1. Create a new YAML file in `config/bronze/{source}/`:
-   ```yaml
-   table_name: my_new_table
-   source_system: salesforce
-   object_name: MyObject__c
-   extraction_mode: incremental
-   incremental_field: LastModifiedDate
-   schedule: "0 */4 * * *"
-   ```
+### sync-to-minio.yml
+- Syncs `config/` folder to MinIO bucket
+- Runs on push to `main` branch
+- Uses `mc mirror` command
 
-2. Commit and push - that's it! The DAG will be auto-generated.
+## GitHub Secrets Required
 
-### Adding a New Silver Table
+Set these in repository settings:
 
-1. Create a directory: `config/silver/my_new_table/`
-2. Add four files:
-   - `dag.yaml` - DAG configuration
-   - `schema.yaml` - Table schema
-   - `query.sql` - Transformation SQL
-   - `tests.yaml` - Data quality tests
-3. Commit and push - the DAG will be auto-generated.
+| Secret | Description |
+|--------|-------------|
+| `MINIO_ENDPOINT` | MinIO endpoint URL (e.g., `http://146.190.97.129:9000`) |
+| `MINIO_ACCESS_KEY` | MinIO access key |
+| `MINIO_SECRET_KEY` | MinIO secret key |
+| `MINIO_CONFIG_BUCKET` | Bucket name (default: `airflow-configs`) |
 
-### Adding a New Gold Metric
+## Local Testing
 
-1. Create a directory: `config/gold/metrics/my_new_metric/`
-2. Add files:
-   - `dag.yaml` - DAG configuration
-   - `schema.yaml` - Table schema
-   - `transform.py` or `query.sql` - Transformation logic
-   - `tests.yaml` - Data quality tests
-3. Commit and push - the DAG will be auto-generated.
-
-## CI/CD Pipeline
-
-When you push changes to this repository:
-
-1. **Validation** runs automatically:
-   - YAML syntax validation
-   - SQL syntax checks
-   - Schema validation
-   - Structure tests
-
-2. **If validation passes**:
-   - Changes are ready to merge
-
-3. **After merge to main**:
-   - The [airflow-generated-dags](https://github.com/Glynac-AI/airflow-generated-dags) repository is notified
-   - DAGs are automatically regenerated
-   - New DAGs appear in Airflow within 3-5 minutes
-
-## Validation
-
-All configs are validated automatically in CI/CD:
+### Validate YAML Syntax
 
 ```bash
-# Run validation locally
-cd tests
-pytest test_config_validation.py -v
-pytest test_bronze_configs.py -v
-pytest test_silver_configs.py -v
+pip install pyyaml
+python -c "import yaml; yaml.safe_load(open('config/bronze/redtail/call.yaml'))"
 ```
 
-## Best Practices
+### Test MinIO Upload Manually
 
-1. **Use descriptive names**: Table names should be clear and follow naming conventions
-2. **Document your SQL**: Add comments to complex queries
-3. **Define data quality tests**: Every table should have tests
-4. **Use incremental extraction**: When possible, use incremental mode for Bronze tables
-5. **Set appropriate schedules**: Consider data freshness needs and source system load
-6. **Version control everything**: Never edit configs directly in production
+```bash
+# Install mc
+wget https://dl.min.io/client/mc/release/linux-amd64/mc
+chmod +x mc
 
-## Troubleshooting
+# Configure alias
+./mc alias set minio http://146.190.97.129:9000 minioadmin minioadmin
 
-### YAML Syntax Error
-- Use a YAML validator online or in your editor
-- Check indentation (use spaces, not tabs)
-- Ensure all strings with special characters are quoted
-
-### SQL Syntax Error
-- Test your SQL query in ClickHouse directly first
-- Check for Jinja template syntax if using templating
-- Ensure all referenced tables exist
-
-### DAG Not Appearing
-- Check CI/CD pipeline status on GitHub Actions
-- Verify configs passed validation
-- Wait 3-5 minutes for gitsync to pull changes
-- Check Airflow logs for import errors
+# Test sync
+./mc mirror config/ minio/airflow-configs/ --dry-run
+```
 
 ## Related Repositories
 
-- **airflow-shared-components**: Python package with operators, hooks, and DAG generators
-- **airflow-generated-dags**: Generated DAG files and custom DAGs
-- **data-platform-infrastructure**: Infrastructure as Code (Terraform, Nomad)
-
-## Support
-
-For questions or issues:
-- Create an issue in this repository
-- Contact the data platform team
-- Check the documentation in the `Docs/` directory
+| Repository | Purpose |
+|------------|---------|
+| `airflow-generated-dags` | DAG generators that read configs from MinIO |
+| `data-platform-infrastructure` | Dockerfile, Nomad config |
 
 ## License
 

@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: note_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail note data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/note
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -41,38 +42,32 @@ schema:
       type: String
     - name: batch_status
       type: String
-    - name: client_id
+    - name: note_rec_id
       type: Int32
+    - name: note_id
+      type: Int32
+    - name: title
+      type: String
+    - name: content
+      type: String
+    - name: note_type
+      type: String
     - name: contact_id
       type: Int32
-    - name: client_number
-      type: String
-    - name: client_type
-      type: String
-    - name: client_status
-      type: String
-    - name: service_level
-      type: String
-    - name: risk_profile
-      type: String
-    - name: assets_under_management
-      type: String
-    - name: onboarding_date
-      type: String
-    - name: review_date
-      type: String
-    - name: notes
-      type: String
-    - name: rec_id
+    - name: created_by
       type: Int32
+    - name: category
+      type: String
+    - name: tags
+      type: String
+    - name: is_private
+      type: Boolean
+    - name: is_pinned
+      type: Boolean
     - name: rec_add
       type: String
     - name: rec_edit
       type: String
-    - name: rec_add_user
-      type: Int32
-    - name: rec_edit_user
-      type: Int32
     - name: processing_timestamp
       type: String
     - name: processing_date

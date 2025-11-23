@@ -1,16 +1,16 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: activity_raw
+table: investment_raw
 
 metadata:
-  description: "Raw Redtail activity data from MinIO"
+  description: "Raw Redtail investment data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/activity
+  path: redtail/investment
   format: orc
   partitions:
     - name: glynac_organization_id
@@ -32,58 +32,88 @@ schema:
       type: String
     - name: entity_type
       type: String
-    - name: batch_timestamp
-      type: String
     - name: batch_number
       type: Int32
     - name: batch_offset
       type: Int64
+    - name: batch_timestamp
+      type: String
     - name: message_type
       type: String
-    - name: batch_status
+    - name: status
       type: String
-    - name: activity_id
-      type: Int32
     - name: rec_id
       type: Int32
-    - name: activity_type
+    - name: investment_id
+      type: Int32
+    - name: investment_name
+      type: String
+    - name: symbol
+      type: String
+    - name: investment_type
+      type: String
+    - name: asset_class
       type: String
     - name: category
       type: String
-    - name: subcategory
+    - name: current_price
       type: String
-    - name: subject
+    - name: previous_close
+      type: String
+    - name: price_change
+      type: String
+    - name: price_change_percent
       type: String
     - name: description
       type: String
-    - name: contact_id
-      type: Int32
-    - name: owner_id
-      type: Int32
-    - name: activity_status
+    - name: currency
       type: String
-    - name: priority
+    - name: country
       type: String
-    - name: activity_date
+    - name: coupon_rate
       type: String
-    - name: duration_minutes
-      type: Int32
-    - name: outcome
+    - name: maturity_date
       type: String
-    - name: location
+    - name: credit_rating
       type: String
-    - name: tags
+    - name: ytd_return
       type: String
-    - name: follow_up_required
-      type: UInt8
-    - name: follow_up_date
+    - name: one_year_return
       type: String
-    - name: notes
+    - name: three_year_return
+      type: String
+    - name: five_year_return
+      type: String
+    - name: dividend_yield
+      type: String
+    - name: is_active
+      type: Bool
+    - name: cusip
+      type: String
+    - name: isin
+      type: String
+    - name: expense_ratio
+      type: String
+    - name: fund_manager
+      type: String
+    - name: fund_family
+      type: String
+    - name: fund_aum
+      type: String
+    - name: exchange
+      type: String
+    - name: sector
+      type: String
+    - name: industry
       type: String
     - name: rec_add
       type: String
+    - name: rec_add_user
+      type: Int32
     - name: rec_edit
       type: String
+    - name: rec_edit_user
+      type: Int32
     - name: processing_timestamp
       type: String
     - name: processing_date

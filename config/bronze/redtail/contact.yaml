@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: contact_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail contact data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/contact
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -39,40 +40,64 @@ schema:
       type: Int64
     - name: message_type
       type: String
-    - name: batch_status
-      type: String
-    - name: client_id
-      type: Int32
     - name: contact_id
       type: Int32
-    - name: client_number
-      type: String
-    - name: client_type
-      type: String
-    - name: client_status
-      type: String
-    - name: service_level
-      type: String
-    - name: risk_profile
-      type: String
-    - name: assets_under_management
-      type: String
-    - name: onboarding_date
-      type: String
-    - name: review_date
-      type: String
-    - name: notes
-      type: String
     - name: rec_id
+      type: Int32
+    - name: first_name
+      type: String
+    - name: last_name
+      type: String
+    - name: full_name
+      type: String
+    - name: prefix
+      type: String
+    - name: email
+      type: String
+    - name: phone_number
+      type: String
+    - name: phone_number2
+      type: String
+    - name: mobile_phone
+      type: String
+    - name: work_phone
+      type: String
+    - name: home_phone
+      type: String
+    - name: fax_number
+      type: String
+    - name: address1
+      type: String
+    - name: city
+      type: String
+    - name: state
+      type: String
+    - name: zip_code
+      type: String
+    - name: country
+      type: String
+    - name: date_of_birth
+      type: String
+    - name: gender
+      type: String
+    - name: marital_status
+      type: String
+    - name: occupation
+      type: String
+    - name: company_name
+      type: String
+    - name: job_title
+      type: String
+    - name: contact_type
+      type: String
+    - name: contact_status
+      type: String
+    - name: assigned_to
       type: Int32
     - name: rec_add
       type: String
     - name: rec_edit
       type: String
-    - name: rec_add_user
-      type: Int32
-    - name: rec_edit_user
-      type: Int32
     - name: processing_timestamp
       type: String
     - name: processing_date

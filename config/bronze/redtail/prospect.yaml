@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: prospect_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail prospect data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/prospect
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -37,29 +38,29 @@ schema:
       type: Int32
     - name: batch_offset
       type: Int64
+    - name: batch_size
+      type: Int32
     - name: message_type
       type: String
     - name: batch_status
       type: String
-    - name: client_id
+    - name: prospect_id
       type: Int32
     - name: contact_id
       type: Int32
-    - name: client_number
+    - name: prospect_number
       type: String
-    - name: client_type
+    - name: prospect_status
       type: String
-    - name: client_status
+    - name: stage
       type: String
-    - name: service_level
+    - name: source
       type: String
-    - name: risk_profile
+    - name: expected_revenue
       type: String
-    - name: assets_under_management
-      type: String
-    - name: onboarding_date
-      type: String
-    - name: review_date
+    - name: probability
+      type: Int32
+    - name: expected_close_date
       type: String
     - name: notes
       type: String

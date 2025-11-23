@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: net_worth_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail net worth data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/net_worth
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -37,42 +38,56 @@ schema:
       type: Int32
     - name: batch_offset
       type: Int64
+    - name: status
+      type: String
     - name: message_type
-      type: String
-    - name: batch_status
-      type: String
-    - name: client_id
-      type: Int32
-    - name: contact_id
-      type: Int32
-    - name: client_number
-      type: String
-    - name: client_type
-      type: String
-    - name: client_status
-      type: String
-    - name: service_level
-      type: String
-    - name: risk_profile
-      type: String
-    - name: assets_under_management
-      type: String
-    - name: onboarding_date
-      type: String
-    - name: review_date
-      type: String
-    - name: notes
       type: String
     - name: rec_id
       type: Int32
-    - name: rec_add
+    - name: contact_id
+      type: Int32
+    - name: as_of_date
       type: String
-    - name: rec_edit
+    - name: cash_and_equivalents
+      type: String
+    - name: investments
+      type: String
+    - name: retirement_accounts
+      type: String
+    - name: real_estate
+      type: String
+    - name: business_interests
+      type: String
+    - name: personal_property
+      type: String
+    - name: other_assets
+      type: String
+    - name: total_assets
+      type: String
+    - name: short_term_liabilities
+      type: String
+    - name: mortgages
+      type: String
+    - name: loans
+      type: String
+    - name: other_liabilities
+      type: String
+    - name: total_liabilities
+      type: String
+    - name: net_worth_amount
+      type: String
+    - name: rec_add
       type: String
     - name: rec_add_user
       type: Int32
+    - name: rec_edit
+      type: String
     - name: rec_edit_user
       type: Int32
+    - name: record_id
+      type: Int32
+    - name: notes
+      type: String
     - name: processing_timestamp
       type: String
     - name: processing_date

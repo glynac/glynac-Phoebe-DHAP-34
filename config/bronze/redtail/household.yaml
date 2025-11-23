@@ -1,22 +1,23 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+table: household_raw
 
 metadata:
-  description: "Raw Redtail client data from MinIO"
+  description: "Raw Redtail household data from MinIO"
   owner: data-engineering
 
 source:
   type: minio
   bucket: main-data
-  path: redtail/client
+  path: redtail/household
   format: orc
   partitions:
     - name: glynac_organization_id
       type: String
     - name: processing_date
       type: Date
+
 clickhouse:
   engine: S3
   settings:
@@ -39,27 +40,33 @@ schema:
       type: Int64
     - name: message_type
       type: String
-    - name: batch_status
-      type: String
-    - name: client_id
+    - name: household_id
       type: Int32
-    - name: contact_id
+    - name: household_name
+      type: String
+    - name: household_number
+      type: String
+    - name: primary_contact_id
       type: Int32
-    - name: client_number
+    - name: household_type
       type: String
-    - name: client_type
+    - name: household_status
       type: String
-    - name: client_status
+    - name: total_net_worth
       type: String
-    - name: service_level
+    - name: total_income
       type: String
-    - name: risk_profile
+    - name: address1
       type: String
-    - name: assets_under_management
+    - name: address2
       type: String
-    - name: onboarding_date
+    - name: city
       type: String
-    - name: review_date
+    - name: state
+      type: String
+    - name: zip_code
+      type: String
+    - name: country
       type: String
     - name: notes
       type: String

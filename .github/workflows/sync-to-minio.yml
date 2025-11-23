@@ -1,0 +1,65 @@
+name: Sync Configs to MinIO
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'config/**'
+      - 'stream-flink/**'
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  MINIO_ALIAS: minio
+
+jobs:
+  sync:
+    runs-on: self-hosted
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install MinIO Client
+      run: |
+        if ! command -v mc &> /dev/null; then
+          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
+          chmod +x /tmp/mc
+          sudo mv /tmp/mc /usr/local/bin/mc
+        fi
+        mc --version
+
+    - name: Configure MinIO alias
+      env:
+        MINIO_ENDPOINT: ${{ secrets.MINIO_ENDPOINT }}
+        MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+        MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+      run: |
+        mc alias set ${{ env.MINIO_ALIAS }} $MINIO_ENDPOINT $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
+
+    - name: Sync configs to MinIO
+      env:
+        MINIO_BUCKET: ${{ secrets.MINIO_CONFIG_BUCKET || 'airflow-configs' }}
+      run: |
+        echo "Syncing configs to MinIO bucket: $MINIO_BUCKET"
+
+        # Sync config folder (bronze, silver, gold, global_config.yaml, etc.)
+        mc mirror --overwrite config/ ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/ \
+          --exclude ".gitkeep"
+
+        echo "Sync completed!"
+
+    - name: Verify sync
+      env:
+        MINIO_BUCKET: ${{ secrets.MINIO_CONFIG_BUCKET || 'airflow-configs' }}
+      run: |
+        echo "=== MinIO bucket contents ==="
+        mc ls --recursive ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/ | head -50
+
+        echo ""
+        echo "=== Summary ==="
+        mc ls ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "::error::Failed to sync configs to MinIO. Check credentials and connectivity."
