@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS public.customer_care_emails (
+  id                         INTEGER NOT NULL,
+  subject                    TEXT,
+  sender                     TEXT,
+  receiver                   TEXT,
+  timestamp                  TIMESTAMP,
+  message_body               TEXT,
+  thread_id                  TEXT,
+  email_types                TEXT,
+  email_status               TEXT,
+  email_criticality          TEXT,
+  product_types              TEXT,
+  agent_effectivity          TEXT,
+  agent_efficiency           TEXT,
+  customer_satisfaction      NUMERIC,
+  agent_effectivity_rating   INTEGER,
+  agent_efficiency_rating    INTEGER,
+  sentiment                  TEXT,
+  sentiment_score            NUMERIC,
+  word_count                 INTEGER,
+  PRIMARY KEY (id)
+);

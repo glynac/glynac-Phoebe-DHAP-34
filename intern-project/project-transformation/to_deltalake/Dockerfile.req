@@ -1,0 +1,14 @@
+# Start from the official Airflow image that was built using the complex file.
+FROM apache/airflow:3.0.3
+
+# Switch to the root user to install packages
+USER root
+
+# Copy your requirements file into the image.
+COPY requirements.txt .
+
+# Install the packages from your requirements file.
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Switch back to the airflow user
+USER airflow

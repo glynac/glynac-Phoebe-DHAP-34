@@ -1,0 +1,144 @@
+version: "3.9"
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.3
+  env_file: .env
+  environment:
+    # Core Airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    AIRFLOW__CORE__EXECUTOR: "CeleryExecutor"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "True"
+
+    # Database connections for Airflow metadata
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+      postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres:5432/${AIRFLOW_DB_NAME}
+
+    # Celery settings
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__CELERY__RESULT_BACKEND: >-
+      db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres:5432/${AIRFLOW_DB_NAME}
+
+    # Convenience: precreate external/target Postgres Airflow connection
+    AIRFLOW_CONN_TARGET_POSTGRES: >-
+      postgresql+psycopg2://${TARGET_PG_USER}:${TARGET_PG_PASSWORD}@${TARGET_PG_HOST}:${TARGET_PG_PORT}/${TARGET_PG_DB}
+
+    # Create admin user on init
+    _AIRFLOW_WWW_USER_CREATE: "true"
+    _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_ADMIN_USERNAME}
+    _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD}
+    _AIRFLOW_WWW_USER_EMAIL: ${AIRFLOW_ADMIN_EMAIL}
+
+    # Extra Python packages
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS}
+
+  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-0}"
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-..}:/opt/airflow/dags    # keep this (mounts repo root)
+    - C:/Users/siddi/Documents/af_logs:/opt/airflow/logs   # <-- new absolute path outside DAGs tree
+
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+      POSTGRES_DB: ${AIRFLOW_DB_NAME}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER} -d ${AIRFLOW_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        pip install -r /opt/airflow/dags/tasnim-project1/requirements.txt || true
+        airflow db migrate
+        if [[ "${_AIRFLOW_WWW_USER_CREATE}" == "true" ]]; then
+          airflow users create             --username "${_AIRFLOW_WWW_USER_USERNAME}"             --password "${_AIRFLOW_WWW_USER_PASSWORD}"             --firstname Admin --lastname User --role Admin --email "${_AIRFLOW_WWW_USER_EMAIL}"
+        fi
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8081:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Optional: developer Postgres to receive dataset loads
+  pg_target:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${TARGET_PG_USER}
+      POSTGRES_PASSWORD: ${TARGET_PG_PASSWORD}
+      POSTGRES_DB: ${TARGET_PG_DB}
+    ports:
+      - "5434:5432"
+    volumes:
+      - tgtpg:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+  tgtpg:
+ 

@@ -1,0 +1,26 @@
+id,created_ts,amount,country,email
+1,2025-08-01 09:15:00,1200.50,Nigeria,alice@example.com
+2,2025-08-02 14:30:00,850.00,Kenya,bob@example.com
+3,2025-08-03 18:45:00,900.75,USA,charlie@example.com
+4,2025-08-03 09:00:00,1200.50,Nigeria,dan@example.com
+5,2025-08-04 12:00:00,500.00,UK,emma@example.com
+6,2025-08-06 11:00:00,714.7,Ghana,frank@example.com
+7,2025-08-06 08:00:00,1315.08,Nigeria,grace@example.com
+8,2025-08-05 18:00:00,1286.4,UK,henry@example.com
+9,2025-08-06 04:00:00,940.11,Kenya,ivy@example.com
+10,2025-08-08 06:00:00,847.68,UK,jack@example.com
+11,2025-08-07 02:00:00,1392.96,USA,kate@example.com
+12,2025-08-08 04:00:00,563.38,Nigeria,leo@example.com
+13,2025-08-05 22:00:00,1286.2,USA,mia@example.com
+14,2025-08-05 16:00:00,761.09,South Africa,nate@example.com
+15,2025-08-06 13:00:00,1075.89,Nigeria,olivia@example.com
+16,2025-08-05 12:00:00,1236.53,Nigeria,frank@example.com
+17,2025-08-07 22:00:00,1223.57,Nigeria,grace@example.com
+18,2025-08-06 22:00:00,664.08,USA,henry@example.com
+19,2025-08-05 10:00:00,577.91,USA,ivy@example.com
+20,2025-08-08 06:00:00,1379.72,Kenya,jack@example.com
+21,2025-08-06 17:00:00,824.37,USA,kate@example.com
+22,2025-08-06 01:00:00,1206.75,South Africa,leo@example.com
+23,2025-08-06 19:00:00,941.85,Ghana,mia@example.com
+24,2025-08-08 07:00:00,543.33,UK,nate@example.com
+25,2025-08-07 08:00:00,498.54,USA,olivia@example.com

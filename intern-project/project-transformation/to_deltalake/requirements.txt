@@ -1,0 +1,3 @@
+pyarrow
+deltalake
+apache-airflow-providers-microsoft-azure

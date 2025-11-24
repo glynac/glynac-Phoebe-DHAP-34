@@ -1,0 +1,61 @@
+table: public.customer_care_emails
+primary_key: [id]
+
+columns:
+  - name: id
+    type: integer
+    nullable: false
+  - name: subject
+    type: text
+    nullable: true
+  - name: sender
+    type: text
+    nullable: true
+  - name: receiver
+    type: text
+    nullable: true
+  - name: timestamp
+    type: timestamp
+    nullable: true
+  - name: message_body
+    type: text
+    nullable: true
+  - name: thread_id
+    type: text
+    nullable: true
+  - name: email_types
+    type: text
+    nullable: true
+  - name: email_status
+    type: text
+    nullable: true
+  - name: email_criticality
+    type: text
+    nullable: true
+  - name: product_types
+    type: text
+    nullable: true
+  - name: agent_effectivity
+    type: text
+    nullable: true
+  - name: agent_efficiency
+    type: text
+    nullable: true
+  - name: customer_satisfaction
+    type: numeric
+    nullable: true
+  - name: agent_effectivity_rating
+    type: integer
+    nullable: true
+  - name: agent_efficiency_rating
+    type: integer
+    nullable: true
+  - name: sentiment
+    type: text
+    nullable: true
+  - name: sentiment_score
+    type: numeric
+    nullable: true
+  - name: word_count
+    type: integer
+    nullable: true

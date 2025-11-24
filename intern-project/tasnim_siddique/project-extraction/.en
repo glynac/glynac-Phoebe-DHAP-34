@@ -1,0 +1,29 @@
+# Airflow / Docker Compose environment (template). Copy to .env and edit locally.
+# Never commit real secrets.
+
+# Required by the official Airflow image for file permissions
+AIRFLOW_UID=50000
+AIRFLOW_GID=0
+
+# Mount the repo root as /opt/airflow/dags (compose file lives in airflow-dags/tasnim-project1)
+AIRFLOW_PROJ_DIR=..
+
+# Admin user for Airflow UI (dev defaults)
+AIRFLOW_ADMIN_USERNAME=admin
+AIRFLOW_ADMIN_PASSWORD=admin
+AIRFLOW_ADMIN_EMAIL=admin@example.com
+
+# Extra Python packages (installed at container init time)
+_PIP_ADDITIONAL_REQUIREMENTS=
+
+# Airflow metadata DB (internal to compose)
+AIRFLOW_DB_USER=airflow
+AIRFLOW_DB_PASSWORD=airflow
+AIRFLOW_DB_NAME=airflow
+
+# Optional DEV target Postgres for loading datasets (used to build 'target_postgres' Airflow Connection)
+TARGET_PG_HOST=pg_target
+TARGET_PG_PORT=5432
+TARGET_PG_DB=analytics
+TARGET_PG_USER=etl_user
+TARGET_PG_PASSWORD=supersecret
