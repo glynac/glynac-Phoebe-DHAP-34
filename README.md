@@ -2,40 +2,6 @@
 
 This repository contains all configuration files (YAML, SQL) for Airflow DAGs in the Glynac data platform.
 
-## How It Works
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  airflow-dag-configs                         │
-│  (this repo)                                                 │
-│                                                              │
-│  config/bronze/redtail/call.yaml                            │
-│  config/silver/unified_contacts/dag.yaml                    │
-│  config/gold/dimensions/dim_account/query.sql               │
-│  config/stream-flink/redtail/account/main-processing.sql    │
-└──────────────────────────┬──────────────────────────────────┘
-                           │
-                           │ git push to main
-                           ▼
-              ┌────────────────────────────┐
-              │   GitHub Actions CI/CD     │
-              │   sync-to-minio.yml        │
-              └────────────┬───────────────┘
-                           │
-                           │ mc mirror
-                           ▼
-              ┌────────────────────────────┐
-              │         MinIO              │
-              │   airflow-configs bucket   │
-              └────────────┬───────────────┘
-                           │
-                           │ DAGs read at runtime
-                           ▼
-              ┌────────────────────────────┐
-              │   Airflow DAG Generators   │
-              │   (airflow-generated-dags) │
-              └────────────────────────────┘
-```
 
 ## Directory Structure
 
