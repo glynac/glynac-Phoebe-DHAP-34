@@ -26,7 +26,6 @@ dag:
   concurrency: 1
   max_active_tasks_per_dag: 1
 
-
 task:
   task_id: "transform_salesforce_user"
   task_type: clickhouse_transformation
@@ -52,7 +51,6 @@ dependencies:
       description: "Check if Bronze table has data for this partition"
       fail_on_empty: true
       partition_column: processing_date
-    
     - type: freshness
       description: "Check Bronze data is fresh (< 2 hours old)"
       max_age_hours: 2

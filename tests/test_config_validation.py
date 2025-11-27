@@ -14,7 +14,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
 
-
 class TestYAMLValidation:
     """Test all YAML files for valid syntax"""
 

@@ -12,14 +12,12 @@ source:
   bucket: main-data
   path: redtail/account
   format: orc
-  
   # Hive-style partitions from Flink
   partitions:
     - name: glynac_organization_id
       type: String
       required: true
       description: "Organization identifier for data isolation"
-      
     - name: processing_date
       type: Date
       required: true

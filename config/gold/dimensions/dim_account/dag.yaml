@@ -16,7 +16,6 @@ dag:
 task:
   task_id: "calculate_metrics"
   task_type: clickhouse_aggregation
-  
   incremental:
     enabled: true
     strategy: partition_based

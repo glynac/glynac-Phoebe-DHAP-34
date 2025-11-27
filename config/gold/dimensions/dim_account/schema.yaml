@@ -13,9 +13,7 @@ metadata:
   owner: analytics-team
   domain: analytics
   tags: [gold, metrics, daily, users, dashboard]
-  
   transformation_type: sql_aggregation
-  
   upstream_dependencies:
     - silver.salesforce_user
   

@@ -15,7 +15,6 @@ SELECT
     COUNT(DISTINCT user_id) as total_users,
     COUNT(DISTINCT CASE WHEN is_active = 1 THEN user_id END) as active_users,
     COUNT(DISTINCT CASE WHEN is_active = 0 THEN user_id END) as inactive_users,
-    
     -- New Users (created today)
     COUNT(DISTINCT CASE 
         WHEN toDate(created_date) = processing_date 

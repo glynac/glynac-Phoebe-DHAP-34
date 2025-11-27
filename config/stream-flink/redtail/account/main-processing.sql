@@ -50,6 +50,7 @@ CREATE TABLE redtail_account_raw_input (
     'json.ignore-parse-errors' = 'true'
 );
 
+
 -- Sink: Write to MinIO as ORC
 CREATE TABLE redtail_account_storage (
     scan_id STRING,

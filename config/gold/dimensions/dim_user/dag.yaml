@@ -24,9 +24,10 @@ task:
 
 dependencies:
   auto_detect: true
-  mode: dataset_aware
-
+  mode: dataset_awares
 notifications:
   on_success:
     - type: log
       message: "✅ User daily metrics calculated"
+
+      

@@ -11,7 +11,6 @@ SILVER_CONFIG_DIR = Path(__file__).parent.parent / 'config' / 'silver'
 # Discover all table folders
 table_folders = [f for f in SILVER_CONFIG_DIR.iterdir() if f.is_dir()]
 
-
 @pytest.mark.parametrize('table_folder', table_folders, ids=[f.name for f in table_folders])
 def test_required_files_exist(table_folder):
     """Test that all required files exist"""

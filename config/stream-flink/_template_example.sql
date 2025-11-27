@@ -16,6 +16,7 @@ CREATE TABLE example_source (
     'json.ignore-parse-errors' = 'true'
 );
 
+
 -- Create sink table (MinIO)
 CREATE TABLE example_sink (
     id INT,

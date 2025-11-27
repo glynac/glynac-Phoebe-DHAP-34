@@ -2,7 +2,7 @@ import pytest
 import yaml
 from pathlib import Path
 from utils.validators import ConfigValidator
-
+ 
 # Get config directory
 TESTS_DIR = Path(__file__).parent
 CONFIG_DIR = TESTS_DIR.parent / 'config' / 'bronze'
