@@ -40,7 +40,7 @@ CREATE TABLE redtail_asset_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-assets-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-asset-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

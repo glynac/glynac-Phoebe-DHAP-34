@@ -38,7 +38,7 @@ CREATE TABLE redtail_lead_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-leads-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-lead-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

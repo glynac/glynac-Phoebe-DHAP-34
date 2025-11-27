@@ -53,7 +53,7 @@ CREATE TABLE redtail_investment_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-investments-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-investment-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

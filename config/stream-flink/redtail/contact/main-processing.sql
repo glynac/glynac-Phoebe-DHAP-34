@@ -46,7 +46,7 @@ CREATE TABLE redtail_contact_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-contacts-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-contact-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

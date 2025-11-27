@@ -33,7 +33,7 @@ CREATE TABLE redtail_client_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-communications-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-client-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

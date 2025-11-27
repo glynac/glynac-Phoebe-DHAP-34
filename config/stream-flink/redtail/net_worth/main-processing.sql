@@ -40,7 +40,7 @@ CREATE TABLE redtail_net_worth_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-net_worth-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-net-worth-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

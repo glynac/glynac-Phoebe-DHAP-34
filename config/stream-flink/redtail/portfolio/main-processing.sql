@@ -44,7 +44,7 @@ CREATE TABLE redtail_portfolio_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-portfolios-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-portfolio-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

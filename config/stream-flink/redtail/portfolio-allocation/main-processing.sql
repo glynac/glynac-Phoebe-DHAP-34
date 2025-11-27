@@ -33,7 +33,7 @@ CREATE TABLE redtail_portfolio_allocation_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-portfolio-allocations-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-portfolio-allocation-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

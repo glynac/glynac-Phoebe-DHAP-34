@@ -30,7 +30,7 @@ CREATE TABLE redtail_note_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-notes-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-note-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

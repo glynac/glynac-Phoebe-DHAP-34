@@ -37,7 +37,7 @@ CREATE TABLE redtail_household_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-households-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-household-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',

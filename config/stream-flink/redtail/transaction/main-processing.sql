@@ -42,7 +42,7 @@ CREATE TABLE redtail_transaction_raw_input (
 ) WITH (
     'connector' = 'kafka',
     'topic' = 'redtail-transactions-stream',
-    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',,
+    'properties.bootstrap.servers' = '{{KAFKA_BOOTSTRAP_SERVERS}}',
     'properties.group.id' = 'redtail-transaction-orc-processor',
     'scan.startup.mode' = 'earliest-offset',
     'format' = 'json',
@@ -83,7 +83,7 @@ CREATE TABLE redtail_transaction_storage (
     rec_add STRING,
     rec_add_user INT,
     rec_edit STRING,
-    rec_edit_user INT,
+    rec_edit_user INT, 
     processing_timestamp STRING,
     processing_date STRING
 ) PARTITIONED BY (glynac_organization_id, processing_date)
