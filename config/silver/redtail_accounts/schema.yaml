@@ -1,0 +1,281 @@
+version: "1.0"
+layer: silver
+database: silver
+table: redtail_account
+
+
+metadata:
+  display_name: "Redtail Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail account data from Bronze layer.
+    Includes financial accounts with balances, institution information, and related entities.
+  
+  owner: data-engineering
+  domain: redtail
+  tags:
+    - redtail
+    - accounts
+    - financial
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - account_number
+    - account_name
+    - contact_data
+    - current_balance
+    - available_balance
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.account_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: account_status_idx
+      expression: account_status
+      type: set
+      granularity: 4
+    - name: institution_name_idx
+      expression: institution_name
+      type: bloom_filter
+      granularity: 1
+    - name: contact_id_idx
+      expression: contact_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Account identifiers
+  - name: account_number
+    type: String
+    nullable: false
+    description: "External account number (trimmed, may be empty string)"
+    pii: true
+    example: "ACC-2024-001"
+    
+  - name: account_name
+    type: String
+    nullable: false
+    description: "Display name of the account (trimmed)"
+    pii: true
+    example: "John's Retirement IRA"
+    
+  - name: account_type
+    type: String
+    nullable: false
+    description: "Type/category of account (trimmed)"
+    example: "IRA"
+    
+  - name: account_status
+    type: String
+    nullable: false
+    description: "Current status of the account (trimmed)"
+    example: "Active"
+    
+  - name: status_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized account status (active/closed/pending/unknown)"
+    allowed_values: [active, closed, pending, unknown]
+    example: "active"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Additional account description or notes (trimmed)"
+    example: "Primary retirement account"
+    
+  # Institution
+  - name: institution_name
+    type: String
+    nullable: false
+    description: "Name of the financial institution (trimmed)"
+    example: "Fidelity Investments"
+    
+  - name: institution_type
+    type: String
+    nullable: false
+    description: "Type of institution (trimmed)"
+    example: "Brokerage"
+    
+  # Foreign keys
+  - name: contact_id
+    type: Nullable(Int32)
+    nullable: true
+    description: "Foreign key to contact/client record"
+    example: 5678
+    
+  - name: portfolio_id
+    type: Nullable(Int32)
+    nullable: true
+    description: "Foreign key to portfolio record"
+    example: 9012
+    
+  # JSON data blobs
+  - name: contact_data
+    type: Nullable(String)
+    nullable: true
+    description: "Serialized contact information (JSON)"
+    pii: true
+    example: '{"first_name":"John","last_name":"Doe"}'
+    
+  - name: portfolio_data
+    type: Nullable(String)
+    nullable: true
+    description: "Serialized portfolio information (JSON)"
+    example: '{"portfolio_name":"Conservative Growth"}'
+    
+  - name: account_assets_data
+    type: Nullable(String)
+    nullable: true
+    description: "Serialized account assets information (JSON)"
+    example: '[{"symbol":"AAPL","quantity":100}]'
+    
+  - name: account_assets_count
+    type: Int32
+    nullable: false
+    description: "Number of assets in this account"
+    example: 5
+    
+  # Financial amounts
+  - name: current_balance
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Current account balance (converted from string)"
+    pii: true
+    example: 125000.50
+    
+  - name: available_balance
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Available balance (converted from string)"
+    pii: true
+    example: 120000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code (trimmed, default USD)"
+    example: "USD"
+    
+  # Dates
+  - name: open_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when account was opened (parsed from string)"
+    example: "2020-03-15 00:00:00.000"
+    
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2023-01-15 10:30:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-10-18 14:20:00.000"
+    
+  # Audit fields
+  - name: rec_add_user
+    type: Nullable(Int32)
+    nullable: true
+    description: "User ID who added the record"
+    example: 42
+    
+  - name: rec_edit_user
+    type: Nullable(Int32)
+    nullable: true
+    description: "User ID who last edited the record"
+    example: 42
+    
+  # Tags and flags
+  - name: tags
+    type: String
+    nullable: false
+    description: "Comma-separated tags for categorization (trimmed)"
+    example: "retirement,primary"
+    
+  - name: is_active
+    type: UInt8
+    nullable: false
+    description: "Whether account is currently active (1=active, 0=inactive)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251118_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-18 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.account_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-18 14:30:22.123"
