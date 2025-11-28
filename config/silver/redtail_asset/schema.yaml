@@ -1,0 +1,273 @@
+version: "1.0"
+layer: silver
+database: silver
+table: redtail_asset
+
+
+metadata:
+  display_name: "Redtail Account Assets (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail account asset/holding data from Bronze layer.
+    Represents investment positions within financial accounts with cost basis, 
+    current values, and performance metrics.
+  
+  owner: data-engineering
+  domain: redtail
+  tags:
+    - redtail
+    - assets
+    - holdings
+    - investments
+    - financial
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - current_value
+    - cost_basis
+    - unrealized_gain_loss
+    - investment_data
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.asset_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+    - name: investment_id_idx
+      expression: investment_id
+      type: minmax
+      granularity: 2
+    - name: is_core_position_idx
+      expression: is_core_position
+      type: set
+      granularity: 4
+
+columns:
+  - name: rec_id
+    type: Int64
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Foreign keys
+  - name: account_id
+    type: Int64
+    nullable: false
+    description: "Foreign key to account record"
+    example: 5678
+    
+  - name: investment_id
+    type: Int64
+    nullable: false
+    description: "Foreign key to investment/security record"
+    example: 9012
+    
+  - name: asset_id
+    type: Int64
+    nullable: false
+    description: "Asset identifier (may duplicate rec_id)"
+    example: 12345
+    
+  # Quantity
+  - name: quantity
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Number of units/shares held (converted from string)"
+    example: 100.5000
+    
+  # Cost basis
+  - name: cost_basis
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Total cost basis (converted from string)"
+    pii: true
+    example: 10500.00
+    
+  - name: cost_basis_per_unit
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Cost basis per unit/share (converted from string)"
+    example: 104.4776
+    
+  # Current pricing
+  - name: current_price
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Current price per unit/share (converted from string)"
+    example: 125.5000
+    
+  - name: current_value
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Current market value of position (converted from string)"
+    pii: true
+    example: 12612.75
+    
+  # Performance metrics
+  - name: unrealized_gain_loss
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Unrealized gain/loss amount (converted from string)"
+    pii: true
+    example: 2112.75
+    
+  - name: unrealized_gain_loss_percent
+    type: Decimal(8, 2)
+    nullable: false
+    description: "Unrealized gain/loss percentage (converted from string)"
+    example: 20.12
+    
+  # Allocation
+  - name: allocation_percent
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Percentage of account allocated to this position (converted from string)"
+    example: 15.50
+    
+  - name: target_allocation
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Target allocation percentage (converted from string)"
+    example: 18.00
+    
+  # Dates
+  - name: purchase_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when position was purchased (parsed from string)"
+    example: "2023-03-15 00:00:00.000"
+    
+  - name: last_update_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last update timestamp for pricing (parsed from string)"
+    example: "2025-11-28 16:00:00.000"
+    
+  # Flags
+  - name: is_core_position
+    type: UInt8
+    nullable: false
+    description: "Whether this is a core/strategic position (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: is_active
+    type: UInt8
+    nullable: false
+    description: "Whether position is currently active (1=active, 0=closed)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2023-03-15 10:30:00.000"
+    
+  - name: rec_add_user
+    type: Int64
+    nullable: false
+    description: "User ID who added the record"
+    example: 42
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-11-28 14:20:00.000"
+    
+  - name: rec_edit_user
+    type: Int64
+    nullable: false
+    description: "User ID who last edited the record"
+    example: 42
+    
+  # Investment data
+  - name: investment_data
+    type: String
+    nullable: false
+    description: "Serialized investment/security information (JSON)"
+    pii: true
+    example: '{"symbol":"AAPL","name":"Apple Inc."}'
+    
+  # Notes
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes or comments (trimmed)"
+    example: "Long-term hold position"
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.asset_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

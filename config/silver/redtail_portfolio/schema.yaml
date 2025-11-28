@@ -1,0 +1,278 @@
+version: "1.0"
+layer: silver
+database: silver
+table: redtail_portfolio
+
+
+metadata:
+  display_name: "Redtail Portfolios (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail portfolio data from Bronze layer.
+    Represents investment portfolios with strategies, objectives, and performance metrics.
+  
+  owner: data-engineering
+  domain: redtail
+  tags:
+    - redtail
+    - portfolios
+    - investments
+    - financial
+    - silver
+  data_classification: confidential
+  contains_pii: false
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.portfolio_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: portfolio_type_idx
+      expression: portfolio_type
+      type: set
+      granularity: 4
+    - name: risk_level_idx
+      expression: risk_level
+      type: set
+      granularity: 4
+    - name: is_model_idx
+      expression: is_model
+      type: set
+      granularity: 4
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Portfolio identifiers
+  - name: portfolio_name
+    type: String
+    nullable: false
+    description: "Display name of the portfolio (trimmed)"
+    example: "Conservative Growth Portfolio"
+    
+  - name: portfolio_code
+    type: String
+    nullable: false
+    description: "Unique portfolio code (trimmed)"
+    example: "CGP-001"
+    
+  - name: portfolio_type
+    type: String
+    nullable: false
+    description: "Type/category of portfolio (trimmed)"
+    example: "Model"
+    
+  # Strategy and objective
+  - name: strategy
+    type: String
+    nullable: false
+    description: "Investment strategy description (trimmed)"
+    example: "Balanced growth with capital preservation"
+    
+  - name: objective
+    type: String
+    nullable: false
+    description: "Investment objective (trimmed)"
+    example: "Long-term growth"
+    
+  - name: risk_level
+    type: String
+    nullable: false
+    description: "Risk tolerance level (trimmed)"
+    example: "Moderate"
+    
+  # Target return
+  - name: target_return
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Target annual return percentage (converted from string)"
+    example: 7.50
+    
+  # Performance metrics
+  - name: ytd_return
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Year-to-date return percentage (converted from string)"
+    example: 8.25
+    
+  - name: one_year_return
+    type: Decimal(5, 2)
+    nullable: false
+    description: "One year return percentage (converted from string)"
+    example: 12.50
+    
+  - name: three_year_return
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Three year annualized return percentage (converted from string)"
+    example: 9.75
+    
+  - name: five_year_return
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Five year annualized return percentage (converted from string)"
+    example: 10.20
+    
+  - name: inception_return
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Inception-to-date return percentage (converted from string)"
+    example: 11.80
+    
+  # Foreign keys
+  - name: created_by
+    type: Int32
+    nullable: false
+    description: "User ID who created the portfolio"
+    example: 42
+    
+  - name: manager_id
+    type: Int32
+    nullable: false
+    description: "User ID of the portfolio manager"
+    example: 84
+    
+  # Dates
+  - name: inception_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Portfolio inception date (parsed from string)"
+    example: "2020-01-15 00:00:00.000"
+    
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2020-01-15 10:30:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-11-28 14:20:00.000"
+    
+  # Description and notes
+  - name: description
+    type: String
+    nullable: false
+    description: "Portfolio description (trimmed)"
+    example: "Balanced portfolio designed for moderate risk investors"
+    
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes or comments (trimmed)"
+    example: "Rebalanced quarterly"
+    
+  # Flags
+  - name: is_model
+    type: UInt8
+    nullable: false
+    description: "Whether this is a model portfolio (1=model, 0=custom)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: is_active
+    type: UInt8
+    nullable: false
+    description: "Whether portfolio is currently active (1=active, 0=inactive)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  # Audit fields
+  - name: rec_add_user
+    type: Int32
+    nullable: false
+    description: "User ID who added the record"
+    example: 42
+    
+  - name: rec_edit_user
+    type: Int32
+    nullable: false
+    description: "User ID who last edited the record"
+    example: 42
+    
+  # JSON data blobs
+  - name: accounts_data
+    type: String
+    nullable: false
+    description: "Serialized accounts information (JSON)"
+    example: '[{"account_id":123,"account_name":"IRA Account"}]'
+    
+  - name: portfolio_allocations_data
+    type: String
+    nullable: false
+    description: "Serialized portfolio allocations information (JSON)"
+    example: '[{"investment_id":456,"target_percentage":25.00}]'
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.portfolio_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

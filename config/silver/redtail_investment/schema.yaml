@@ -1,0 +1,331 @@
+version: "1.0"
+layer: silver
+database: silver
+table: redtail_investment
+
+
+metadata:
+  display_name: "Redtail Investments (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail investment/security data from Bronze layer.
+    Represents individual securities including stocks, bonds, mutual funds, and ETFs
+    with pricing, performance metrics, and classification data.
+  
+  owner: data-engineering
+  domain: redtail
+  tags:
+    - redtail
+    - investments
+    - securities
+    - financial
+    - silver
+  data_classification: public
+  contains_pii: false
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.investment_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: symbol_idx
+      expression: symbol
+      type: bloom_filter
+      granularity: 1
+    - name: investment_type_idx
+      expression: investment_type
+      type: set
+      granularity: 4
+    - name: asset_class_idx
+      expression: asset_class
+      type: set
+      granularity: 4
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Investment identifiers
+  - name: investment_name
+    type: String
+    nullable: false
+    description: "Full name of the investment/security (trimmed)"
+    example: "Apple Inc."
+    
+  - name: symbol
+    type: String
+    nullable: false
+    description: "Trading symbol/ticker (trimmed)"
+    example: "AAPL"
+    
+  - name: cusip
+    type: String
+    nullable: false
+    description: "CUSIP identifier (trimmed)"
+    example: "037833100"
+    
+  - name: isin
+    type: String
+    nullable: false
+    description: "ISIN identifier (trimmed)"
+    example: "US0378331005"
+    
+  # Investment classification
+  - name: investment_type
+    type: String
+    nullable: false
+    description: "Type of investment (Stock, Bond, Mutual Fund, ETF, etc.)"
+    example: "Stock"
+    
+  - name: asset_class
+    type: String
+    nullable: false
+    description: "Asset class (Equity, Fixed Income, Alternative, Cash)"
+    example: "Equity"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Investment category (trimmed)"
+    example: "Large Cap Growth"
+    
+  # Current pricing
+  - name: current_price
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Current price per share/unit (converted from string)"
+    example: 185.5000
+    
+  - name: previous_close
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Previous closing price (converted from string)"
+    example: 183.2500
+    
+  - name: price_change
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Price change from previous close (converted from string)"
+    example: 2.2500
+    
+  - name: price_change_percent
+    type: Decimal(8, 2)
+    nullable: false
+    description: "Price change percentage (converted from string)"
+    example: 1.23
+    
+  # Description and metadata
+  - name: description
+    type: String
+    nullable: false
+    description: "Investment description (trimmed)"
+    example: "Technology company specializing in consumer electronics"
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code (trimmed, default USD)"
+    example: "USD"
+    
+  - name: country
+    type: String
+    nullable: false
+    description: "Country of origin (trimmed)"
+    example: "United States"
+    
+  - name: exchange
+    type: String
+    nullable: false
+    description: "Trading exchange (trimmed)"
+    example: "NASDAQ"
+    
+  - name: sector
+    type: String
+    nullable: false
+    description: "Market sector (trimmed)"
+    example: "Technology"
+    
+  - name: industry
+    type: String
+    nullable: false
+    description: "Industry classification (trimmed)"
+    example: "Consumer Electronics"
+    
+  # Bond-specific fields
+  - name: coupon_rate
+    type: Decimal(6, 3)
+    nullable: false
+    description: "Bond coupon rate percentage (converted from string)"
+    example: 4.250
+    
+  - name: maturity_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Bond maturity date (parsed from string)"
+    example: "2030-12-31 00:00:00.000"
+    
+  - name: credit_rating
+    type: String
+    nullable: false
+    description: "Credit rating (e.g., AAA, AA+) (trimmed)"
+    example: "AA+"
+    
+  # Fund-specific fields
+  - name: expense_ratio
+    type: Decimal(6, 4)
+    nullable: false
+    description: "Fund expense ratio percentage (converted from string)"
+    example: 0.0500
+    
+  - name: fund_manager
+    type: String
+    nullable: false
+    description: "Fund manager name (trimmed)"
+    example: "Vanguard Group"
+    
+  - name: fund_family
+    type: String
+    nullable: false
+    description: "Fund family name (trimmed)"
+    example: "Vanguard"
+    
+  - name: fund_aum
+    type: Decimal(20, 2)
+    nullable: false
+    description: "Fund assets under management (converted from string)"
+    example: 500000000000.00
+    
+  # Performance metrics
+  - name: ytd_return
+    type: Decimal(6, 2)
+    nullable: false
+    description: "Year-to-date return percentage (converted from string)"
+    example: 15.50
+    
+  - name: one_year_return
+    type: Decimal(6, 2)
+    nullable: false
+    description: "One year return percentage (converted from string)"
+    example: 22.75
+    
+  - name: three_year_return
+    type: Decimal(6, 2)
+    nullable: false
+    description: "Three year annualized return percentage (converted from string)"
+    example: 18.30
+    
+  - name: five_year_return
+    type: Decimal(6, 2)
+    nullable: false
+    description: "Five year annualized return percentage (converted from string)"
+    example: 20.10
+    
+  - name: dividend_yield
+    type: Decimal(6, 2)
+    nullable: false
+    description: "Dividend yield percentage (converted from string)"
+    example: 0.55
+    
+  # Flags
+  - name: is_active
+    type: UInt8
+    nullable: false
+    description: "Whether investment is currently active (1=active, 0=inactive)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2020-01-15 10:30:00.000"
+    
+  - name: rec_add_user
+    type: Int32
+    nullable: false
+    description: "User ID who added the record"
+    example: 42
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-11-28 14:20:00.000"
+    
+  - name: rec_edit_user
+    type: Int32
+    nullable: false
+    description: "User ID who last edited the record"
+    example: 42
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.investment_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

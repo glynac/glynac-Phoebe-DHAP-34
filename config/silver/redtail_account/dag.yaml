@@ -1,0 +1,61 @@
+version: "1.0"
+
+dag:
+  dag_id: "silver__redtail_account"  
+  description: "Transform and clean Redtail account data from Bronze to Silver layer"
+  schedule_interval: "dataset" 
+  start_date: "2025-01-01"
+  catchup: false
+  max_active_runs: 1
+  tags:
+    - silver
+    - redtail
+    - accounts
+    - financial
+    - dataset-aware
+  default_args:
+    owner: ai
+    retries: 3
+    retry_delay_minutes: 5
+    execution_timeout_minutes: 30
+    email_on_failure: false
+    email_on_retry: false
+  
+  sla:
+    enabled: true
+    duration_minutes: 120
+  concurrency: 1
+  max_active_tasks_per_dag: 1
+
+
+task:
+  task_id: "transform_redtail_account"
+  task_type: clickhouse_transformation
+  incremental:
+    enabled: true
+    strategy: partition_based
+    partition_column: processing_date
+    lookback_days: 7  # Reload last 7 days for late data
+  execution:
+    mode: insert_overwrite  # Overwrite partition
+    batch_size: 100000
+    max_insert_threads: 4
+
+dependencies:
+  auto_detect: true
+  
+  # Dependency checks before running
+  check_strategy:
+    - type: table_exists
+      description: "Check if Bronze table exists"
+      fail_on_missing: true
+    - type: has_data
+      description: "Check if Bronze table has data for this partition"
+      fail_on_empty: true
+      partition_column: processing_date
+    
+    - type: freshness
+      description: "Check Bronze data is fresh (< 2 hours old)"
+      max_age_hours: 2
+      fail_on_stale: false  
+  mode: dataset_aware

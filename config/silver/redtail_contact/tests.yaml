@@ -1,0 +1,157 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_CONTACT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contacts_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contacts should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_contacts
+      FROM silver.redtail_contact s
+      LEFT JOIN redtail.contact_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_contacts: 0
+  
+  - name: name_fields_present
+    type: assertion
+    description: "At least one name field should be present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND first_name = ''
+        AND last_name = ''
+        AND full_name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: valid_status_normalized
+    type: accepted_values
+    description: "status_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized NOT IN ('active', 'inactive', 'archived')
+    expect:
+      invalid_count: 0
+  
+  - name: email_format_valid
+    type: assertion
+    description: "Email should contain @ symbol when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND email NOT LIKE '%@%'
+    expect:
+      invalid_count: 0
+  
+  - name: date_of_birth_not_future
+    type: assertion
+    description: "Date of birth should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND date_of_birth > now()
+    expect:
+      invalid_count: 0
+  
+  - name: date_of_birth_reasonable
+    type: assertion
+    description: "Date of birth should be reasonable (not more than 120 years ago)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND date_of_birth IS NOT NULL
+        AND date_of_birth < now() - INTERVAL 120 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_contact_types
+    type: accepted_values
+    description: "Contact type should be valid"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND contact_type != ''
+        AND contact_type NOT IN ('Contact', 'Client', 'Prospect', 'Lead')
+    expect:
+      invalid_count: 0
+  
+  - name: zip_code_format_valid
+    type: assertion
+    description: "US ZIP codes should be 5 or 9 digits when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND country = 'USA'
+        AND zip_code != ''
+        AND length(replaceAll(zip_code, '-', '')) NOT IN (5, 9)
+    expect:
+      invalid_count: 0
