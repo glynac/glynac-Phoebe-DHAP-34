@@ -36,7 +36,7 @@ task:
     enabled: true
     strategy: partition_based
     partition_column: processing_date
-    lookback_days: 7  # Reload last 7 days for late data
+    lookback_days: 90  # Reload last 7 days for late data
   execution:
     mode: insert_overwrite  # Overwrite partition
     batch_size: 100000
