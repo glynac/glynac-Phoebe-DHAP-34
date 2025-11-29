@@ -160,7 +160,7 @@ Set these in repository settings:
 
 | Secret | Description |
 |--------|-------------|
-| `MINIO_ENDPOINT` | MinIO endpoint URL (e.g., `http://146.190.97.129:9000`) |
+| `MINIO_ENDPOINT` | MinIO endpoint URL (e.g., `http://10.104.16.8:9000`) |
 | `MINIO_ACCESS_KEY` | MinIO access key |
 | `MINIO_SECRET_KEY` | MinIO secret key |
 | `MINIO_CONFIG_BUCKET` | Bucket name (default: `airflow-configs`) |
@@ -182,7 +182,7 @@ wget https://dl.min.io/client/mc/release/linux-amd64/mc
 chmod +x mc
 
 # Configure alias
-./mc alias set minio http://146.190.97.129:9000 minioadmin minioadmin
+./mc alias set minio http://10.104.16.8:9000 minioadmin minioadmin
 
 # Test sync
 ./mc mirror config/ minio/airflow-configs/ --dry-run

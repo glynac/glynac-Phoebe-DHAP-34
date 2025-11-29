@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: account_raw
+
+source:
+  bucket: main-data
+  path: orion/account
+  
+description: "Orion account data"
+tags:
+  - bronze
+  - orion
+  - account
+  - auto-schema
