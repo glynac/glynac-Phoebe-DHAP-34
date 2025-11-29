@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_position_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_position
+  
+description: "Orion finance_position data"
+tags:
+  - bronze
+  - orion
+  - finance_position
+  - auto-schema

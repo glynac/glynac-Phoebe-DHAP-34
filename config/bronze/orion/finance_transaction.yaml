@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_transaction_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_transaction
+  
+description: "Orion finance_transaction data"
+tags:
+  - bronze
+  - orion
+  - finance_transaction
+  - auto-schema

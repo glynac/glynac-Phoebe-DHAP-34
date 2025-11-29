@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_budget_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_budget
+  
+description: "Orion finance_budget data"
+tags:
+  - bronze
+  - orion
+  - finance_budget
+  - auto-schema

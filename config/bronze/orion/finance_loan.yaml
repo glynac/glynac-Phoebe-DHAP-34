@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_loan_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_loan
+  
+description: "Orion finance_loan data"
+tags:
+  - bronze
+  - orion
+  - finance_loan
+  - auto-schema

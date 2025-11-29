@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_portfolio_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_portfolio
+  
+description: "Orion finance_portfolio data"
+tags:
+  - bronze
+  - orion
+  - finance_portfolio
+  - auto-schema

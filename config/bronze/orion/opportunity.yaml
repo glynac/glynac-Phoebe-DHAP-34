@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: opportunity_raw
+
+source:
+  bucket: main-data
+  path: orion/opportunity
+  
+description: "Orion opportunity data"
+tags:
+  - bronze
+  - orion
+  - opportunity
+  - auto-schema

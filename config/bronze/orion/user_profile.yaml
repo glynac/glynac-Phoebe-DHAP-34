@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: user_profile_raw
+
+source:
+  bucket: main-data
+  path: orion/user_profile
+  
+description: "Orion user_profile data"
+tags:
+  - bronze
+  - orion
+  - user_profile
+  - auto-schema

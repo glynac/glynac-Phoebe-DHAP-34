@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: lead_raw
+
+source:
+  bucket: main-data
+  path: orion/lead
+  
+description: "Orion lead data"
+tags:
+  - bronze
+  - orion
+  - lead
+  - auto-schema

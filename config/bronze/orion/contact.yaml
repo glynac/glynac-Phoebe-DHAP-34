@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: contact_raw
+
+source:
+  bucket: main-data
+  path: orion/contact
+  
+description: "Orion contact data"
+tags:
+  - bronze
+  - orion
+  - contact
+  - auto-schema

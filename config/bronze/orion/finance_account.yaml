@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_account_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_account
+  
+description: "Orion finance_account data"
+tags:
+  - bronze
+  - orion
+  - finance_account
+  - auto-schema

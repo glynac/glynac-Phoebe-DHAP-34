@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: invoice_raw
+
+source:
+  bucket: main-data
+  path: orion/invoice
+  
+description: "Orion invoice data"
+tags:
+  - bronze
+  - orion
+  - invoice
+  - auto-schema
