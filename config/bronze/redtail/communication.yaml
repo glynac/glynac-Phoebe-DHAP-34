@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: communication_raw
+view: communication_raw
 
 metadata:
   description: "Raw Redtail communication data from MinIO"

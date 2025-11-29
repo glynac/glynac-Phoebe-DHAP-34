@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: portfolio_raw
+view: portfolio_raw
 
 metadata:
   description: "Raw Redtail portfolio data from MinIO"

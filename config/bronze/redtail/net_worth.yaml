@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: net_worth_raw
+view: net_worth_raw
 
 metadata:
   description: "Raw Redtail net worth data from MinIO"

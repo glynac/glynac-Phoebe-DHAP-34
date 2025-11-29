@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: client_raw
+view: client_raw
 
 metadata:
   description: "Raw Redtail client data from MinIO"

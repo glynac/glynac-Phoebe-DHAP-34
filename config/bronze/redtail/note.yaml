@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: note_raw
+view: note_raw
 
 metadata:
   description: "Raw Redtail note data from MinIO"

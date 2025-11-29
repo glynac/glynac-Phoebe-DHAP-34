@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: contact_raw
+view: contact_raw
 
 metadata:
   description: "Raw Redtail contact data from MinIO"

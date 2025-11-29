@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: call_raw
+view: call_raw
 
 metadata:
   description: "Raw Redtail call records from CRM system"

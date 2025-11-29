@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: activity_raw
+view: activity_raw
 
 metadata:
   description: "Raw Redtail activity data from MinIO"
