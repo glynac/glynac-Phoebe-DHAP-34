@@ -80,6 +80,18 @@ schema:
       description: "Type of message (typically 'batch_data')"
       source: orc
 
+    - name: glynac_organization_id
+      type: String
+      nullable: false
+      description: "Organization identifier for data isolation"
+      source: partition
+      
+    - name: processing_date
+      type: Date
+      nullable: false
+      description: "Date when data was processed"
+      source: partition
+
     - name: rec_id
       type: Int32
       nullable: false
