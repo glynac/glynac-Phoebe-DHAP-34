@@ -47,6 +47,13 @@ schema:
     - name: status
       type: String
       nullable: false
+    - name: glynac_organization_id
+      type: String
+      nullable: false      
+    - name: processing_date
+      type: Date
+      nullable: false
+      source: partition
     - name: rec_id
       type: Int64
       nullable: false
