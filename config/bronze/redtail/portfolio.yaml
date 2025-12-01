@@ -10,7 +10,7 @@ metadata:
 source:
   type: minio
   bucket: main-data
-  path: redtail/portfolio
+  path: redtail/portfolio/
   format: orc
   partitions:
     - name: glynac_organization_id
