@@ -11,10 +11,10 @@ SELECT
     investment_id,
     
     -- Financial amounts (convert string to Decimal with safe handling)
-    toDecimal64(replaceAll(replaceAll(COALESCE(amount, '0'), ',', ''), '$', ''), 2) as amount,
-    toDecimal64(replaceAll(replaceAll(COALESCE(fees, '0'), ',', ''), '$', ''), 2) as fees,
-    toDecimal64(replaceAll(replaceAll(COALESCE(price_per_unit, '0'), ',', ''), '$', ''), 4) as price_per_unit,
-    toDecimal64(replaceAll(replaceAll(COALESCE(quantity, '0'), ',', ''), '$', ''), 4) as quantity,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(amount, '0'), ',', ''), '$', ''), 2) as amount,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(fees, '0'), ',', ''), '$', ''), 2) as fees,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(price_per_unit, '0'), ',', ''), '$', ''), 4) as price_per_unit,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(quantity, '0'), ',', ''), '$', ''), 4) as quantity,
     
     -- Currency
     trimBoth(COALESCE(currency, 'USD')) as currency,
