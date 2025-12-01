@@ -13,26 +13,11 @@ SELECT
     trimBoth(COALESCE(asset_class, '')) as asset_class,
     trimBoth(COALESCE(category, '')) as category,
     
-    -- Current pricing (convert string to Decimal)
-    CAST(
-        replaceAll(replaceAll(COALESCE(current_price, '0'), ',', ''), '$', '') 
-        AS Decimal(15, 4)
-    ) as current_price,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(previous_close, '0'), ',', ''), '$', '') 
-        AS Decimal(15, 4)
-    ) as previous_close,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(price_change, '0'), ',', ''), '$', '') 
-        AS Decimal(15, 4)
-    ) as price_change,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(price_change_percent, '0'), ',', ''), '%', '') 
-        AS Decimal(8, 2)
-    ) as price_change_percent,
+    -- Current pricing (convert string to Decimal with safe handling)
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(current_price, '0'), ',', ''), '$', ''), 4) as current_price,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(previous_close, '0'), ',', ''), '$', ''), 4) as previous_close,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(price_change, '0'), ',', ''), '$', ''), 4) as price_change,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(price_change_percent, '0'), ',', ''), '%', ''), 2) as price_change_percent,
     
     -- Description and metadata
     trimBoth(COALESCE(description, '')) as description,
@@ -43,53 +28,22 @@ SELECT
     trimBoth(COALESCE(industry, '')) as industry,
     
     -- Bond-specific fields
-    CAST(
-        replaceAll(replaceAll(COALESCE(coupon_rate, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 3)
-    ) as coupon_rate,
-    
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(coupon_rate, '0'), ',', ''), '%', ''), 3) as coupon_rate,
     parseDateTime64BestEffortOrNull(toString(maturity_date)) as maturity_date,
     trimBoth(COALESCE(credit_rating, '')) as credit_rating,
     
     -- Fund-specific fields
-    CAST(
-        replaceAll(replaceAll(COALESCE(expense_ratio, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 4)
-    ) as expense_ratio,
-    
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(expense_ratio, '0'), ',', ''), '%', ''), 4) as expense_ratio,
     trimBoth(COALESCE(fund_manager, '')) as fund_manager,
     trimBoth(COALESCE(fund_family, '')) as fund_family,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(fund_aum, '0'), ',', ''), '$', ''), 2) as fund_aum,
     
-    CAST(
-        replaceAll(replaceAll(COALESCE(fund_aum, '0'), ',', ''), '$', '') 
-        AS Decimal(20, 2)
-    ) as fund_aum,
-    
-    -- Performance metrics (convert string percentages to Decimal)
-    CAST(
-        replaceAll(replaceAll(COALESCE(ytd_return, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 2)
-    ) as ytd_return,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(one_year_return, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 2)
-    ) as one_year_return,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(three_year_return, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 2)
-    ) as three_year_return,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(five_year_return, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 2)
-    ) as five_year_return,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(dividend_yield, '0'), ',', ''), '%', '') 
-        AS Decimal(6, 2)
-    ) as dividend_yield,
+    -- Performance metrics (convert string percentages to Decimal with safe handling)
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(ytd_return, '0'), ',', ''), '%', ''), 2) as ytd_return,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(one_year_return, '0'), ',', ''), '%', ''), 2) as one_year_return,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(three_year_return, '0'), ',', ''), '%', ''), 2) as three_year_return,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(five_year_return, '0'), ',', ''), '%', ''), 2) as five_year_return,
+    toDecimal64OrZero(replaceAll(replaceAll(COALESCE(dividend_yield, '0'), ',', ''), '%', ''), 2) as dividend_yield,
     
     -- Flags (convert Bool to UInt8)
     CAST(is_active AS UInt8) as is_active,
