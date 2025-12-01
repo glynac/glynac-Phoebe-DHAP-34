@@ -10,26 +10,11 @@ SELECT
     account_id,
     investment_id,
     
-    -- Financial amounts (convert string to Decimal)
-    CAST(
-        replaceAll(replaceAll(COALESCE(amount, '0'), ',', ''), '$', '') 
-        AS Decimal(15, 2)
-    ) as amount,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(fees, '0'), ',', ''), '$', '') 
-        AS Decimal(10, 2)
-    ) as fees,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(price_per_unit, '0'), ',', ''), '$', '') 
-        AS Decimal(15, 4)
-    ) as price_per_unit,
-    
-    CAST(
-        replaceAll(replaceAll(COALESCE(quantity, '0'), ',', ''), '$', '') 
-        AS Decimal(15, 4)
-    ) as quantity,
+    -- Financial amounts (convert string to Decimal with safe handling)
+    toDecimal64(replaceAll(replaceAll(COALESCE(amount, '0'), ',', ''), '$', ''), 2) as amount,
+    toDecimal64(replaceAll(replaceAll(COALESCE(fees, '0'), ',', ''), '$', ''), 2) as fees,
+    toDecimal64(replaceAll(replaceAll(COALESCE(price_per_unit, '0'), ',', ''), '$', ''), 4) as price_per_unit,
+    toDecimal64(replaceAll(replaceAll(COALESCE(quantity, '0'), ',', ''), '$', ''), 4) as quantity,
     
     -- Currency
     trimBoth(COALESCE(currency, 'USD')) as currency,
