@@ -1,0 +1,18 @@
+schedule_interval: "0 5 * * *"  # Daily at 5 AM
+
+depends_on:
+  - silver_customer_orders
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - metrics
+  - hybrid
+  - clv
+
+execution_timeout: 3600
+
+retries: 2
+retry_delay: 300
