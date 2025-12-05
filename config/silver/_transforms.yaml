@@ -49,21 +49,22 @@ string:
 # ============================================================
 # STATUS NORMALIZATION
 # ============================================================
+# Note: Use {col} placeholder in match patterns for column name substitution
 status:
   # Generic account status normalization
   normalize_status:
     description: "Normalize common status values"
     type: multiIf
     mappings:
-      - match: "ILIKE '%active%'"
+      - match: "{col} ILIKE '%active%'"
         value: "active"
-      - match: "ILIKE '%closed%' OR ILIKE '%inactive%' OR ILIKE '%disabled%'"
+      - match: "{col} ILIKE '%closed%' OR {col} ILIKE '%inactive%' OR {col} ILIKE '%disabled%'"
         value: "closed"
-      - match: "ILIKE '%pending%' OR ILIKE '%waiting%'"
+      - match: "{col} ILIKE '%pending%' OR {col} ILIKE '%waiting%'"
         value: "pending"
-      - match: "ILIKE '%deleted%' OR ILIKE '%removed%'"
+      - match: "{col} ILIKE '%deleted%' OR {col} ILIKE '%removed%'"
         value: "deleted"
-      - match: "!= ''"
+      - match: "{col} != ''"
         value: "lower(trim({col}))"
         is_expression: true
     default: "unknown"
@@ -73,9 +74,9 @@ status:
     description: "Convert string boolean values to 0/1"
     type: multiIf
     mappings:
-      - match: "IN ('true', 'yes', '1', 'y', 'True', 'Yes', 'TRUE', 'YES')"
+      - match: "{col} IN ('true', 'yes', '1', 'y', 'True', 'Yes', 'TRUE', 'YES')"
         value: "1"
-      - match: "IN ('false', 'no', '0', 'n', 'False', 'No', 'FALSE', 'NO')"
+      - match: "{col} IN ('false', 'no', '0', 'n', 'False', 'No', 'FALSE', 'NO')"
         value: "0"
     default: "0"
     output_type: UInt8
