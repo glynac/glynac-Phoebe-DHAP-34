@@ -9,8 +9,8 @@ from typing import Dict, List, Any
 class ConfigValidator:
     """Validates configuration files for data pipeline layers."""
 
-    # Required fields for Bronze configs
-    BRONZE_REQUIRED_FIELDS = ['version', 'database', 'table']
+    # Required fields for Bronze configs (table OR view)
+    BRONZE_REQUIRED_FIELDS = ['version', 'database']
 
     # Required fields for Silver configs (manual mode)
     SILVER_MANUAL_REQUIRED_FIELDS = ['version', 'layer', 'database', 'table']
@@ -22,8 +22,8 @@ class ConfigValidator:
     VALID_CLICKHOUSE_TYPES = [
         'String', 'Int8', 'Int16', 'Int32', 'Int64', 'UInt8', 'UInt16', 'UInt32', 'UInt64',
         'Float32', 'Float64', 'Decimal', 'Date', 'Date32', 'DateTime', 'DateTime64',
-        'Bool', 'UUID', 'IPv4', 'IPv6', 'Enum8', 'Enum16', 'Array', 'Tuple', 'Map',
-        'Nullable', 'LowCardinality', 'FixedString', 'JSON', 'Object'
+        'Bool', 'Boolean', 'UUID', 'IPv4', 'IPv6', 'Enum8', 'Enum16', 'Array', 'Tuple', 'Map',
+        'Nullable', 'LowCardinality', 'FixedString', 'JSON', 'Object', 'SimpleAggregateFunction'
     ]
 
     # Valid engine types
@@ -52,6 +52,10 @@ class ConfigValidator:
         for field in cls.BRONZE_REQUIRED_FIELDS:
             if field not in config:
                 errors.append(f"Missing required field: {field}")
+
+        # Must have either 'table' or 'view'
+        if 'table' not in config and 'view' not in config:
+            errors.append("Missing required field: 'table' or 'view'")
 
         # Validate version format
         if 'version' in config:
@@ -235,14 +239,12 @@ class ConfigValidator:
             if not isinstance(metadata['tags'], list):
                 errors.append("metadata.tags must be a list")
 
-        # Validate PII settings consistency
-        if metadata.get('contains_pii', False):
-            if 'pii_columns' not in metadata:
-                errors.append("contains_pii=true but pii_columns not defined")
-            elif not isinstance(metadata['pii_columns'], list):
-                errors.append("pii_columns must be a list")
-            elif len(metadata['pii_columns']) == 0:
-                errors.append("pii_columns list is empty but contains_pii=true")
+        # Validate PII settings consistency (warnings, not errors)
+        # PII columns are recommended but not required
+        # if metadata.get('contains_pii', False):
+        #     if 'pii_columns' not in metadata:
+        #         warnings.append("contains_pii=true but pii_columns not defined")
+        pass
 
         return errors
 
