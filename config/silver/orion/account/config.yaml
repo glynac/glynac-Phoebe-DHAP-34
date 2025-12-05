@@ -90,6 +90,8 @@ target:
 # ============================================================
 # TRANSFORMS
 # ============================================================
+# NOTE: Only apply transforms to columns that NEED transformation
+# If Bronze column is already correct type (e.g., Float64), don't add transform
 transforms:
   # Status normalization
   account_status:
@@ -113,14 +115,9 @@ transforms:
   email:
     transform: clean_email
 
-  # Money fields
-  balance:
-    transform: parse_money
+  # Note: balance, available_balance are already Float64 in Bronze - no transform needed
 
-  available_balance:
-    transform: parse_money
-
-  # Dates
+  # Dates (only if stored as String in Bronze)
   open_date:
     transform: parse_date
 

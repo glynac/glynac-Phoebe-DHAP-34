@@ -17,13 +17,15 @@ target:
   table: transaction
 
 # Transform overrides (only columns needing special handling)
+# NOTE: Only apply transforms to columns that NEED transformation
+# If Bronze column is already the correct type (e.g., Float64), don't add transform
 transforms:
   # Status normalization
   transaction_status:
     target: status_normalized
     transform: normalize_status
 
-  # String cleaning
+  # String cleaning (only for String columns that need cleaning)
   transaction_type:
     transform: clean_string
 
@@ -33,42 +35,11 @@ transforms:
   category:
     transform: clean_string
 
-  subcategory:
-    transform: clean_string
+  # Note: amount, fee, tax, net_amount, balance_after are already Float64 in Bronze
+  # No transform needed - they pass through as-is
 
-  reference_number:
-    transform: clean_string
-
-  memo:
-    transform: clean_string
-
-  # Money fields
-  amount:
-    transform: parse_money
-
-  fee:
-    transform: parse_money
-
-  tax:
-    transform: parse_money
-
-  net_amount:
-    transform: parse_money
-
-  balance_after:
-    transform: parse_money
-
-  # Dates
+  # Dates (only if stored as String in Bronze)
   transaction_date:
-    transform: parse_date
-
-  settlement_date:
-    transform: parse_date
-
-  created_at:
-    transform: parse_date
-
-  updated_at:
     transform: parse_date
 
 # Deduplication (Orion uses transaction_id, not rec_id)
