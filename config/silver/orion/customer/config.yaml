@@ -1,0 +1,100 @@
+# Silver Layer - Orion Customer (AUTO MODE)
+# Schema inferred from Bronze: orion.customer_raw
+
+version: "1.0"
+
+dag:
+  schedule_interval: "dataset"
+  tags: ["silver", "orion", "customer", "auto-mode"]
+
+source:
+  database: orion
+  table: customer_raw
+
+target:
+  database: orion_silver
+  table: customer
+
+# Transform overrides
+transforms:
+  # Status normalization
+  customer_status:
+    target: status_normalized
+    transform: normalize_status
+
+  # String cleaning
+  first_name:
+    transform: clean_string
+
+  last_name:
+    transform: clean_string
+
+  full_name:
+    transform: clean_string
+
+  company_name:
+    transform: clean_string
+
+  customer_type:
+    transform: clean_string
+
+  # Contact info
+  email:
+    transform: clean_email
+
+  phone:
+    transform: clean_phone
+
+  mobile_phone:
+    transform: clean_phone
+
+  # Address
+  address:
+    transform: clean_string
+
+  city:
+    transform: clean_string
+
+  state:
+    transform: clean_string
+
+  zip_code:
+    transform: clean_string
+
+  country:
+    transform: clean_string
+
+  # Dates
+  date_of_birth:
+    transform: parse_date
+
+  created_at:
+    transform: parse_date
+
+  updated_at:
+    transform: parse_date
+
+lookback_days: 90
+
+dedupe:
+  partition_by:
+    - rec_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+filters:
+  - "rec_id IS NOT NULL"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - rec_id
+      - glynac_organization_id
+    severity: error

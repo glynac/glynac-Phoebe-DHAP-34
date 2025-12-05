@@ -1,8 +1,8 @@
 version: "1.0"
 
 dag:
-  dag_id: "silver__redtail_asset"  
-  description: "Transform and clean Redtail asset/holding data from Bronze to Silver layer"
+  # dag_id derived from folder path: silver_redtail_account
+  description: "Transform and clean Redtail account data from Bronze to Silver layer"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"
   catchup: false
@@ -10,8 +10,7 @@ dag:
   tags:
     - silver
     - redtail
-    - assets
-    - holdings
+    - accounts
     - financial
     - dataset-aware
   default_args:
@@ -30,13 +29,13 @@ dag:
 
 
 task:
-  task_id: "transform_redtail_asset"
+  task_id: "transform_redtail_account"
   task_type: clickhouse_transformation
   incremental:
     enabled: true
     strategy: partition_based
     partition_column: processing_date
-    lookback_days: 90  # Reload last 7 days for late data
+    lookback_days: 90
   execution:
     mode: insert_overwrite  # Overwrite partition
     batch_size: 100000

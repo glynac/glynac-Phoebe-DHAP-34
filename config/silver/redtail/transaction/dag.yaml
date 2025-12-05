@@ -1,7 +1,7 @@
 version: "1.0"
 
 dag:
-  dag_id: "silver__redtail_transaction"  
+  # dag_id derived from folder path: silver_redtail_transaction
   description: "Transform and clean Redtail transaction data from Bronze to Silver layer"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"

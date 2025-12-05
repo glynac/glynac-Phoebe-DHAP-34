@@ -1,0 +1,96 @@
+# Silver Layer - Orion Transaction (AUTO MODE)
+# Schema inferred from Bronze: orion.transaction_raw
+
+version: "1.0"
+
+dag:
+  schedule_interval: "dataset"
+  tags: ["silver", "orion", "transaction", "auto-mode"]
+
+source:
+  database: orion
+  table: transaction_raw
+
+target:
+  database: orion_silver
+  table: transaction
+
+# Transform overrides
+transforms:
+  # Status normalization
+  transaction_status:
+    target: status_normalized
+    transform: normalize_status
+
+  # String cleaning
+  transaction_type:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  category:
+    transform: clean_string
+
+  subcategory:
+    transform: clean_string
+
+  reference_number:
+    transform: clean_string
+
+  memo:
+    transform: clean_string
+
+  # Money fields
+  amount:
+    transform: parse_money
+
+  fee:
+    transform: parse_money
+
+  tax:
+    transform: parse_money
+
+  net_amount:
+    transform: parse_money
+
+  balance_after:
+    transform: parse_money
+
+  # Dates
+  transaction_date:
+    transform: parse_date
+
+  settlement_date:
+    transform: parse_date
+
+  created_at:
+    transform: parse_date
+
+  updated_at:
+    transform: parse_date
+
+lookback_days: 90
+
+dedupe:
+  partition_by:
+    - rec_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+filters:
+  - "rec_id IS NOT NULL"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - rec_id
+      - glynac_organization_id
+    severity: error

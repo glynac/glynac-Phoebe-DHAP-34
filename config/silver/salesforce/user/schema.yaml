@@ -1,7 +1,7 @@
 version: "1.0"
 layer: silver
-database: silver
-table: salesforce_user
+database: salesforce_silver
+table: user
 
 
 metadata:

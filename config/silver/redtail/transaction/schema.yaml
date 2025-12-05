@@ -1,37 +1,35 @@
 version: "1.0"
 layer: silver
-database: silver
-table: redtail_asset
+database: redtail_silver
+table: transaction
 
 
 metadata:
-  display_name: "Redtail Account Assets (Cleaned)"
+  display_name: "Redtail Transactions (Cleaned)"
   description: |
-    Cleaned and transformed Redtail account asset/holding data from Bronze layer.
-    Represents investment positions within financial accounts with cost basis, 
-    current values, and performance metrics.
+    Cleaned and transformed Redtail transaction data from Bronze layer.
+    Represents financial transactions including deposits, withdrawals, trades,
+    fees, dividends, and other account movements.
   
   owner: data-engineering
   domain: redtail
   tags:
     - redtail
-    - assets
-    - holdings
-    - investments
+    - transactions
     - financial
+    - trades
     - silver
     - pii
   data_classification: confidential
   contains_pii: true
   pii_columns:
-    - current_value
-    - cost_basis
-    - unrealized_gain_loss
+    - amount
+    - fees
     - investment_data
   update_frequency: hourly
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:
-    - redtail.asset_raw
+    - redtail.transaction_raw
   downstream_dependencies: []
 
 clickhouse:
@@ -48,22 +46,26 @@ clickhouse:
   settings:
     index_granularity: 8192  
   indexes:
+    - name: transaction_number_idx
+      expression: transaction_number
+      type: bloom_filter
+      granularity: 1
+    - name: transaction_type_idx
+      expression: transaction_type
+      type: set
+      granularity: 4
     - name: account_id_idx
       expression: account_id
       type: minmax
       granularity: 2
-    - name: investment_id_idx
-      expression: investment_id
+    - name: transaction_date_idx
+      expression: transaction_date
       type: minmax
       granularity: 2
-    - name: is_core_position_idx
-      expression: is_core_position
-      type: set
-      granularity: 4
 
 columns:
   - name: rec_id
-    type: Int64
+    type: Int32
     nullable: false
     description: "Redtail internal record ID (primary key)"
     primary_key: true
@@ -75,124 +77,148 @@ columns:
     description: "Organization identifier for data isolation"
     example: "org-abc123"
     
+  # Transaction identifiers
+  - name: transaction_number
+    type: String
+    nullable: false
+    description: "Unique transaction number (trimmed)"
+    example: "TXN-2025-001234"
+    
+  - name: transaction_type
+    type: String
+    nullable: false
+    description: "Type of transaction (Deposit, Withdrawal, Buy, Sell, Fee, Dividend, etc.)"
+    example: "Buy"
+    
   # Foreign keys
   - name: account_id
-    type: Int64
+    type: Int32
     nullable: false
     description: "Foreign key to account record"
     example: 5678
     
   - name: investment_id
-    type: Int64
+    type: Int32
     nullable: false
     description: "Foreign key to investment/security record"
     example: 9012
     
-  - name: asset_id
-    type: Int64
+  # Financial amounts
+  - name: amount
+    type: Decimal(15, 2)
     nullable: false
-    description: "Asset identifier (may duplicate rec_id)"
-    example: 12345
+    description: "Transaction amount (converted from string)"
+    pii: true
+    example: 10000.00
     
-  # Quantity
+  - name: fees
+    type: Decimal(10, 2)
+    nullable: false
+    description: "Transaction fees (converted from string)"
+    pii: true
+    example: 9.99
+    
+  - name: price_per_unit
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Price per share/unit (converted from string)"
+    example: 125.5000
+    
   - name: quantity
     type: Decimal(15, 4)
     nullable: false
-    description: "Number of units/shares held (converted from string)"
-    example: 100.5000
+    description: "Number of shares/units (converted from string)"
+    example: 100.0000
     
-  # Cost basis
-  - name: cost_basis
-    type: Decimal(15, 2)
+  - name: currency
+    type: String
     nullable: false
-    description: "Total cost basis (converted from string)"
-    pii: true
-    example: 10500.00
-    
-  - name: cost_basis_per_unit
-    type: Decimal(15, 4)
-    nullable: false
-    description: "Cost basis per unit/share (converted from string)"
-    example: 104.4776
-    
-  # Current pricing
-  - name: current_price
-    type: Decimal(15, 4)
-    nullable: false
-    description: "Current price per unit/share (converted from string)"
-    example: 125.5000
-    
-  - name: current_value
-    type: Decimal(15, 2)
-    nullable: false
-    description: "Current market value of position (converted from string)"
-    pii: true
-    example: 12612.75
-    
-  # Performance metrics
-  - name: unrealized_gain_loss
-    type: Decimal(15, 2)
-    nullable: false
-    description: "Unrealized gain/loss amount (converted from string)"
-    pii: true
-    example: 2112.75
-    
-  - name: unrealized_gain_loss_percent
-    type: Decimal(8, 2)
-    nullable: false
-    description: "Unrealized gain/loss percentage (converted from string)"
-    example: 20.12
-    
-  # Allocation
-  - name: allocation_percent
-    type: Decimal(5, 2)
-    nullable: false
-    description: "Percentage of account allocated to this position (converted from string)"
-    example: 15.50
-    
-  - name: target_allocation
-    type: Decimal(5, 2)
-    nullable: false
-    description: "Target allocation percentage (converted from string)"
-    example: 18.00
+    description: "Currency code (trimmed, default USD)"
+    example: "USD"
     
   # Dates
-  - name: purchase_date
+  - name: transaction_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when position was purchased (parsed from string)"
-    example: "2023-03-15 00:00:00.000"
+    description: "Transaction date (parsed from string)"
+    example: "2025-11-28 00:00:00.000"
     
-  - name: last_update_date
+  - name: settlement_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Last update timestamp for pricing (parsed from string)"
-    example: "2025-11-28 16:00:00.000"
+    description: "Settlement date (parsed from string)"
+    example: "2025-11-30 00:00:00.000"
+    
+  - name: entry_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date transaction was entered into system (parsed from string)"
+    example: "2025-11-28 14:30:00.000"
+    
+  # Status
+  - name: status
+    type: String
+    nullable: false
+    description: "Transaction status (trimmed)"
+    example: "Completed"
+    
+  - name: status_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized transaction status (completed/pending/failed/cancelled)"
+    allowed_values: [completed, pending, failed, cancelled]
+    example: "completed"
+    
+  # Description and notes
+  - name: description
+    type: String
+    nullable: false
+    description: "Transaction description (trimmed)"
+    example: "Purchase of AAPL shares"
+    
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes or comments (trimmed)"
+    example: "Quarterly investment"
+    
+  - name: reference_number
+    type: String
+    nullable: false
+    description: "External reference number (trimmed)"
+    example: "REF-123456"
     
   # Flags
-  - name: is_core_position
-    type: UInt8
-    nullable: false
-    description: "Whether this is a core/strategic position (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 1
-    
   - name: is_active
     type: UInt8
     nullable: false
-    description: "Whether position is currently active (1=active, 0=closed)"
+    description: "Whether transaction is currently active (1=active, 0=cancelled)"
     allowed_values: [0, 1]
     example: 1
+    
+  # Investment data
+  - name: investment_data
+    type: String
+    nullable: false
+    description: "Serialized investment/security information (JSON)"
+    pii: true
+    example: '{"symbol":"AAPL","name":"Apple Inc."}'
+    
+  - name: investment_name
+    type: String
+    nullable: false
+    description: "Investment name (denormalized field, trimmed)"
+    example: "Apple Inc."
     
   # Audit fields
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
     description: "Timestamp when record was added in Redtail (parsed from string)"
-    example: "2023-03-15 10:30:00.000"
+    example: "2025-11-28 10:30:00.000"
     
   - name: rec_add_user
-    type: Int64
+    type: Int32
     nullable: false
     description: "User ID who added the record"
     example: 42
@@ -204,25 +230,10 @@ columns:
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_edit_user
-    type: Int64
+    type: Int32
     nullable: false
     description: "User ID who last edited the record"
     example: 42
-    
-  # Investment data
-  - name: investment_data
-    type: String
-    nullable: false
-    description: "Serialized investment/security information (JSON)"
-    pii: true
-    example: '{"symbol":"AAPL","name":"Apple Inc."}'
-    
-  # Notes
-  - name: notes
-    type: String
-    nullable: false
-    description: "Additional notes or comments (trimmed)"
-    example: "Long-term hold position"
     
   # Batch metadata
   - name: scan_id
@@ -263,7 +274,7 @@ columns:
     nullable: false
     description: "Source table name"
     system_column: true
-    example: "redtail.asset_raw"
+    example: "redtail.transaction_raw"
     
   - name: _source_timestamp
     type: Nullable(DateTime64(3))

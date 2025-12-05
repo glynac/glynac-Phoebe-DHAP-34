@@ -1,7 +1,7 @@
 version: "1.0"
 layer: silver
-database: silver
-table: redtail_investment
+database: redtail_silver
+table: investment
 
 
 metadata:

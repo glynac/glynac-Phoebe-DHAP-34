@@ -1,0 +1,148 @@
+# ============================================================
+# SILVER LAYER - AUTO MODE CONFIG TEMPLATE
+# ============================================================
+# This is a template for auto-mode Silver transformations.
+# Auto mode infers schema from Bronze and generates SQL automatically.
+#
+# Usage:
+#   1. Copy this file to: silver/{source}/{table}/config.yaml
+#   2. Fill in source and target details
+#   3. Add transform overrides for columns that need special handling
+#   4. Remove this header comment
+#
+# The system will:
+#   - Query Bronze schema via DESCRIBE TABLE
+#   - Apply default transforms based on column type (String → clean_string)
+#   - Apply your custom transform overrides
+#   - Generate the SQL transformation automatically
+# ============================================================
+
+version: "1.0"
+
+# ============================================================
+# DAG SETTINGS
+# ============================================================
+# Note: dag_id is auto-derived from folder path: silver_{source}_{table}
+# e.g., silver/redtail/account → silver_redtail_account
+dag:
+  # Schedule: "dataset" for Bronze-triggered, or cron like "@daily"
+  schedule_interval: "dataset"
+  tags: ["silver", "redtail", "account"]  # Customize tags
+
+# ============================================================
+# SOURCE (Bronze table to read from)
+# ============================================================
+source:
+  database: redtail           # Bronze database name
+  table: account_raw          # Bronze VIEW or table name
+
+# ============================================================
+# TARGET (Silver table to write to)
+# ============================================================
+# Database naming: {source}_silver (e.g., redtail_silver, orion_silver)
+# Table naming: just the entity name (e.g., account, customer)
+target:
+  database: redtail_silver    # {source}_silver
+  table: account              # Entity name without source prefix
+
+# ============================================================
+# TRANSFORM OVERRIDES (optional)
+# ============================================================
+# Only specify columns that need special handling.
+# All other columns will use default transforms based on type.
+#
+# Available transforms (from _transforms.yaml):
+#   String:
+#     - clean_string     : trim + coalesce to ''
+#     - clean_email      : lowercase + trim
+#     - clean_phone      : digits only
+#     - clean_upper      : uppercase + trim
+#
+#   Status:
+#     - normalize_status : map active/closed/pending/unknown
+#     - normalize_boolean: map true/false to 1/0
+#
+#   Numeric:
+#     - parse_money      : "$1,234.56" → Decimal
+#     - parse_percentage : "45.5%" → Decimal
+#     - safe_int         : String → Int64 or NULL
+#     - safe_float       : String → Float64 or NULL
+#
+#   DateTime:
+#     - parse_date       : Various formats → DateTime64
+#     - parse_date_only  : Various formats → Date
+#     - parse_epoch_ms   : Epoch milliseconds → DateTime
+#     - parse_epoch_sec  : Epoch seconds → DateTime
+transforms:
+  # Rename and transform a column
+  account_status:
+    target: status_normalized    # Rename to this
+    transform: normalize_status  # Apply this transform
+
+  # Just apply a custom transform (keep column name)
+  email:
+    transform: clean_email
+
+  # Parse money amounts
+  current_balance:
+    transform: parse_money
+
+  available_balance:
+    transform: parse_money
+
+# ============================================================
+# EXCLUDE COLUMNS (optional)
+# ============================================================
+# Columns to exclude from Silver table
+exclude:
+  - internal_field
+  - temp_data
+  - _raw_json
+
+# ============================================================
+# LOOKBACK DAYS (optional)
+# ============================================================
+# How many days of Bronze data to process
+lookback_days: 90
+
+# ============================================================
+# DEDUPLICATION (required)
+# ============================================================
+# How to deduplicate records
+dedupe:
+  partition_by:
+    - rec_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# ============================================================
+# FILTERS (optional)
+# ============================================================
+# WHERE clause conditions
+filters:
+  - "rec_id IS NOT NULL"
+  - "rec_id != 0"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# ============================================================
+# TESTS (optional)
+# ============================================================
+# Data quality tests (same as tests.yaml in manual mode)
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - rec_id
+      - glynac_organization_id
+    severity: error
+
+  - type: unique
+    columns:
+      - rec_id
+      - processing_date
+    severity: warning

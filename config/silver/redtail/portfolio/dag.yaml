@@ -1,8 +1,8 @@
 version: "1.0"
 
 dag:
-  dag_id: "silver__redtail_investment"  
-  description: "Transform and clean Redtail investment/security data from Bronze to Silver layer"
+  # dag_id derived from folder path: silver_redtail_portfolio
+  description: "Transform and clean Redtail portfolio data from Bronze to Silver layer"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"
   catchup: false
@@ -10,8 +10,7 @@ dag:
   tags:
     - silver
     - redtail
-    - investments
-    - securities
+    - portfolios
     - financial
     - dataset-aware
   default_args:
@@ -30,7 +29,7 @@ dag:
 
 
 task:
-  task_id: "transform_redtail_investment"
+  task_id: "transform_redtail_portfolio"
   task_type: clickhouse_transformation
   incremental:
     enabled: true
