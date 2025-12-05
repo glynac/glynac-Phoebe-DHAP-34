@@ -43,7 +43,9 @@ jobs:
         echo "Syncing configs to MinIO bucket: $MINIO_BUCKET"
 
         # Sync config folder (bronze, silver, gold, global_config.yaml, etc.)
-        mc mirror --overwrite config/ ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/ \
+        # --remove: Delete files in MinIO that don't exist in repo (handles renames/restructures)
+        # --overwrite: Update existing files
+        mc mirror --overwrite --remove config/ ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/ \
           --exclude ".gitkeep"
 
         echo "Sync completed!"
