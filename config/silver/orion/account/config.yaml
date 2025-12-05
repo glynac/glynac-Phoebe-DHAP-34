@@ -1,10 +1,11 @@
 # Silver Layer - Orion Account (AUTO MODE)
 # Schema inferred from Bronze: orion.account_raw
+# Settings inherited from _defaults.yaml unless overridden
 
 version: "1.0"
 
 dag:
-  schedule_interval: "dataset"
+  description: "Transform and clean Orion account data from Bronze to Silver"
   tags: ["silver", "orion", "account", "auto-mode"]
 
 source:
@@ -15,7 +16,7 @@ target:
   database: orion_silver
   table: account
 
-# Transform overrides
+# Transform overrides (only columns needing special handling)
 transforms:
   # Status normalization
   account_status:
@@ -59,20 +60,22 @@ transforms:
   updated_at:
     transform: parse_date
 
-lookback_days: 90
-
+# Deduplication (Orion uses account_id, not rec_id)
 dedupe:
   partition_by:
-    - rec_id
+    - account_id
     - processing_date
   order_by:
     - processing_timestamp DESC
 
+# Filters
 filters:
-  - "rec_id IS NOT NULL"
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
+# Tests
 tests:
   - type: row_count
     min: 1
@@ -80,6 +83,6 @@ tests:
 
   - type: not_null
     columns:
-      - rec_id
+      - account_id
       - glynac_organization_id
     severity: error

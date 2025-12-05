@@ -1,11 +1,11 @@
 # Silver Layer - Redtail Activity (AUTO MODE)
-# Schema is inferred from Bronze table redtail.activity_raw
-# SQL transformation is generated automatically
+# Schema inferred from Bronze: redtail.activity_raw
+# Settings inherited from _defaults.yaml unless overridden
 
 version: "1.0"
 
 dag:
-  schedule_interval: "dataset"
+  description: "Transform and clean Redtail activity data from Bronze to Silver"
   tags: ["silver", "redtail", "activity", "auto-mode"]
 
 source:

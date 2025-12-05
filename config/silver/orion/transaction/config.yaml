@@ -1,10 +1,11 @@
 # Silver Layer - Orion Transaction (AUTO MODE)
 # Schema inferred from Bronze: orion.transaction_raw
+# Settings inherited from _defaults.yaml unless overridden
 
 version: "1.0"
 
 dag:
-  schedule_interval: "dataset"
+  description: "Transform and clean Orion transaction data from Bronze to Silver"
   tags: ["silver", "orion", "transaction", "auto-mode"]
 
 source:
@@ -15,7 +16,7 @@ target:
   database: orion_silver
   table: transaction
 
-# Transform overrides
+# Transform overrides (only columns needing special handling)
 transforms:
   # Status normalization
   transaction_status:
@@ -70,20 +71,22 @@ transforms:
   updated_at:
     transform: parse_date
 
-lookback_days: 90
-
+# Deduplication (Orion uses transaction_id, not rec_id)
 dedupe:
   partition_by:
-    - rec_id
+    - transaction_id
     - processing_date
   order_by:
     - processing_timestamp DESC
 
+# Filters
 filters:
-  - "rec_id IS NOT NULL"
+  - "transaction_id IS NOT NULL"
+  - "transaction_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
+# Tests
 tests:
   - type: row_count
     min: 1
@@ -91,6 +94,6 @@ tests:
 
   - type: not_null
     columns:
-      - rec_id
+      - transaction_id
       - glynac_organization_id
     severity: error

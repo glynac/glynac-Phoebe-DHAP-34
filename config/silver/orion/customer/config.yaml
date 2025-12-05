@@ -1,10 +1,11 @@
 # Silver Layer - Orion Customer (AUTO MODE)
 # Schema inferred from Bronze: orion.customer_raw
+# Settings inherited from _defaults.yaml unless overridden
 
 version: "1.0"
 
 dag:
-  schedule_interval: "dataset"
+  description: "Transform and clean Orion customer data from Bronze to Silver"
   tags: ["silver", "orion", "customer", "auto-mode"]
 
 source:
@@ -15,7 +16,7 @@ target:
   database: orion_silver
   table: customer
 
-# Transform overrides
+# Transform overrides (only columns needing special handling)
 transforms:
   # Status normalization
   customer_status:
@@ -74,20 +75,22 @@ transforms:
   updated_at:
     transform: parse_date
 
-lookback_days: 90
-
+# Deduplication (Orion uses customer_id, not rec_id)
 dedupe:
   partition_by:
-    - rec_id
+    - customer_id
     - processing_date
   order_by:
     - processing_timestamp DESC
 
+# Filters
 filters:
-  - "rec_id IS NOT NULL"
+  - "customer_id IS NOT NULL"
+  - "customer_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
+# Tests
 tests:
   - type: row_count
     min: 1
@@ -95,6 +98,6 @@ tests:
 
   - type: not_null
     columns:
-      - rec_id
+      - customer_id
       - glynac_organization_id
     severity: error
