@@ -1,221 +1,277 @@
 # ============================================================
-# SILVER LAYER - AUTO MODE CONFIG TEMPLATE
+# SILVER LAYER - AUTO MODE CONFIG TEMPLATE (COMPREHENSIVE)
 # ============================================================
-# This is a comprehensive template for auto-mode Silver transformations.
-# Auto mode infers schema from Bronze and generates SQL automatically.
-#
-# Features:
-#   - Schema inference from Bronze via DESCRIBE TABLE
-#   - Automatic transforms based on column type
-#   - Full DAG configuration (retries, SLA, dependencies)
-#   - Data quality tests
-#   - Deduplication settings
+# This template shows ALL available options for auto-mode configs.
+# Auto mode infers schema from Bronze but you can still specify:
+#   - Metadata (PII, owner, classification)
+#   - ClickHouse settings (engine, indexes, TTL)
+#   - Transforms, Filters, Deduplication
+#   - Comprehensive data quality tests
 #
 # Usage:
-#   1. Copy this file to: silver/{source}/{table}/config.yaml
-#   2. Fill in source and target details
-#   3. Add transform overrides for columns needing special handling
-#   4. Customize DAG settings as needed (or use defaults from _defaults.yaml)
-#   5. Remove this header comment
-#
-# Defaults:
-#   Values from _defaults.yaml are applied automatically.
-#   Only specify values here if you need to OVERRIDE defaults.
+#   1. Copy to: silver/{source}/{table}/config.yaml
+#   2. Fill in required sections (source, target, dedupe)
+#   3. Add metadata if table contains PII
+#   4. Add clickhouse indexes for query performance
+#   5. Add tests for data quality
+#   6. Remove sections you don't need (they'll use defaults)
 #
 # ============================================================
 
 version: "1.0"
 
 # ============================================================
-# DAG SETTINGS
+# METADATA (recommended for PII tables)
 # ============================================================
-# dag_id is auto-derived from folder path: silver_{source}_{table}
-# e.g., silver/orion/account → silver_orion_account
-#
-# Most settings inherit from _defaults.yaml. Only override what you need.
-dag:
-  # Override schedule (default: "dataset" for Bronze-triggered)
-  schedule_interval: "dataset"
+# If not specified, inherits from _defaults.yaml
+metadata:
+  display_name: "Orion Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Orion account data from Bronze layer.
+    Includes account details, balances, and status information.
 
-  # Custom tags for this DAG (source tag auto-added)
+  owner: data-engineering
+  domain: orion
+  tags:
+    - silver
+    - orion
+    - account
+    - financial
+    - pii
+
+  # Data classification
+  data_classification: confidential  # public, internal, confidential, restricted
+  contains_pii: true
+  pii_columns:
+    - account_number
+    - account_name
+    - email
+    - balance
+    - available_balance
+
+  # Lifecycle
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial
+
+  # Lineage
+  upstream_dependencies:
+    - orion.account_raw
+  downstream_dependencies: []
+
+# ============================================================
+# CLICKHOUSE SETTINGS (optional - has sensible defaults)
+# ============================================================
+# Override for custom engine, indexes, or TTL
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - account_id
+  primary_key:
+    - account_id
+
+  ttl: "processing_date + INTERVAL 2555 DAY"
+
+  settings:
+    index_granularity: 8192
+
+  # Indexes for query performance
+  indexes:
+    - name: status_idx
+      expression: status_normalized
+      type: set
+      granularity: 4
+
+    - name: account_type_idx
+      expression: account_type
+      type: bloom_filter
+      granularity: 1
+
+    - name: balance_idx
+      expression: balance
+      type: minmax
+      granularity: 2
+
+# ============================================================
+# DAG SETTINGS (optional - inherits from _defaults.yaml)
+# ============================================================
+dag:
+  description: "Transform and clean Orion account data from Bronze to Silver"
   tags: ["silver", "orion", "account", "auto-mode"]
 
-  # Override default_args if needed
+  # Override if needed:
+  # schedule_interval: "dataset"
   # default_args:
   #   owner: custom-team
   #   retries: 5
-  #   retry_delay_minutes: 10
-  #   execution_timeout_minutes: 60
-  #   email_on_failure: true
-  #   email_on_retry: false
-
-  # Override SLA if needed
   # sla:
-  #   enabled: true
   #   duration_minutes: 180
-
-  # Override concurrency if needed
-  # concurrency: 2
-  # max_active_runs: 2
-  # max_active_tasks_per_dag: 2
 
 # ============================================================
 # SOURCE (Bronze table to read from)
 # ============================================================
 source:
-  database: orion              # Bronze database name
-  table: account_raw           # Bronze VIEW or table name
+  database: orion
+  table: account_raw
 
 # ============================================================
 # TARGET (Silver table to write to)
 # ============================================================
-# Database naming: {source}_silver (e.g., orion_silver, redtail_silver)
-# Table naming: just the entity name (e.g., account, customer)
 target:
-  database: orion_silver       # {source}_silver
-  table: account               # Entity name without source prefix
+  database: orion_silver
+  table: account
 
 # ============================================================
-# TASK SETTINGS (optional - inherits from _defaults.yaml)
+# TRANSFORMS (only columns needing special handling)
 # ============================================================
-# Override task execution settings if needed
-# task:
-#   incremental:
-#     enabled: true
-#     strategy: partition_based
-#     partition_column: processing_date
-#
-#   execution:
-#     mode: insert_overwrite
-#     batch_size: 100000
-#     max_insert_threads: 4
-
-# ============================================================
-# TRANSFORM OVERRIDES (optional)
-# ============================================================
-# Only specify columns that need special handling.
-# All other columns will use default transforms based on type.
-#
-# Available transforms (from _transforms.yaml):
-#   String:
-#     - clean_string     : trim + coalesce to ''
-#     - clean_email      : lowercase + trim
-#     - clean_phone      : digits only
-#     - clean_upper      : uppercase + trim
-#     - extract_email_domain : get domain from email
-#
-#   Status:
-#     - normalize_status : map active/closed/pending/unknown
-#     - normalize_boolean: map true/false to 1/0
-#
-#   Numeric:
-#     - parse_money      : "$1,234.56" → Decimal
-#     - parse_percentage : "45.5%" → Decimal
-#     - safe_int         : String → Int64 or NULL
-#     - safe_float       : String → Float64 or NULL
-#
-#   DateTime:
-#     - parse_date       : Various formats → DateTime64
-#     - parse_date_only  : Various formats → Date
-#     - parse_epoch_ms   : Epoch milliseconds → DateTime
-#     - parse_epoch_sec  : Epoch seconds → DateTime
+# Available transforms:
+#   String:  clean_string, clean_email, clean_phone, clean_upper
+#   Status:  normalize_status, normalize_boolean
+#   Numeric: parse_money, parse_percentage, safe_int, safe_float
+#   Date:    parse_date, parse_date_only, parse_epoch_ms
 transforms:
-  # Rename and transform a column
+  # Rename + transform
   account_status:
-    target: status_normalized    # Rename to this
-    transform: normalize_status  # Apply this transform
+    target: status_normalized
+    transform: normalize_status
 
-  # Just apply a custom transform (keep column name)
+  # Just transform (keep column name)
+  account_name:
+    transform: clean_string
+
+  account_number:
+    transform: clean_string
+
   email:
     transform: clean_email
 
-  # Parse money amounts
   balance:
     transform: parse_money
 
   available_balance:
     transform: parse_money
 
-# ============================================================
-# EXCLUDE COLUMNS (optional)
-# ============================================================
-# Columns to exclude from Silver table
-# Global excludes from _defaults.yaml are always applied
-exclude:
-  - internal_field
-  - temp_data
+  open_date:
+    transform: parse_date
+
+  close_date:
+    transform: parse_date
 
 # ============================================================
-# LOOKBACK DAYS (optional - default: 90)
+# EXCLUDE COLUMNS
 # ============================================================
-# How many days of Bronze data to process
-lookback_days: 90
+exclude:
+  - internal_field
+  - batch_status
+  - message_type
 
 # ============================================================
 # DEDUPLICATION (required)
 # ============================================================
-# How to deduplicate records
-# Primary key column varies by source:
-#   - Redtail: rec_id
-#   - Orion: {entity}_id (e.g., account_id, customer_id)
-#   - Salesforce: sf_id
 dedupe:
   partition_by:
-    - account_id          # Change to match your entity's primary key
+    - account_id
     - processing_date
   order_by:
     - processing_timestamp DESC
 
 # ============================================================
-# FILTERS (optional)
+# FILTERS
 # ============================================================
-# WHERE clause conditions for data quality
 filters:
-  - "account_id IS NOT NULL"       # Change to match primary key
-  - "account_id != ''"             # Change to match primary key
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
 # ============================================================
-# DEPENDENCIES (optional - inherits from _defaults.yaml)
+# LOOKBACK DAYS
 # ============================================================
-# Override dependency checks if needed
-# dependencies:
-#   auto_detect: true
-#   mode: dataset_aware
-#
-#   check_strategy:
-#     - type: table_exists
-#       description: "Check if Bronze table exists"
-#       fail_on_missing: true
-#
-#     - type: has_data
-#       description: "Check if Bronze table has data"
-#       fail_on_empty: true
-#       partition_column: processing_date
-#
-#     - type: freshness
-#       description: "Check Bronze data is fresh"
-#       max_age_hours: 2
-#       fail_on_stale: false
+lookback_days: 90
 
 # ============================================================
-# TESTS (optional - inherits row_count from _defaults.yaml)
+# TESTS - COMPREHENSIVE DATA QUALITY
 # ============================================================
-# Data quality tests
+# Test types:
+#   - row_count: Check minimum rows
+#   - not_null: Check columns are not null
+#   - unique: Check uniqueness
+#   - accepted_values: Check allowed values
+#   - custom: Custom SQL query
+
 tests:
+  # Basic existence
   - type: row_count
     min: 1
     severity: error
 
+  # Required columns
   - type: not_null
     columns:
-      - account_id         # Change to match primary key
+      - account_id
       - glynac_organization_id
+      - processing_date
     severity: error
 
+  # Uniqueness
   - type: unique
     columns:
-      - account_id         # Change to match primary key
+      - account_id
       - processing_date
+    severity: error
+
+  # Status values
+  - type: accepted_values
+    column: status_normalized
+    values: ["active", "closed", "pending", "unknown"]
+    severity: error
+
+  # Balance checks
+  - type: custom
+    name: balance_non_negative
+    description: "Balances should not be negative"
     severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM {{ target_table }}
+      WHERE processing_date = toDate('{{ ds }}')
+        AND balance < 0
+
+  - type: custom
+    name: available_lte_current
+    description: "Available balance should not exceed current balance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM {{ target_table }}
+      WHERE processing_date = toDate('{{ ds }}')
+        AND available_balance > balance
+
+  # Referential integrity
+  - type: custom
+    name: all_records_from_bronze
+    description: "All Silver records should exist in Bronze"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_count
+      FROM {{ target_table }} s
+      LEFT JOIN {{ source_table }} b
+        ON s.account_id = b.account_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.account_id IS NULL
+
+  # Date sanity
+  - type: custom
+    name: open_date_not_future
+    description: "Account open date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM {{ target_table }}
+      WHERE processing_date = toDate('{{ ds }}')
+        AND open_date > now()

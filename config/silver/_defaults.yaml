@@ -16,6 +16,33 @@
 version: "1.0"
 
 # ============================================================
+# METADATA DEFAULTS
+# ============================================================
+metadata:
+  owner: data-engineering
+  domain: auto-detected  # Overwritten by source name
+  data_classification: internal
+  contains_pii: false
+  pii_columns: []
+  update_frequency: hourly
+  retention_days: 730  # ~2 years default
+
+# ============================================================
+# CLICKHOUSE DEFAULTS
+# ============================================================
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  # order_by is auto-generated from dedupe.partition_by
+  # primary_key is auto-generated from dedupe.partition_by[0]
+  ttl: "processing_date + INTERVAL 730 DAY"
+  settings:
+    index_granularity: 8192
+  # indexes can be specified per-table
+
+# ============================================================
 # DAG DEFAULTS
 # ============================================================
 dag:
