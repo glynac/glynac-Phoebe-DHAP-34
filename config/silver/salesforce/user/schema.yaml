@@ -3,7 +3,6 @@ layer: silver
 database: salesforce_silver
 table: user
 
-
 metadata:
   display_name: "Salesforce Users (Cleaned)"
   description: |
