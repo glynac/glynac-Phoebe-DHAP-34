@@ -1,0 +1,94 @@
+table_name: customer_care_emails
+description: Customer support email communications data schema
+version: "1.0"
+
+columns:
+  - name: subject
+    type: string
+    nullable: false
+    max_length: 500
+    description: Email subject line
+    
+  - name: sender
+    type: string
+    nullable: false
+    max_length: 100
+    description: Email sender address
+    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    
+  - name: receiver
+    type: string
+    nullable: false
+    max_length: 100
+    description: Email receiver address
+    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    
+  - name: timestamp
+    type: string
+    nullable: false
+    description: Email timestamp with timezone
+    
+  - name: message_body
+    type: string
+    nullable: false
+    description: Email message content
+    
+  - name: thread_id
+    type: string
+    nullable: false
+    max_length: 100
+    description: Email thread identifier
+    
+  - name: email_types
+    type: string
+    nullable: true
+    description: Email categorization types (JSON array as string)
+    
+  - name: email_status
+    type: string
+    nullable: true
+    max_length: 50
+    description: Current status of the email
+    
+  - name: email_criticality
+    type: string
+    nullable: true
+    max_length: 20
+    description: Priority level of the email
+    
+  - name: product_types
+    type: string
+    nullable: true
+    description: Related product categories (JSON array as string)
+    
+  - name: agent_effectivity
+    type: string
+    nullable: true
+    max_length: 20
+    description: Support agent effectiveness rating
+    
+  - name: agent_efficiency
+    type: string
+    nullable: true
+    max_length: 20
+    description: Support agent efficiency rating
+    
+  - name: customer_satisfaction
+    type: decimal
+    nullable: true
+    precision: 5
+    scale: 4
+    min_value: -1
+    max_value: 1
+    description: Customer satisfaction score (-1 to 1, negative indicates dissatisfaction)
+
+partitioning:
+  enabled: true
+  columns:
+    - email_year
+    - email_month
+  strategy: hive_style
+
+constraints:
+  - type: not_null
+    columns: [subject, sender, receiver, timestamp, message_body, thread_id]

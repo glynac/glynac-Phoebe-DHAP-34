@@ -1,0 +1,25 @@
+# Environment files
+.env
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Docker volumes
+postgres_db_volume/
+minio_data/
+
+# Logs and temporary files
+logs/*.log
+*.tmp
+*.temp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
