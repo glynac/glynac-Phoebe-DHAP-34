@@ -1,0 +1,13 @@
+email_thread_details:
+  columns:
+    - thread_id: int
+    - sender: string
+    - receiver: string
+    - timestamp: timestamp
+    - message: string
+
+email_thread_summaries:
+  columns:
+    - thread_id: int
+    - subject: string
+    - category: string
