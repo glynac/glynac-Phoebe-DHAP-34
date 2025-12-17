@@ -1,0 +1,12 @@
+# Mautic Campaigns Table Extraction
+# Partitioned by date_added column
+
+task_id: extract_campaigns
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "campaigns"
+  OUTPUT_PREFIX: "mautic/campaigns"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

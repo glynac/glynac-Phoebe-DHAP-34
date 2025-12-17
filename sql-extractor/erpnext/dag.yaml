@@ -1,5 +1,5 @@
-# ERPNext Database Extraction
-# Tasks run independently - one failure won't block others
+# ERPNext Database Extraction - DAG Configuration
+# Tasks are defined in separate task_*.yaml files
 
 dag_id: DOCKER__sql_extractor__erpnext
 description: "Extract ERPNext database tables to MinIO (ORC format)"
@@ -13,21 +13,15 @@ tags:
   - erpnext
   - production
 
-tasks:
-  - task_id: extract_users
-    job_name: sql-extractor
-    connection_id: mariadb_erpnext
-    environment:
-      MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
-      MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"
-      MINIO_SECRET_KEY: "{{ var.value.MINIO_SECRET_KEY }}"
-      MINIO_BUCKET: "raw-data"
-      MINIO_SECURE: "false"
-      DB_TYPE: "mysql"
-      TABLE_NAME: "tabUser"
-      OUTPUT_PREFIX: "erpnext/users"
-      PARTITION_COLUMN: "creation"
-      PARTITION_FORMAT: "%Y-%m-%d"
-      INCREMENTAL_MODE: "false"
-      BATCH_SIZE: "10000"
-      ORC_COMPRESSION: "snappy"
+# Default values shared across all tasks
+defaults:
+  connection_id: mariadb_erpnext
+  environment:
+    MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
+    MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"
+    MINIO_SECRET_KEY: "{{ var.value.MINIO_SECRET_KEY }}"
+    MINIO_BUCKET: "raw-data"
+    MINIO_SECURE: "false"
+    DB_TYPE: "mysql"
+    BATCH_SIZE: "10000"
+    ORC_COMPRESSION: "snappy"

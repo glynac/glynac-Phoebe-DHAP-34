@@ -1,0 +1,12 @@
+# Mautic Emails Table Extraction
+# Partitioned by date_added column
+
+task_id: extract_emails
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "emails"
+  OUTPUT_PREFIX: "mautic/emails"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"
