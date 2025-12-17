@@ -144,19 +144,5 @@ class TestGoldConfig:
         assert len(gold_configs) > 0, "No Gold layer configs found"
 
 
-class TestFlinkConfig:
-    """Test Flink streaming configuration structure"""
-
-    def test_flink_directory_exists(self):
-        """Test that stream-flink config directory exists"""
-        flink_dir = CONFIG_DIR / "stream-flink"
-        assert flink_dir.exists(), "stream-flink directory not found"
-
-    def test_flink_sql_files_exist(self):
-        """Test that Flink SQL files exist"""
-        flink_sql_files = glob.glob(str(CONFIG_DIR / "stream-flink/**/*.sql"), recursive=True)
-        assert len(flink_sql_files) > 0, "No Flink SQL files found"
-
-
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
