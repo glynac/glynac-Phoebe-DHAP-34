@@ -1,20 +1,22 @@
-# Mautic Emails Extraction
-dag_id: DOCKER__sql_extractor__mautic_emails
-description: "Extract Mautic emails table to MinIO (ORC format)"
-schedule_interval: "0 2 * * *"
+# OpenCATS Database Extraction
+# Tasks run independently - one failure won't block others
+
+dag_id: DOCKER__sql_extractor__opencats
+description: "Extract OpenCATS database tables to MinIO (ORC format)"
+schedule_interval: "0 4 * * *"
 owner: data-platform
 catchup: false
 retries: 2
 retry_delay_minutes: 10
 tags:
   - sql-extractor
-  - mautic
-  - emails
+  - opencats
+  - production
 
 tasks:
-  - task_id: extract_emails
+  - task_id: extract_candidates
     job_name: sql-extractor
-    connection_id: mariadb_mautic
+    connection_id: mariadb_opencats
     environment:
       MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
       MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"
@@ -22,9 +24,9 @@ tasks:
       MINIO_BUCKET: "raw-data"
       MINIO_SECURE: "false"
       DB_TYPE: "mysql"
-      TABLE_NAME: "emails"
-      OUTPUT_PREFIX: "mautic/emails"
-      PARTITION_COLUMN: "date_added"
+      TABLE_NAME: "candidate"
+      OUTPUT_PREFIX: "opencats/candidates"
+      PARTITION_COLUMN: "date_created"
       PARTITION_FORMAT: "%Y-%m-%d"
       INCREMENTAL_MODE: "false"
       BATCH_SIZE: "10000"
