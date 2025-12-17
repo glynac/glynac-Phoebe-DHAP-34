@@ -1,0 +1,44 @@
+# Mautic Leads Extraction
+# Syncs to: MinIO docker-jobs-configs/sql-extractor/mautic/dag_leads.yaml
+
+dag_id: DOCKER__sql_extractor__mautic_leads
+description: "Extract Mautic leads table to MinIO (ORC format)"
+schedule_interval: "0 2 * * *"  # Daily at 2 AM
+owner: data-platform
+catchup: false
+retries: 2
+retry_delay_minutes: 10
+tags:
+  - sql-extractor
+  - mautic
+  - leads
+  - production
+
+tasks:
+  - task_id: extract_leads
+    job_name: sql-extractor
+    connection_id: mariadb_mautic
+    environment:
+      # MinIO Configuration
+      MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
+      MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"
+      MINIO_SECRET_KEY: "{{ var.value.MINIO_SECRET_KEY }}"
+      MINIO_BUCKET: "raw-data"
+      MINIO_SECURE: "false"
+
+      # Database Type
+      DB_TYPE: "mysql"
+
+      # Extraction Configuration
+      TABLE_NAME: "leads"
+      OUTPUT_PREFIX: "mautic/leads"
+
+      # Partitioning
+      PARTITION_COLUMN: "date_added"
+      PARTITION_FORMAT: "%Y-%m-%d"
+
+      # Settings
+      INCREMENTAL_MODE: "false"
+      BATCH_SIZE: "10000"
+      ORC_COMPRESSION: "snappy"
+      LOG_LEVEL: "INFO"

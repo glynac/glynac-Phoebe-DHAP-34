@@ -1,0 +1,200 @@
+name: Build Docker Jobs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker-jobs/**'
+  workflow_dispatch:
+
+jobs:
+  detect-changes:
+    name: Detect Changed Jobs
+    runs-on: self-hosted
+    outputs:
+      jobs: ${{ steps.detect.outputs.jobs }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed jobs
+        id: detect
+        run: |
+          # Get changed files in docker-jobs/
+          CHANGED_JOBS=$(git diff --name-only HEAD~1 HEAD | grep '^docker-jobs/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+
+          if [ "$CHANGED_JOBS" = "[]" ]; then
+            echo "No docker jobs changed"
+            echo "jobs=[]" >> $GITHUB_OUTPUT
+          else
+            echo "Changed jobs: $CHANGED_JOBS"
+            echo "jobs=$CHANGED_JOBS" >> $GITHUB_OUTPUT
+          fi
+
+  build-jobs:
+    name: Build Job Images
+    runs-on: self-hosted
+    needs: detect-changes
+    if: needs.detect-changes.outputs.jobs != '[]'
+    strategy:
+      matrix:
+        job: ${{ fromJson(needs.detect-changes.outputs.jobs) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check job mode (AUTO or MANUAL)
+        id: mode
+        run: |
+          JOB_DIR="docker-jobs/${{ matrix.job }}"
+
+          if [ -f "$JOB_DIR/Dockerfile" ]; then
+            echo "mode=manual" >> $GITHUB_OUTPUT
+            echo "📝 MANUAL mode detected - using provided Dockerfile"
+          elif [ -f "$JOB_DIR/config.yaml" ]; then
+            echo "mode=auto" >> $GITHUB_OUTPUT
+            echo "🤖 AUTO mode detected - will generate Dockerfile from template"
+          else
+            echo "❌ Error: No Dockerfile or config.yaml found in $JOB_DIR"
+            exit 1
+          fi
+
+      - name: Calculate hash
+        id: hash
+        run: |
+          JOB_DIR="docker-jobs/${{ matrix.job }}"
+
+          # Hash all relevant files
+          if [ "${{ steps.mode.outputs.mode }}" = "auto" ]; then
+            HASH=$(cat "$JOB_DIR/script.py" "$JOB_DIR/requirements.txt" "$JOB_DIR/config.yaml" | sha256sum | cut -c1-12)
+          else
+            HASH=$(find "$JOB_DIR" -type f -exec sha256sum {} \; | sort | sha256sum | cut -c1-12)
+          fi
+
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "📦 Image hash: $HASH"
+
+      - name: Check if image exists in Harbor
+        id: check
+        run: |
+          IMAGE_TAG="harbor-registry.service.consul:8085/glynac-custom/${{ matrix.job }}:${{ steps.hash.outputs.hash }}"
+
+          # Try to pull image (will fail if doesn't exist)
+          if docker pull "$IMAGE_TAG" 2>/dev/null; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Image already exists in Harbor: $IMAGE_TAG"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "🔨 Image does not exist, will build: $IMAGE_TAG"
+          fi
+
+      - name: Generate Dockerfile (AUTO mode only)
+        if: steps.mode.outputs.mode == 'auto' && steps.check.outputs.exists == 'false'
+        run: |
+          JOB_DIR="docker-jobs/${{ matrix.job }}"
+
+          # Read config
+          PYTHON_VERSION=$(yq eval '.python_version // "3.10"' "$JOB_DIR/config.yaml")
+          BASE_IMAGE=$(yq eval '.base_image // "python:3.10-slim"' "$JOB_DIR/config.yaml")
+          ENTRYPOINT=$(yq eval '.entrypoint // "python script.py"' "$JOB_DIR/config.yaml")
+
+          # Generate Dockerfile
+          cat > "$JOB_DIR/Dockerfile.generated" <<EOF
+# AUTO-GENERATED Dockerfile
+# Generated from config.yaml by CI/CD
+FROM $BASE_IMAGE
+
+WORKDIR /app
+
+# Install system packages if specified
+$(yq eval '.system_packages[]? // ""' "$JOB_DIR/config.yaml" | sed 's/^/RUN apt-get update \&\& apt-get install -y /' | head -1)
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY script.py .
+
+# Set entrypoint
+ENTRYPOINT [$ENTRYPOINT]
+EOF
+
+          echo "📄 Generated Dockerfile:"
+          cat "$JOB_DIR/Dockerfile.generated"
+
+      - name: Build and push image
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          JOB_DIR="docker-jobs/${{ matrix.job }}"
+          IMAGE_TAG="harbor-registry.service.consul:8085/glynac-custom/${{ matrix.job }}:${{ steps.hash.outputs.hash }}"
+          IMAGE_LATEST="harbor-registry.service.consul:8085/glynac-custom/${{ matrix.job }}:latest"
+
+          # Use generated Dockerfile for AUTO mode, provided Dockerfile for MANUAL mode
+          if [ "${{ steps.mode.outputs.mode }}" = "auto" ]; then
+            DOCKERFILE="Dockerfile.generated"
+          else
+            DOCKERFILE="Dockerfile"
+          fi
+
+          echo "🔨 Building image with $DOCKERFILE..."
+
+          # Build
+          docker build \
+            -f "$JOB_DIR/$DOCKERFILE" \
+            -t "$IMAGE_TAG" \
+            -t "$IMAGE_LATEST" \
+            "$JOB_DIR"
+
+          # Push both tags
+          echo "📤 Pushing to Harbor..."
+          docker push "$IMAGE_TAG"
+          docker push "$IMAGE_LATEST"
+
+          echo "✅ Successfully built and pushed:"
+          echo "   - $IMAGE_TAG"
+          echo "   - $IMAGE_LATEST"
+
+      - name: Update metadata
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          # Store metadata about built image
+          mkdir -p docker-jobs/${{ matrix.job }}/.metadata
+          cat > docker-jobs/${{ matrix.job }}/.metadata/last-build.json <<EOF
+{
+  "job_name": "${{ matrix.job }}",
+  "mode": "${{ steps.mode.outputs.mode }}",
+  "hash": "${{ steps.hash.outputs.hash }}",
+  "image": "harbor-registry.service.consul:8085/glynac-custom/${{ matrix.job }}:${{ steps.hash.outputs.hash }}",
+  "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "commit": "${{ github.sha }}"
+}
+EOF
+
+          echo "📊 Build metadata:"
+          cat docker-jobs/${{ matrix.job }}/.metadata/last-build.json
+
+  summary:
+    name: Build Summary
+    runs-on: self-hosted
+    needs: [detect-changes, build-jobs]
+    if: always()
+
+    steps:
+      - name: Summary
+        run: |
+          echo "🎯 Docker Jobs Build Summary"
+          echo "============================"
+          echo ""
+          echo "Changed jobs: ${{ needs.detect-changes.outputs.jobs }}"
+          echo "Build status: ${{ needs.build-jobs.result }}"
+          echo ""
+
+          if [ "${{ needs.build-jobs.result }}" = "success" ]; then
+            echo "✅ All docker jobs built successfully!"
+          else
+            echo "❌ Some docker jobs failed to build"
+            exit 1
+          fi

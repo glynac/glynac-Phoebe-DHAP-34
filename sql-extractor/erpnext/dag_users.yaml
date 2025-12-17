@@ -1,0 +1,31 @@
+# ERPNext Users Extraction
+dag_id: DOCKER__sql_extractor__erpnext_users
+description: "Extract ERPNext tabUser table to MinIO (ORC format)"
+schedule_interval: "0 3 * * *"
+owner: data-platform
+catchup: false
+retries: 2
+retry_delay_minutes: 10
+tags:
+  - sql-extractor
+  - erpnext
+  - users
+
+tasks:
+  - task_id: extract_users
+    job_name: sql-extractor
+    connection_id: mariadb_erpnext
+    environment:
+      MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
+      MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"
+      MINIO_SECRET_KEY: "{{ var.value.MINIO_SECRET_KEY }}"
+      MINIO_BUCKET: "raw-data"
+      MINIO_SECURE: "false"
+      DB_TYPE: "mysql"
+      TABLE_NAME: "tabUser"
+      OUTPUT_PREFIX: "erpnext/users"
+      PARTITION_COLUMN: "modified"
+      PARTITION_FORMAT: "%Y-%m-%d"
+      INCREMENTAL_MODE: "false"
+      BATCH_SIZE: "10000"
+      ORC_COMPRESSION: "snappy"
