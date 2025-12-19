@@ -4,9 +4,13 @@
 
 version: "1.0"
 
+# Single-tenant mode: mautic data doesn't have glynac_organization_id
+# (direct MariaDB extraction, not multi-tenant Flink data)
+single_tenant: true
+
 dag:
   description: "Transform Mautic leads data from Bronze to Silver"
-  tags: ["silver", "mautic", "leads", "auto-mode", "sql-extractor"]
+  tags: ["silver", "mautic", "leads", "auto-mode", "sql-extractor", "single-tenant"]
 
 source:
   database: mautic
