@@ -16,6 +16,16 @@ target:
   database: mautic_silver
   table: leads
 
+# Override partition column - mautic uses 'partition' not 'processing_date'
+task:
+  incremental:
+    partition_column: partition
+
+# ClickHouse settings - override for 'partition' column
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
 # Transforms - common mautic leads fields
 # Only applied if columns exist in bronze
 transforms:
