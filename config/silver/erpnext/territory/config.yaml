@@ -7,11 +7,11 @@ dag:
   tags: ["silver", "erpnext", "territory", "auto-mode", "single-tenant"]
 
 source:
-  database: erpnext
+  database: nexterp
   table: territory_raw
 
 target:
-  database: erpnext_silver
+  database: nexterp_silver
   table: territory
 
 task:

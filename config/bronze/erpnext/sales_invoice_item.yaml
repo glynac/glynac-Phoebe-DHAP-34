@@ -1,6 +1,6 @@
 version: "1.0"
 layer: bronze
-database: erpnext
+database: nexterp
 view: sales_invoice_item_raw
 
 source:

@@ -7,11 +7,11 @@ dag:
   tags: ["silver", "erpnext", "customer", "auto-mode", "single-tenant"]
 
 source:
-  database: erpnext
+  database: nexterp
   table: customer_raw
 
 target:
-  database: erpnext_silver
+  database: nexterp_silver
   table: customer
 
 task:

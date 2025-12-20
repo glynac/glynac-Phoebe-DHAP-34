@@ -15,7 +15,7 @@ tags:
 
 # Default values shared across all tasks
 defaults:
-  connection_id: mariadb_erpnext
+  connection_id: mariadb_nexterp
   environment:
     MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
     MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"

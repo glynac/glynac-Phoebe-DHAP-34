@@ -7,11 +7,11 @@ dag:
   tags: ["silver", "erpnext", "sales_invoice", "auto-mode", "single-tenant"]
 
 source:
-  database: erpnext
+  database: nexterp
   table: sales_invoice_raw
 
 target:
-  database: erpnext_silver
+  database: nexterp_silver
   table: sales_invoice
 
 task:
