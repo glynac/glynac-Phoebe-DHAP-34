@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: mautic
+view: plugins_raw
+
+source:
+  bucket: raw-data
+  path: mautic/plugins
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Mautic plugins data via sql-extractor"
+tags: [bronze, mautic, plugins, sql-extractor, auto-schema]

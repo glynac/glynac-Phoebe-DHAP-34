@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: mautic
+view: companies_leads_raw
+
+source:
+  bucket: raw-data
+  path: mautic/companies_leads
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Mautic companies_leads junction data via sql-extractor"
+tags: [bronze, mautic, companies_leads, sql-extractor, auto-schema]

@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: strapi
+view: i18n_locales_raw
+
+source:
+  bucket: raw-data
+  path: strapi/i18n_locales
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Strapi i18n_locales data via sql-extractor"
+tags: [bronze, strapi, i18n_locales, sql-extractor, auto-schema]

@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: opencats
+view: candidate_tag_raw
+
+source:
+  bucket: raw-data
+  path: opencats/candidate_tag
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw OpenCATS candidate_tag data via sql-extractor"
+tags: [bronze, opencats, candidate_tag, sql-extractor, auto-schema]

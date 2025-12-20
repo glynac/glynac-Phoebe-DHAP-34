@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: strapi
+view: upload_file_raw
+
+source:
+  bucket: raw-data
+  path: strapi/upload_file
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Strapi upload_file data via sql-extractor"
+tags: [bronze, strapi, upload_file, sql-extractor, auto-schema]

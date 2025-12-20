@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: opencats
+view: career_portal_template_raw
+
+source:
+  bucket: raw-data
+  path: opencats/career_portal_template
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw OpenCATS career_portal_template data via sql-extractor"
+tags: [bronze, opencats, career_portal_template, sql-extractor, auto-schema]

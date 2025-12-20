@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: mautic
+view: reports_raw
+
+source:
+  bucket: raw-data
+  path: mautic/reports
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Mautic reports data via sql-extractor"
+tags: [bronze, mautic, reports, sql-extractor, auto-schema]

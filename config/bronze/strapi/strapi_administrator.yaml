@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: strapi
+view: strapi_administrator_raw
+
+source:
+  bucket: raw-data
+  path: strapi/strapi_administrator
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Strapi strapi_administrator data via sql-extractor"
+tags: [bronze, strapi, strapi_administrator, sql-extractor, auto-schema]

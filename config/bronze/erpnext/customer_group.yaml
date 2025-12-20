@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: erpnext
+view: customer_group_raw
+
+source:
+  bucket: raw-data
+  path: erpnext/customer_group
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw ERPNext customer_group data via sql-extractor"
+tags: [bronze, erpnext, customer_group, sql-extractor, auto-schema]
