@@ -1,0 +1,12 @@
+# Mautic Lead Devices Table Extraction
+# Device information for leads (browser, OS, etc.)
+
+task_id: extract_lead_devices
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "lead_devices"
+  OUTPUT_PREFIX: "mautic/lead_devices"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

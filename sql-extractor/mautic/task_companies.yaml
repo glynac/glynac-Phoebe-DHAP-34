@@ -1,0 +1,12 @@
+# Mautic Companies Table Extraction
+# Company/organization records
+
+task_id: extract_companies
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "companies"
+  OUTPUT_PREFIX: "mautic/companies"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,12 @@
+# Mautic Users Table Extraction
+# Mautic system users
+
+task_id: extract_users
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "users"
+  OUTPUT_PREFIX: "mautic/users"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,12 @@
+# Mautic Lead Event Log Table Extraction
+# Events/activities related to leads
+
+task_id: extract_lead_event_log
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "lead_event_log"
+  OUTPUT_PREFIX: "mautic/lead_event_log"
+  PARTITION_COLUMN: "date_triggered"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

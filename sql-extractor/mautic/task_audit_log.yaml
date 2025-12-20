@@ -1,0 +1,12 @@
+# Mautic Audit Log Table Extraction
+# Tracks user actions and system events
+
+task_id: extract_audit_log
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "audit_log"
+  OUTPUT_PREFIX: "mautic/audit_log"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"
