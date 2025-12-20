@@ -1,0 +1,10 @@
+# Strapi Upload File Table Extraction
+# Uploaded file metadata
+
+task_id: extract_upload_file
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "upload_file"
+  OUTPUT_PREFIX: "strapi/upload_file"
+  INCREMENTAL_MODE: "false"

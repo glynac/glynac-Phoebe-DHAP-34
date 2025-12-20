@@ -1,0 +1,10 @@
+# Strapi Users-Permissions Permission Table Extraction
+# Permission definitions for users
+
+task_id: extract_users_permissions_permission
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "users-permissions_permission"
+  OUTPUT_PREFIX: "strapi/users_permissions_permission"
+  INCREMENTAL_MODE: "false"

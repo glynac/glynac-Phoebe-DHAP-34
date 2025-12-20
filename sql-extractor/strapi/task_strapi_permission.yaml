@@ -1,0 +1,10 @@
+# Strapi Permission Table Extraction
+# Strapi admin permissions
+
+task_id: extract_strapi_permission
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "strapi_permission"
+  OUTPUT_PREFIX: "strapi/strapi_permission"
+  INCREMENTAL_MODE: "false"
