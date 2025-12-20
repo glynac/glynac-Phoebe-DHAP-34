@@ -1,0 +1,37 @@
+# Silver Layer - Mautic Lead Tags Xref (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Mautic lead_tags_xref from Bronze to Silver"
+  tags: ["silver", "mautic", "lead_tags_xref", "auto-mode", "single-tenant"]
+
+source:
+  database: mautic
+  table: lead_tags_xref_raw
+
+target:
+  database: mautic_silver
+  table: lead_tags_xref
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [lead_id, tag_id, partition]
+  order_by: [lead_id DESC]
+
+filters:
+  - "lead_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS User Login (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS user_login from Bronze to Silver"
+  tags: ["silver", "opencats", "user_login", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: user_login_raw
+
+target:
+  database: opencats_silver
+  table: user_login
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [user_login_id, partition]
+  order_by: [date DESC]
+
+filters:
+  - "user_login_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

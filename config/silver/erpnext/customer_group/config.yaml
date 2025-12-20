@@ -1,0 +1,41 @@
+# Silver Layer - ERPNext Customer Group (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform ERPNext customer_group from Bronze to Silver"
+  tags: ["silver", "erpnext", "customer_group", "auto-mode", "single-tenant"]
+
+source:
+  database: erpnext
+  table: customer_group_raw
+
+target:
+  database: erpnext_silver
+  table: customer_group
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  customer_group_name:
+    transform: clean_string
+
+dedupe:
+  partition_by: [name, partition]
+  order_by: [modified DESC]
+
+filters:
+  - "name IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

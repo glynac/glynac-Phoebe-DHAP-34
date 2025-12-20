@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Calendar Event Type (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS calendar_event_type from Bronze to Silver"
+  tags: ["silver", "opencats", "calendar_event_type", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: calendar_event_type_raw
+
+target:
+  database: opencats_silver
+  table: calendar_event_type
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [calendar_event_type_id, partition]
+  order_by: [calendar_event_type_id DESC]
+
+filters:
+  - "calendar_event_type_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

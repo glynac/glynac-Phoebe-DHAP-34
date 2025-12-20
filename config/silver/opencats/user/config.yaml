@@ -1,0 +1,45 @@
+# Silver Layer - OpenCATS User (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS user from Bronze to Silver"
+  tags: ["silver", "opencats", "user", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: user_raw
+
+target:
+  database: opencats_silver
+  table: user
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  first_name:
+    transform: clean_string
+  last_name:
+    transform: clean_string
+  email:
+    transform: clean_email
+
+dedupe:
+  partition_by: [user_id, partition]
+  order_by: [user_id DESC]
+
+filters:
+  - "user_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

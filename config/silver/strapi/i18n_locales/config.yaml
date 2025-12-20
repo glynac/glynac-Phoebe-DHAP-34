@@ -1,0 +1,37 @@
+# Silver Layer - Strapi i18n Locales (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Strapi i18n_locales from Bronze to Silver"
+  tags: ["silver", "strapi", "i18n_locales", "auto-mode", "single-tenant"]
+
+source:
+  database: strapi
+  table: i18n_locales_raw
+
+target:
+  database: strapi_silver
+  table: i18n_locales
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [id DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

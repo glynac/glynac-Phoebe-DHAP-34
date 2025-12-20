@@ -1,0 +1,43 @@
+# Silver Layer - Strapi Upload File (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Strapi upload_file from Bronze to Silver"
+  tags: ["silver", "strapi", "upload_file", "auto-mode", "single-tenant"]
+
+source:
+  database: strapi
+  table: upload_file_raw
+
+target:
+  database: strapi_silver
+  table: upload_file
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  name:
+    transform: clean_string
+  url:
+    transform: clean_string
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [updated_at DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Site (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS site from Bronze to Silver"
+  tags: ["silver", "opencats", "site", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: site_raw
+
+target:
+  database: opencats_silver
+  table: site
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [site_id, partition]
+  order_by: [site_id DESC]
+
+filters:
+  - "site_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

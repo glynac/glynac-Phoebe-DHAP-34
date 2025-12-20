@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Career Portal Template (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS career_portal_template from Bronze to Silver"
+  tags: ["silver", "opencats", "career_portal_template", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: career_portal_template_raw
+
+target:
+  database: opencats_silver
+  table: career_portal_template
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [career_portal_template_id, partition]
+  order_by: [career_portal_template_id DESC]
+
+filters:
+  - "career_portal_template_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

@@ -1,0 +1,47 @@
+# Silver Layer - Mautic Users (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Mautic users from Bronze to Silver"
+  tags: ["silver", "mautic", "users", "auto-mode", "single-tenant"]
+
+source:
+  database: mautic
+  table: users_raw
+
+target:
+  database: mautic_silver
+  table: users
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  username:
+    transform: clean_string
+  first_name:
+    transform: clean_string
+  last_name:
+    transform: clean_string
+  email:
+    transform: clean_email
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [date_modified DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

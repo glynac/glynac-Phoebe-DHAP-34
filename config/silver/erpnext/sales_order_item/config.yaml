@@ -1,0 +1,43 @@
+# Silver Layer - ERPNext Sales Order Item (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform ERPNext sales_order_item from Bronze to Silver"
+  tags: ["silver", "erpnext", "sales_order_item", "auto-mode", "single-tenant"]
+
+source:
+  database: erpnext
+  table: sales_order_item_raw
+
+target:
+  database: erpnext_silver
+  table: sales_order_item
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  item_name:
+    transform: clean_string
+  description:
+    transform: clean_string
+
+dedupe:
+  partition_by: [name, partition]
+  order_by: [modified DESC]
+
+filters:
+  - "name IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

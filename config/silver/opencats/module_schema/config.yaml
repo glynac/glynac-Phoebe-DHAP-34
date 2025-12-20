@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Module Schema (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS module_schema from Bronze to Silver"
+  tags: ["silver", "opencats", "module_schema", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: module_schema_raw
+
+target:
+  database: opencats_silver
+  table: module_schema
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [module_schema_id, partition]
+  order_by: [module_schema_id DESC]
+
+filters:
+  - "module_schema_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

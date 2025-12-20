@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Extra Field Settings (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS extra_field_settings from Bronze to Silver"
+  tags: ["silver", "opencats", "extra_field_settings", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: extra_field_settings_raw
+
+target:
+  database: opencats_silver
+  table: extra_field_settings
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [extra_field_settings_id, partition]
+  order_by: [extra_field_settings_id DESC]
+
+filters:
+  - "extra_field_settings_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

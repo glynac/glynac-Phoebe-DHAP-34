@@ -1,0 +1,37 @@
+# Silver Layer - Mautic Lead Devices (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Mautic lead_devices from Bronze to Silver"
+  tags: ["silver", "mautic", "lead_devices", "auto-mode", "single-tenant"]
+
+source:
+  database: mautic
+  table: lead_devices_raw
+
+target:
+  database: mautic_silver
+  table: lead_devices
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [date_added DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

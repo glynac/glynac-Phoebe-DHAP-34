@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS XML Feeds (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS xml_feeds from Bronze to Silver"
+  tags: ["silver", "opencats", "xml_feeds", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: xml_feeds_raw
+
+target:
+  database: opencats_silver
+  table: xml_feeds
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [xml_feed_id, partition]
+  order_by: [xml_feed_id DESC]
+
+filters:
+  - "xml_feed_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
