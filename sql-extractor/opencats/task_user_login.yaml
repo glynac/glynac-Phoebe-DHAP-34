@@ -1,0 +1,10 @@
+# OpenCATS User Login Table Extraction
+# User login history/sessions
+
+task_id: extract_user_login
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "user_login"
+  OUTPUT_PREFIX: "opencats/user_login"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,10 @@
+# OpenCATS History Table Extraction
+# Audit/change history records
+
+task_id: extract_history
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "history"
+  OUTPUT_PREFIX: "opencats/history"
+  INCREMENTAL_MODE: "false"

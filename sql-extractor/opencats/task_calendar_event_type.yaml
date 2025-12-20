@@ -1,0 +1,10 @@
+# OpenCATS Calendar Event Type Table Extraction
+# Types of calendar events
+
+task_id: extract_calendar_event_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "calendar_event_type"
+  OUTPUT_PREFIX: "opencats/calendar_event_type"
+  INCREMENTAL_MODE: "false"

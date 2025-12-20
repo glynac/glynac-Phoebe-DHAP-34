@@ -1,0 +1,10 @@
+# OpenCATS Access Level Table Extraction
+# User permission levels
+
+task_id: extract_access_level
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "access_level"
+  OUTPUT_PREFIX: "opencats/access_level"
+  INCREMENTAL_MODE: "false"

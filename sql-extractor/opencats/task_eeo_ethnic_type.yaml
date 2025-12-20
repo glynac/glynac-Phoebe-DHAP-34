@@ -1,0 +1,10 @@
+# OpenCATS EEO Ethnic Type Table Extraction
+# EEO ethnicity classifications
+
+task_id: extract_eeo_ethnic_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "eeo_ethnic_type"
+  OUTPUT_PREFIX: "opencats/eeo_ethnic_type"
+  INCREMENTAL_MODE: "false"

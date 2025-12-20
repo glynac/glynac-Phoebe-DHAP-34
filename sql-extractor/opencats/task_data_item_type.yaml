@@ -1,0 +1,10 @@
+# OpenCATS Data Item Type Table Extraction
+# Types of data items in the system
+
+task_id: extract_data_item_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "data_item_type"
+  OUTPUT_PREFIX: "opencats/data_item_type"
+  INCREMENTAL_MODE: "false"

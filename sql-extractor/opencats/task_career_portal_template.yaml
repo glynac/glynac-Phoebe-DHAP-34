@@ -1,0 +1,10 @@
+# OpenCATS Career Portal Template Table Extraction
+# Career portal page templates
+
+task_id: extract_career_portal_template
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "career_portal_template"
+  OUTPUT_PREFIX: "opencats/career_portal_template"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,10 @@
+# OpenCATS Company Table Extraction
+# Company/organization records
+
+task_id: extract_company
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "company"
+  OUTPUT_PREFIX: "opencats/company"
+  INCREMENTAL_MODE: "false"

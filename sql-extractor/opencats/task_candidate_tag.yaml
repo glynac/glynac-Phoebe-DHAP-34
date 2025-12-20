@@ -1,0 +1,10 @@
+# OpenCATS Candidate Tag Table Extraction
+# Tags for categorizing candidates
+
+task_id: extract_candidate_tag
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "candidate_tag"
+  OUTPUT_PREFIX: "opencats/candidate_tag"
+  INCREMENTAL_MODE: "false"

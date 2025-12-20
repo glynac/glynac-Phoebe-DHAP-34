@@ -1,0 +1,10 @@
+# OpenCATS Activity Type Table Extraction
+# Types of activities/interactions
+
+task_id: extract_activity_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "activity_type"
+  OUTPUT_PREFIX: "opencats/activity_type"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,10 @@
+# OpenCATS Module Schema Table Extraction
+# Module schema definitions
+
+task_id: extract_module_schema
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "module_schema"
+  OUTPUT_PREFIX: "opencats/module_schema"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,10 @@
+# OpenCATS Candidate Job Order Status Table Extraction
+# Status values for candidate-job relationships
+
+task_id: extract_candidate_joborder_status
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "candidate_joborder_status"
+  OUTPUT_PREFIX: "opencats/candidate_joborder_status"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,10 @@
+# OpenCATS Tag Table Extraction
+# General tag definitions
+
+task_id: extract_tag
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tag"
+  OUTPUT_PREFIX: "opencats/tag"
+  INCREMENTAL_MODE: "false"

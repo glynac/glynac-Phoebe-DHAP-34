@@ -1,0 +1,10 @@
+# OpenCATS EEO Veteran Type Table Extraction
+# EEO veteran status classifications
+
+task_id: extract_eeo_veteran_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "eeo_veteran_type"
+  OUTPUT_PREFIX: "opencats/eeo_veteran_type"
+  INCREMENTAL_MODE: "false"
