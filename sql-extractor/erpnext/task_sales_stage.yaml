@@ -1,0 +1,10 @@
+# ERPNext Sales Stage Table Extraction
+# Sales pipeline stages
+
+task_id: extract_sales_stage
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabSales Stage"
+  OUTPUT_PREFIX: "erpnext/sales_stage"
+  INCREMENTAL_MODE: "false"

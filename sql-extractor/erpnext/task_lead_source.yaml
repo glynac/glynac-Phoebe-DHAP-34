@@ -1,0 +1,10 @@
+# ERPNext Lead Source Table Extraction
+# Where leads came from
+
+task_id: extract_lead_source
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabLead Source"
+  OUTPUT_PREFIX: "erpnext/lead_source"
+  INCREMENTAL_MODE: "false"

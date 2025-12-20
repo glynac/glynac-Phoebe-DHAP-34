@@ -1,0 +1,10 @@
+# ERPNext Sales Partner Type Table Extraction
+# Partner classifications
+
+task_id: extract_sales_partner_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabSales Partner Type"
+  OUTPUT_PREFIX: "erpnext/sales_partner_type"
+  INCREMENTAL_MODE: "false"

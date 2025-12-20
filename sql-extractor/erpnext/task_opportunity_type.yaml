@@ -1,0 +1,10 @@
+# ERPNext Opportunity Type Table Extraction
+# Types of opportunities
+
+task_id: extract_opportunity_type
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabOpportunity Type"
+  OUTPUT_PREFIX: "erpnext/opportunity_type"
+  INCREMENTAL_MODE: "false"

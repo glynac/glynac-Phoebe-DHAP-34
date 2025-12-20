@@ -1,0 +1,10 @@
+# ERPNext Sales Person Table Extraction
+# Sales team members
+
+task_id: extract_sales_person
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabSales Person"
+  OUTPUT_PREFIX: "erpnext/sales_person"
+  INCREMENTAL_MODE: "false"
