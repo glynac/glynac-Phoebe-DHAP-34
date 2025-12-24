@@ -1,0 +1,289 @@
+version: "1.0"
+layer: silver
+database: redtail_silver
+table: lead
+
+
+metadata:
+  display_name: "Redtail Leads (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail lead data from Bronze layer.
+    Represents sales leads and prospects with contact information, professional details,
+    lead status, source, rating, assignment, and conversion tracking.
+  
+  owner: ai
+  domain: redtail
+  tags:
+    - redtail
+    - leads
+    - prospects
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - first_name
+    - last_name
+    - full_name
+    - email
+    - phone_number
+    - company_name
+    - job_title
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.lead_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: lead_id_idx
+      expression: lead_id
+      type: bloom_filter
+      granularity: 1
+    - name: lead_status_idx
+      expression: lead_status
+      type: set
+      granularity: 4
+    - name: source_idx
+      expression: source
+      type: set
+      granularity: 4
+    - name: rating_idx
+      expression: rating
+      type: set
+      granularity: 4
+    - name: assigned_to_idx
+      expression: assigned_to
+      type: bloom_filter
+      granularity: 1
+    - name: email_idx
+      expression: email
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Lead identifiers
+  - name: lead_id
+    type: Int32
+    nullable: false
+    description: "Unique lead identifier"
+    example: 98765
+    
+  # Name fields
+  - name: first_name
+    type: String
+    nullable: false
+    description: "Lead's first name (trimmed)"
+    pii: true
+    example: "John"
+    
+  - name: last_name
+    type: String
+    nullable: false
+    description: "Lead's last name (trimmed)"
+    pii: true
+    example: "Smith"
+    
+  - name: full_name
+    type: String
+    nullable: false
+    description: "Lead's full name (trimmed)"
+    pii: true
+    example: "John Smith"
+    
+  # Contact information
+  - name: email
+    type: String
+    nullable: false
+    description: "Lead's email address (trimmed)"
+    pii: true
+    example: "john.smith@example.com"
+    
+  - name: phone_number
+    type: String
+    nullable: false
+    description: "Lead's phone number (trimmed)"
+    pii: true
+    example: "555-123-4567"
+    
+  # Professional information
+  - name: company_name
+    type: String
+    nullable: false
+    description: "Lead's company name (trimmed)"
+    pii: true
+    example: "Acme Corporation"
+    
+  - name: job_title
+    type: String
+    nullable: false
+    description: "Lead's job title (trimmed)"
+    pii: true
+    example: "CFO"
+    
+  - name: industry
+    type: String
+    nullable: false
+    description: "Lead's industry (trimmed)"
+    example: "Technology"
+    
+  # Lead management
+  - name: lead_status
+    type: String
+    nullable: false
+    description: "Current status of the lead (New, Contacted, Qualified, Unqualified, Converted, Closed) (trimmed)"
+    example: "Qualified"
+    
+  - name: status_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized status (new/contacted/qualified/unqualified/converted/closed)"
+    allowed_values: [new, contacted, qualified, unqualified, converted, closed]
+    example: "qualified"
+    
+  - name: source
+    type: String
+    nullable: false
+    description: "Lead source/origin (Website, Referral, Event, Cold Call, etc.) (trimmed)"
+    example: "Website"
+    
+  - name: rating
+    type: String
+    nullable: false
+    description: "Lead rating/priority (Hot, Warm, Cold) (trimmed)"
+    example: "Hot"
+    
+  - name: rating_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized rating (hot/warm/cold/unknown)"
+    allowed_values: [hot, warm, cold, unknown]
+    example: "hot"
+    
+  - name: assigned_to
+    type: Int32
+    nullable: false
+    description: "User ID who is assigned to this lead"
+    example: 7
+    
+  # Conversion tracking
+  - name: converted_to_prospect
+    type: Bool
+    nullable: false
+    description: "Whether lead has been converted to prospect"
+    example: true
+    
+  - name: converted_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when lead was converted (parsed from string)"
+    example: "2025-11-15 10:30:00.000"
+    
+  # Notes
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes about the lead (trimmed)"
+    pii: true
+    example: "Met at financial planning conference, interested in retirement planning"
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2025-10-28 14:30:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-11-28 15:20:00.000"
+    
+  - name: rec_add_user
+    type: Int32
+    nullable: false
+    description: "User ID who created the record"
+    example: 7
+    
+  - name: rec_edit_user
+    type: Int32
+    nullable: false
+    description: "User ID who last edited the record"
+    example: 7
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.lead_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

@@ -11,7 +11,7 @@ metadata:
     Represents financial transactions including deposits, withdrawals, trades,
     fees, dividends, and other account movements.
   
-  owner: data-engineering
+  owner: ai
   domain: redtail
   tags:
     - redtail

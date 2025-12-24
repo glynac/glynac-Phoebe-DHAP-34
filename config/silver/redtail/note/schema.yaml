@@ -1,0 +1,212 @@
+version: "1.0"
+layer: silver
+database: redtail_silver
+table: note
+
+
+metadata:
+  display_name: "Redtail Notes (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail note data from Bronze layer.
+    Represents all note records including contact notes, meeting notes, and general notes
+    with title, content, classification, privacy settings, and pinning status.
+  
+  owner: ai
+  domain: redtail
+  tags:
+    - redtail
+    - notes
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - title
+    - content
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.note_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: note_id_idx
+      expression: note_id
+      type: bloom_filter
+      granularity: 1
+    - name: note_type_idx
+      expression: note_type
+      type: set
+      granularity: 4
+    - name: category_idx
+      expression: category
+      type: set
+      granularity: 4
+    - name: contact_id_idx
+      expression: contact_id
+      type: bloom_filter
+      granularity: 1
+    - name: created_by_idx
+      expression: created_by
+      type: bloom_filter
+      granularity: 1
+    - name: title_idx
+      expression: title
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Note identifiers
+  - name: note_id
+    type: Int32
+    nullable: false
+    description: "Unique note identifier"
+    example: 98765
+    
+  # Note content
+  - name: title
+    type: String
+    nullable: false
+    description: "Note title or subject (trimmed)"
+    pii: true
+    example: "Meeting Notes - Q4 Strategy Discussion"
+    
+  - name: content
+    type: String
+    nullable: false
+    description: "Full note content/body (trimmed)"
+    pii: true
+    example: "Discussed investment strategy for Q4, client prefers conservative approach..."
+    
+  # Note classification
+  - name: note_type
+    type: String
+    nullable: false
+    description: "Type of note (General, Meeting, Call, Contact, Task) (trimmed)"
+    example: "Meeting"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Note category for organization (trimmed)"
+    example: "Client Strategy"
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Note tags, comma-separated (trimmed)"
+    example: "Q4, strategy, conservative"
+    
+  # Relationships
+  - name: contact_id
+    type: Int32
+    nullable: false
+    description: "Foreign key to contact record this note is associated with"
+    example: 42
+    
+  - name: created_by
+    type: Int32
+    nullable: false
+    description: "User ID who created the note"
+    example: 7
+    
+  # Note properties
+  - name: is_private
+    type: Bool
+    nullable: false
+    description: "Whether note is marked as private"
+    example: false
+    
+  - name: is_pinned
+    type: Bool
+    nullable: false
+    description: "Whether note is pinned for quick access"
+    example: true
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2025-11-28 14:00:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-11-28 16:20:00.000"
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.note_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"
