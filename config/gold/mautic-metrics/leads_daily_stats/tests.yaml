@@ -1,0 +1,22 @@
+version: "1.0"
+
+tests:
+  - name: not_empty
+    description: "Table should have data"
+    query: "SELECT count() > 0 FROM {database}.{table}"
+    severity: error
+
+  - name: has_recent_data
+    description: "Should have data from last 7 days"
+    query: "SELECT max(metric_date) >= today() - 7 FROM {database}.{table}"
+    severity: warning
+
+  - name: no_negative_leads
+    description: "Lead counts should not be negative"
+    query: "SELECT count() = 0 FROM {database}.{table} WHERE new_leads < 0"
+    severity: error
+
+  - name: points_reasonable
+    description: "Average points should be reasonable (0-10000)"
+    query: "SELECT count() = 0 FROM {database}.{table} WHERE avg_points < 0 OR avg_points > 10000"
+    severity: warning

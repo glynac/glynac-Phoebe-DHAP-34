@@ -1,0 +1,12 @@
+version: "1.0"
+
+tests:
+  - name: not_empty
+    description: "Table should have data"
+    query: "SELECT count() > 0 FROM {database}.{table}"
+    severity: error
+
+  - name: has_recent_weeks
+    description: "Should have data from recent weeks"
+    query: "SELECT max(week_start) >= toMonday(today() - 14) FROM {database}.{table}"
+    severity: warning

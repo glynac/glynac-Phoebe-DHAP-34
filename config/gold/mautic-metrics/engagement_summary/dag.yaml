@@ -1,0 +1,31 @@
+dag_id: gold_mautic_engagement_summary
+description: "Weekly engagement summary with advanced aggregates using AggregatingMergeTree"
+
+schedule_interval: "dataset"
+
+dependencies:
+  mode: dataset_aware
+  datasets:
+    - uri: "bronze://mautic/page_hits_raw"
+    - uri: "bronze://mautic/leads_raw"
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - mautic
+  - engagement
+  - weekly
+  - aggregating_merge_tree
+
+task:
+  task_type: materialized_view
+  refresh_mode: incremental
+
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
+
+execution_timeout: 3600

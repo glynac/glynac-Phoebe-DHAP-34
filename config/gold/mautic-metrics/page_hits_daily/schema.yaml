@@ -1,0 +1,77 @@
+version: "1.0"
+layer: gold
+database: gold
+table: mautic_page_hits_daily
+
+metadata:
+  display_name: "Mautic Page Hits Daily"
+  description: "Daily page hit engagement metrics - views, unique visitors, bounce rate"
+  owner: data-engineering
+  tags: [gold, mautic, page_hits, engagement, daily]
+  refresh_frequency: realtime
+  pii: false
+
+clickhouse:
+  engine: SummingMergeTree
+  partition_by: toYYYYMM(metric_date)
+  order_by:
+    - metric_date
+    - country
+  settings:
+    index_granularity: 8192
+
+materialized_view:
+  enabled: true
+  name: mv_mautic_page_hits_daily
+  to_table: gold.mautic_page_hits_daily
+  source_table: mautic.page_hits_raw
+  refresh_on_insert: true
+
+schema:
+  columns:
+    - name: metric_date
+      type: Date
+      nullable: false
+      description: "Date of the metric"
+
+    - name: country
+      type: String
+      nullable: false
+      description: "Country of visitor"
+
+    - name: total_hits
+      type: UInt32
+      nullable: false
+      description: "Total page hits"
+
+    - name: unique_leads
+      type: UInt32
+      nullable: false
+      description: "Unique leads visiting"
+
+    - name: unique_urls
+      type: UInt32
+      nullable: false
+      description: "Unique URLs visited"
+
+    - name: avg_time_on_page_seconds
+      type: Float64
+      nullable: true
+      description: "Average time spent on page"
+
+    - name: hits_with_referer
+      type: UInt32
+      nullable: false
+      description: "Hits with referrer info"
+
+    - name: _aggregated_at
+      type: DateTime
+      nullable: false
+      description: "When aggregation was computed"
+
+validation:
+  checks:
+    - name: has_data
+      query: "SELECT count() > 0 FROM {database}.{table}"
+    - name: recent_data
+      query: "SELECT max(metric_date) >= today() - 7 FROM {database}.{table}"
