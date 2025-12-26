@@ -10,7 +10,7 @@ metadata:
     Cleaned and transformed Redtail portfolio data from Bronze layer.
     Represents investment portfolios with strategies, objectives, and performance metrics.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

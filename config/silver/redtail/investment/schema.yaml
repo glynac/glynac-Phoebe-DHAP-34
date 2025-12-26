@@ -11,7 +11,7 @@ metadata:
     Represents individual securities including stocks, bonds, mutual funds, and ETFs
     with pricing, performance metrics, and classification data.
   
-  owner: data-engineering
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

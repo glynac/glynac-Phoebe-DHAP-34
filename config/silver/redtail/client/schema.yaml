@@ -11,7 +11,7 @@ metadata:
     Represents all client relationships with classification, service level,
     risk profile, AUM, and important dates for financial advisory firms.
   
-  owner: data-engineering
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

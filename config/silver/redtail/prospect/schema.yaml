@@ -1,0 +1,239 @@
+version: "1.0"
+layer: silver
+database: redtail_silver
+table: prospect
+
+
+metadata:
+  display_name: "Redtail Prospects (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail prospect data from Bronze layer.
+    Represents sales prospects with status, stage, source, expected revenue,
+    probability, and expected close dates for pipeline management.
+  
+  owner: ai-team
+  domain: redtail
+  tags:
+    - redtail
+    - prospects
+    - sales
+    - pipeline
+    - crm
+    - silver
+    - pii
+    - financial
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - prospect_number
+    - expected_revenue
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.prospect_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: prospect_id_idx
+      expression: prospect_id
+      type: bloom_filter
+      granularity: 1
+    - name: contact_id_idx
+      expression: contact_id
+      type: bloom_filter
+      granularity: 1
+    - name: prospect_status_idx
+      expression: prospect_status
+      type: set
+      granularity: 4
+    - name: stage_idx
+      expression: stage
+      type: set
+      granularity: 4
+    - name: source_idx
+      expression: source
+      type: set
+      granularity: 4
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Prospect identifiers
+  - name: prospect_id
+    type: Int32
+    nullable: false
+    description: "Unique prospect identifier"
+    example: 98765
+    
+  - name: contact_id
+    type: Int32
+    nullable: false
+    description: "Foreign key to contact record"
+    example: 42
+    
+  - name: prospect_number
+    type: String
+    nullable: false
+    description: "Prospect reference number (trimmed)"
+    pii: true
+    example: "PROS-2025-001"
+    
+  # Prospect management
+  - name: prospect_status
+    type: String
+    nullable: false
+    description: "Current status of prospect (Qualified, Active, Converted, Closed, Inactive, Lost) (trimmed)"
+    example: "Qualified"
+    
+  - name: status_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized status (qualified/active/converted/closed/inactive/lost)"
+    allowed_values: [qualified, active, converted, closed, inactive, lost]
+    example: "qualified"
+    
+  - name: stage
+    type: String
+    nullable: false
+    description: "Sales stage (Discovery, Qualification, Proposal, Negotiation, Closed Won, Closed Lost, Contract) (trimmed)"
+    example: "Proposal"
+    
+  - name: stage_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized stage (discovery/qualification/proposal/negotiation/closed_won/closed_lost/contract)"
+    allowed_values: [discovery, qualification, proposal, negotiation, closed_won, closed_lost, contract]
+    example: "proposal"
+    
+  - name: source
+    type: String
+    nullable: false
+    description: "Prospect source/origin (Website, Referral, Event, etc.) (trimmed)"
+    example: "Referral"
+    
+  # Financial data
+  - name: expected_revenue
+    type: Decimal64(2)
+    nullable: false
+    description: "Expected revenue from this prospect (parsed from string, currency symbols removed)"
+    pii: true
+    example: 150000.00
+    
+  - name: probability
+    type: Int32
+    nullable: false
+    description: "Probability of closing as percentage (0-100)"
+    example: 75
+    
+  # Important dates
+  - name: expected_close_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Expected date to close this prospect (parsed from string)"
+    example: "2026-01-15 00:00:00.000"
+    
+  # Notes
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes about the prospect (trimmed)"
+    pii: true
+    example: "High potential client, interested in comprehensive wealth management"
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail (parsed from string)"
+    example: "2025-10-28 10:30:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    example: "2025-11-28 14:20:00.000"
+    
+  - name: rec_add_user
+    type: Int32
+    nullable: false
+    description: "User ID who created the record"
+    example: 7
+    
+  - name: rec_edit_user
+    type: Int32
+    nullable: false
+    description: "User ID who last edited the record"
+    example: 7
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run (trimmed)"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record (parsed from string)"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.prospect_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

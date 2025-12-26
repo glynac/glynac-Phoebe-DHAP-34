@@ -14,7 +14,7 @@ dag:
     - pii
     - dataset-aware
   default_args:
-    owner: ai
+    owner: ai-team
     retries: 3
     retry_delay_minutes: 5
     execution_timeout_minutes: 30

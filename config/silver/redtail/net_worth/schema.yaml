@@ -11,7 +11,7 @@ metadata:
     Represents detailed financial position statements with assets, liabilities,
     and net worth calculations for contacts at specific points in time.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

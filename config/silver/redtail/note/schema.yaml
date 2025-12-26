@@ -11,7 +11,7 @@ metadata:
     Represents all note records including contact notes, meeting notes, and general notes
     with title, content, classification, privacy settings, and pinning status.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

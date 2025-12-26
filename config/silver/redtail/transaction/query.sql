@@ -33,7 +33,7 @@ SELECT
         transaction_status ILIKE '%pending%', 'pending',
         transaction_status ILIKE '%failed%', 'failed',
         transaction_status ILIKE '%cancelled%', 'cancelled',
-        transaction_status != '', toLower(trimBoth(transaction_status)),
+        transaction_status != '', Lower(trimBoth(transaction_status)),
         'completed'
     ) as status_normalized,
     

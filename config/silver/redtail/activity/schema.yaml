@@ -11,7 +11,7 @@ metadata:
     Represents all activity records including tasks, meetings, calls, and other
     interactions with contacts, tracking status, priority, outcomes, and follow-ups.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

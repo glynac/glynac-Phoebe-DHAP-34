@@ -11,7 +11,7 @@ metadata:
     Represents investment allocations within portfolios including target, current,
     min/max percentages, core holdings designation, and active status.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

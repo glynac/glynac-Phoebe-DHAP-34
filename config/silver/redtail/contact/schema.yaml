@@ -11,7 +11,7 @@ metadata:
     Represents all contacts including clients, prospects, leads, and general contacts
     with personal, professional, and contact information.
   
-  owner: data-engineering
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

@@ -11,7 +11,7 @@ metadata:
     Represents all phone call activities including inbound/outbound calls,
     call duration, subject, notes, disposition, outcome, and follow-up requirements.
   
-  owner: data-engineering
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

@@ -11,7 +11,7 @@ metadata:
     Represents sales leads and prospects with contact information, professional details,
     lead status, source, rating, assignment, and conversion tracking.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

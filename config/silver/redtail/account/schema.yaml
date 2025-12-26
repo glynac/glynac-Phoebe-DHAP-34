@@ -10,7 +10,7 @@ metadata:
     Cleaned and transformed Redtail account data from Bronze layer.
     Includes financial accounts with balances, institution information, and related entities.
   
-  owner: data-engineering
+  owner: ai-team
   domain: redtail
   tags:
     - redtail

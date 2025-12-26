@@ -11,7 +11,7 @@ metadata:
     Represents all email communications including sender/recipient addresses,
     subject, body content (text/HTML), status, engagement metrics, and attachments.
   
-  owner: ai
+  owner: ai-team
   domain: redtail
   tags:
     - redtail
