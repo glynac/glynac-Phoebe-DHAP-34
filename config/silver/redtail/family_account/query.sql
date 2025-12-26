@@ -3,7 +3,7 @@ SELECT
     glynac_organization_id,
     
     -- Family account identifiers
-    family_id,
+    rec_id as family_account_id,
     trimBoth(COALESCE(family_name, '')) as family_name,
     trimBoth(COALESCE(account_number, '')) as account_number,
     
