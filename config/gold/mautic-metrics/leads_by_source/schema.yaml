@@ -1,0 +1,64 @@
+version: "1.0"
+layer: gold
+database: gold
+table: mautic_leads_by_source
+
+metadata:
+  display_name: "Mautic Leads by Source"
+  description: "Lead attribution by traffic source - track where leads come from"
+  owner: data-engineering
+  tags: [gold, mautic, leads, attribution, source]
+  refresh_frequency: realtime
+  pii: false
+
+clickhouse:
+  engine: SummingMergeTree
+  partition_by: toYYYYMM(metric_date)
+  order_by:
+    - metric_date
+    - source
+  settings:
+    index_granularity: 8192
+
+materialized_view:
+  enabled: true
+  name: mv_mautic_leads_by_source
+  to_table: gold.mautic_leads_by_source
+  refresh_on_insert: true
+
+schema:
+  columns:
+    - name: metric_date
+      type: Date
+      nullable: false
+      description: "Date of the metric"
+
+    - name: source
+      type: String
+      nullable: false
+      description: "Traffic source (organic, paid, referral, etc.)"
+
+    - name: unique_leads
+      type: UInt32
+      nullable: false
+      description: "Unique leads from this source"
+
+    - name: total_visits
+      type: UInt32
+      nullable: false
+      description: "Total visits from this source"
+
+    - name: first_touch_leads
+      type: UInt32
+      nullable: false
+      description: "Leads where this was first touch"
+
+    - name: _aggregated_at
+      type: DateTime
+      nullable: false
+      description: "When aggregation was computed"
+
+validation:
+  checks:
+    - name: has_data
+      query: "SELECT count() > 0 FROM {database}.{table}"

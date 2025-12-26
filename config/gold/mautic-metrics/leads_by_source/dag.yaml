@@ -1,0 +1,31 @@
+dag_id: gold_mautic_leads_by_source
+description: "Leads aggregated by acquisition source from page hits"
+
+schedule_interval: "dataset"
+
+dependencies:
+  mode: dataset_aware
+  datasets:
+    - uri: "bronze://mautic/page_hits_raw"
+    - uri: "bronze://mautic/leads_raw"
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - mautic
+  - leads
+  - source_attribution
+  - materialized_view
+
+task:
+  task_type: materialized_view
+  refresh_mode: incremental
+
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
+
+execution_timeout: 1800

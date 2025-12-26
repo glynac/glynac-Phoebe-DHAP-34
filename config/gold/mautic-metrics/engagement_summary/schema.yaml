@@ -1,0 +1,64 @@
+version: "1.0"
+layer: gold
+database: gold
+table: mautic_engagement_summary
+
+metadata:
+  display_name: "Mautic Engagement Summary"
+  description: "Weekly engagement summary with percentiles and advanced stats"
+  owner: data-engineering
+  tags: [gold, mautic, engagement, weekly, advanced]
+  refresh_frequency: realtime
+  pii: false
+
+clickhouse:
+  engine: AggregatingMergeTree
+  partition_by: toYYYYMM(week_start)
+  order_by:
+    - week_start
+  settings:
+    index_granularity: 8192
+
+materialized_view:
+  enabled: true
+  name: mv_mautic_engagement_summary
+  to_table: gold.mautic_engagement_summary
+  refresh_on_insert: true
+  use_aggregate_functions: true
+
+schema:
+  columns:
+    - name: week_start
+      type: Date
+      nullable: false
+      description: "Start of the week (Monday)"
+
+    - name: total_leads_state
+      type: AggregateFunction(uniq, Nullable(Int64))
+      nullable: false
+      description: "State for unique leads count"
+
+    - name: total_hits_state
+      type: AggregateFunction(count)
+      nullable: false
+      description: "State for total page hits"
+
+    - name: avg_points_state
+      type: AggregateFunction(avg, Nullable(Int64))
+      nullable: false
+      description: "State for average lead points"
+
+    - name: max_points_state
+      type: AggregateFunction(max, Nullable(Int64))
+      nullable: false
+      description: "State for max lead points"
+
+    - name: _aggregated_at
+      type: DateTime
+      nullable: false
+      description: "When aggregation was computed"
+
+validation:
+  checks:
+    - name: has_data
+      query: "SELECT count() > 0 FROM {database}.{table}"
