@@ -13,7 +13,7 @@ metadata:
 # Target DAG and specific table
 dag:
   dag_id: silver_mautic_audit_log 
-  layer: silver
+  layer: silver 
 
 # Date range to backfill
 date_range:

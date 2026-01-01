@@ -12,7 +12,7 @@ metadata:
 
 # Target DAG and specific table
 dag:
-  dag_id: gold__mautic_leads_daily_stats
+  dag_id: gold_mautic_leads_daily_stats
   layer: gold
 
 # Date range to backfill
