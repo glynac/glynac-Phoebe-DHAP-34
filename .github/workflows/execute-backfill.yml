@@ -141,7 +141,39 @@ jobs:
           while [ "$current_date" != $(date -I -d "$end_date + 1 day") ]; do
             total_count=$((total_count + 1))
 
-            echo "📅 Triggering DAG run for date: $current_date"
+            echo "📅 Processing DAG run for date: $current_date"
+
+            # Check if DAG run already exists
+            execution_date_encoded="${current_date}T00:00:00Z"
+            check_response=$(curl -s -w "\n%{http_code}" -X GET \
+              "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns?execution_date_gte=${execution_date_encoded}&execution_date_lte=${execution_date_encoded}" \
+              -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}")
+
+            check_http_code=$(echo "$check_response" | tail -n1)
+            check_body=$(echo "$check_response" | head -n-1)
+
+            existing_runs=$(echo "$check_body" | jq '.total_entries // 0' 2>/dev/null || echo "0")
+
+            if [ "$existing_runs" -gt 0 ]; then
+              if [ "${{ steps.parse.outputs.clear_existing }}" = "true" ]; then
+                echo "   🗑️  Deleting existing DAG run..."
+                # Get the dag_run_id
+                dag_run_id=$(echo "$check_body" | jq -r '.dag_runs[0].dag_run_id' 2>/dev/null)
+
+                # Delete existing run
+                curl -s -X DELETE \
+                  "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns/${dag_run_id}" \
+                  -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}" > /dev/null
+
+                sleep 1
+              else
+                echo "   ⏭️  DAG run already exists (skipping per clear_existing=false)"
+                success_count=$((success_count + 1))
+                current_date=$(date -I -d "$current_date + 1 day")
+                sleep 1
+                continue
+              fi
+            fi
 
             # Trigger DAG via Airflow REST API
             response=$(curl -s -w "\n%{http_code}" -X POST \
@@ -161,11 +193,11 @@ jobs:
             response_body=$(echo "$response" | head -n-1)
 
             if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
-              echo "✅ DAG run triggered successfully for $current_date"
+              echo "   ✅ DAG run triggered successfully"
               success_count=$((success_count + 1))
             else
-              echo "❌ Failed to trigger DAG run for $current_date (HTTP $http_code)"
-              echo "   Response: $response_body"
+              echo "   ❌ Failed to trigger DAG run (HTTP $http_code)"
+              echo "      Response: $response_body"
               fail_count=$((fail_count + 1))
             fi
 
