@@ -1,0 +1,34 @@
+version: "1.0"
+backfill_id: BF-TEST-001
+
+# Metadata
+metadata:
+  requested_by: test-user@glynac.ai
+  requested_at: "2026-01-01T10:00:00Z"
+  approved_by: admin@glynac.ai
+  approved_at: "2026-01-01T10:05:00Z"
+  reason: "Testing backfill system - validating end-to-end workflow"
+  priority: normal
+
+# Target DAG and specific table
+dag:
+  dag_id: bronze_mautic  # Main DAG for all Mautic tables
+  layer: bronze
+  target_table: companies  # Specific table/task to backfill
+
+# Date range to backfill
+date_range:
+  start: "2025-12-01"
+  end: "2025-12-03"  # Just 3 days for testing
+
+# Execution config
+execution:
+  mode: sequential
+  clear_existing: false
+
+# Webhook config - update with your backend URL
+webhook:
+  url: "https://your-backend.com/api/v1/webhooks/backfill-status"
+  on_start: true
+  on_complete: true
+  on_failure: true

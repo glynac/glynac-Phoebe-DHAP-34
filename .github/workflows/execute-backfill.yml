@@ -1,0 +1,304 @@
+name: Execute Airflow Backfill
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backfill_requests/*.yaml'
+  workflow_dispatch:  # Allow manual trigger for testing
+
+jobs:
+  detect-backfill:
+    runs-on: ubuntu-latest
+    outputs:
+      backfill_files: ${{ steps.detect.outputs.files }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect backfill requests
+        id: detect
+        run: |
+          # Find all backfill YAML files
+          files=$(find backfill_requests -name "*.yaml" -type f 2>/dev/null || echo "")
+
+          if [ -z "$files" ]; then
+            echo "No backfill requests found"
+            echo "files=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Convert to JSON array
+          json_array="["
+          first=true
+          for file in $files; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              json_array+=","
+            fi
+            json_array+="\"$file\""
+          done
+          json_array+="]"
+
+          echo "files=$json_array" >> $GITHUB_OUTPUT
+          echo "✅ Found backfill requests: $json_array"
+
+  execute-backfill:
+    needs: detect-backfill
+    if: needs.detect-backfill.outputs.backfill_files != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        backfill_file: ${{ fromJson(needs.detect-backfill.outputs.backfill_files) }}
+      max-parallel: 1  # Process one at a time for testing
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq (YAML parser)
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Parse backfill config
+        id: parse
+        run: |
+          FILE="${{ matrix.backfill_file }}"
+
+          # Parse YAML
+          BACKFILL_ID=$(yq eval '.backfill_id' "$FILE")
+          DAG_ID=$(yq eval '.dag.dag_id' "$FILE")
+          LAYER=$(yq eval '.dag.layer' "$FILE")
+          TARGET_TABLE=$(yq eval '.dag.target_table' "$FILE")
+          START_DATE=$(yq eval '.date_range.start' "$FILE")
+          END_DATE=$(yq eval '.date_range.end' "$FILE")
+          EXECUTION_MODE=$(yq eval '.execution.mode' "$FILE")
+          CLEAR_EXISTING=$(yq eval '.execution.clear_existing' "$FILE")
+          WEBHOOK_URL=$(yq eval '.webhook.url' "$FILE")
+          REQUESTED_BY=$(yq eval '.metadata.requested_by' "$FILE")
+          REASON=$(yq eval '.metadata.reason' "$FILE")
+
+          echo "backfill_id=$BACKFILL_ID" >> $GITHUB_OUTPUT
+          echo "dag_id=$DAG_ID" >> $GITHUB_OUTPUT
+          echo "layer=$LAYER" >> $GITHUB_OUTPUT
+          echo "target_table=$TARGET_TABLE" >> $GITHUB_OUTPUT
+          echo "start_date=$START_DATE" >> $GITHUB_OUTPUT
+          echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
+          echo "execution_mode=$EXECUTION_MODE" >> $GITHUB_OUTPUT
+          echo "clear_existing=$CLEAR_EXISTING" >> $GITHUB_OUTPUT
+          echo "webhook_url=$WEBHOOK_URL" >> $GITHUB_OUTPUT
+
+          echo "🔄 Backfill Request: $BACKFILL_ID"
+          echo "   DAG: $DAG_ID ($LAYER layer)"
+          echo "   Target table: $TARGET_TABLE"
+          echo "   Date range: $START_DATE to $END_DATE"
+          echo "   Mode: $EXECUTION_MODE"
+          echo "   Requested by: $REQUESTED_BY"
+          echo "   Reason: $REASON"
+
+      - name: Notify backend - Started
+        continue-on-error: true  # Don't fail if webhook unavailable
+        run: |
+          echo "📞 Calling webhook: ${{ steps.parse.outputs.webhook_url }}"
+
+          curl -X POST "${{ steps.parse.outputs.webhook_url }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "backfill_id": "${{ steps.parse.outputs.backfill_id }}",
+              "status": "started",
+              "dag_id": "${{ steps.parse.outputs.dag_id }}",
+              "started_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+            }' || echo "⚠️  Webhook call failed (continuing anyway)"
+
+      - name: Execute Airflow Backfill (via Airflow API)
+        id: backfill
+        env:
+          AIRFLOW_URL: ${{ secrets.AIRFLOW_URL || 'http://localhost:8080' }}
+          AIRFLOW_USERNAME: ${{ secrets.AIRFLOW_USERNAME || 'admin' }}
+          AIRFLOW_PASSWORD: ${{ secrets.AIRFLOW_PASSWORD || 'admin' }}
+        run: |
+          echo "🚀 Starting backfill for DAG: ${{ steps.parse.outputs.dag_id }}"
+          echo "   Date range: ${{ steps.parse.outputs.start_date }} to ${{ steps.parse.outputs.end_date }}"
+
+          START_TIME=$(date +%s)
+
+          # Create date array
+          current_date="${{ steps.parse.outputs.start_date }}"
+          end_date="${{ steps.parse.outputs.end_date }}"
+
+          success_count=0
+          fail_count=0
+          total_count=0
+
+          # Loop through each date and trigger DAG run
+          while [ "$current_date" != $(date -I -d "$end_date + 1 day") ]; do
+            total_count=$((total_count + 1))
+
+            echo "📅 Triggering DAG run for date: $current_date"
+
+            # Trigger DAG via Airflow REST API
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns" \
+              -H "Content-Type: application/json" \
+              -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}" \
+              -d '{
+                "execution_date": "'"${current_date}T00:00:00Z"'",
+                "conf": {
+                  "backfill_mode": true,
+                  "backfill_id": "${{ steps.parse.outputs.backfill_id }}",
+                  "target_tables": ["${{ steps.parse.outputs.target_table }}"]
+                }
+              }')
+
+            http_code=$(echo "$response" | tail -n1)
+            response_body=$(echo "$response" | head -n-1)
+
+            if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+              echo "✅ DAG run triggered successfully for $current_date"
+              success_count=$((success_count + 1))
+            else
+              echo "❌ Failed to trigger DAG run for $current_date (HTTP $http_code)"
+              echo "   Response: $response_body"
+              fail_count=$((fail_count + 1))
+            fi
+
+            # Move to next date
+            current_date=$(date -I -d "$current_date + 1 day")
+
+            # Small delay to avoid overwhelming Airflow
+            sleep 2
+          done
+
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
+          echo "success_count=$success_count" >> $GITHUB_OUTPUT
+          echo "fail_count=$fail_count" >> $GITHUB_OUTPUT
+          echo "total_count=$total_count" >> $GITHUB_OUTPUT
+
+          echo ""
+          echo "📊 Backfill Summary:"
+          echo "   Total DAG runs: $total_count"
+          echo "   Successful: $success_count"
+          echo "   Failed: $fail_count"
+          echo "   Duration: ${DURATION}s"
+
+          if [ $fail_count -gt 0 ]; then
+            echo "⚠️  Some DAG runs failed"
+            exit 1
+          fi
+
+          echo "✅ All DAG runs triggered successfully"
+
+      - name: Wait for DAG runs to complete
+        id: wait
+        continue-on-error: true
+        env:
+          AIRFLOW_URL: ${{ secrets.AIRFLOW_URL || 'http://localhost:8080' }}
+          AIRFLOW_USERNAME: ${{ secrets.AIRFLOW_USERNAME || 'admin' }}
+          AIRFLOW_PASSWORD: ${{ secrets.AIRFLOW_PASSWORD || 'admin' }}
+        run: |
+          echo "⏳ Waiting for DAG runs to complete..."
+          echo "   (Polling every 30 seconds, max 30 minutes)"
+
+          max_wait=1800  # 30 minutes
+          elapsed=0
+
+          while [ $elapsed -lt $max_wait ]; do
+            # Query DAG runs
+            response=$(curl -s \
+              "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns?start_date_gte=${{ steps.parse.outputs.start_date }}T00:00:00Z&end_date_lte=${{ steps.parse.outputs.end_date }}T23:59:59Z" \
+              -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}")
+
+            # Count states
+            running=$(echo "$response" | jq '[.dag_runs[] | select(.state == "running")] | length' 2>/dev/null || echo "0")
+            queued=$(echo "$response" | jq '[.dag_runs[] | select(.state == "queued")] | length' 2>/dev/null || echo "0")
+            success=$(echo "$response" | jq '[.dag_runs[] | select(.state == "success")] | length' 2>/dev/null || echo "0")
+            failed=$(echo "$response" | jq '[.dag_runs[] | select(.state == "failed")] | length' 2>/dev/null || echo "0")
+
+            total=$((running + queued + success + failed))
+
+            echo "   Status: Running=$running, Queued=$queued, Success=$success, Failed=$failed (Total=$total)"
+
+            # Check if all completed
+            if [ $running -eq 0 ] && [ $queued -eq 0 ]; then
+              echo "✅ All DAG runs completed!"
+              echo "final_success=$success" >> $GITHUB_OUTPUT
+              echo "final_failed=$failed" >> $GITHUB_OUTPUT
+              echo "final_total=$total" >> $GITHUB_OUTPUT
+              break
+            fi
+
+            sleep 30
+            elapsed=$((elapsed + 30))
+          done
+
+          if [ $elapsed -ge $max_wait ]; then
+            echo "⚠️  Timeout waiting for DAG runs (some still running)"
+            echo "   You can check progress in Airflow UI"
+          fi
+
+      - name: Notify backend - Completed
+        if: success()
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ steps.parse.outputs.webhook_url }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "backfill_id": "${{ steps.parse.outputs.backfill_id }}",
+              "status": "completed",
+              "dag_id": "${{ steps.parse.outputs.dag_id }}",
+              "execution_time_seconds": ${{ steps.backfill.outputs.duration }},
+              "total_runs": ${{ steps.backfill.outputs.total_count }},
+              "successful_runs": ${{ steps.wait.outputs.final_success || steps.backfill.outputs.success_count }},
+              "failed_runs": ${{ steps.wait.outputs.final_failed || steps.backfill.outputs.fail_count }},
+              "completed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+            }' || echo "⚠️  Webhook call failed"
+
+      - name: Notify backend - Failed
+        if: failure()
+        continue-on-error: true
+        run: |
+          curl -X POST "${{ steps.parse.outputs.webhook_url }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "backfill_id": "${{ steps.parse.outputs.backfill_id }}",
+              "status": "failed",
+              "dag_id": "${{ steps.parse.outputs.dag_id }}",
+              "error_message": "Backfill execution failed in CI/CD",
+              "failed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+            }' || echo "⚠️  Webhook call failed"
+
+      - name: Cleanup backfill request file
+        if: success()
+        run: |
+          echo "🗑️  Cleaning up backfill request file"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git pull origin main
+          git rm "${{ matrix.backfill_file }}"
+          git commit -m "✅ Backfill ${{ steps.parse.outputs.backfill_id }} completed - auto cleanup"
+          git push origin main
+
+          echo "✅ Cleanup complete"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "═══════════════════════════════════════════════════════"
+          echo "🎯 Backfill Execution Summary"
+          echo "═══════════════════════════════════════════════════════"
+          echo "Backfill ID: ${{ steps.parse.outputs.backfill_id }}"
+          echo "DAG: ${{ steps.parse.outputs.dag_id }}"
+          echo "Date range: ${{ steps.parse.outputs.start_date }} to ${{ steps.parse.outputs.end_date }}"
+          echo "Total runs triggered: ${{ steps.backfill.outputs.total_count }}"
+          echo "Successful: ${{ steps.backfill.outputs.success_count }}"
+          echo "Failed: ${{ steps.backfill.outputs.fail_count }}"
+          echo "Duration: ${{ steps.backfill.outputs.duration }}s"
+          echo "═══════════════════════════════════════════════════════"

@@ -48,3 +48,6 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+BACKFILL_TESTING.md
+DAG_BACKFILL_SUPPORT.md
