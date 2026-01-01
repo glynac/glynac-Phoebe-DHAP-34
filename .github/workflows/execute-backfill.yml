@@ -96,10 +96,35 @@ jobs:
           REQUESTED_BY=$(yq eval '.metadata.requested_by' "$FILE")
           REASON=$(yq eval '.metadata.reason' "$FILE")
 
+          # Build target_tables JSON array (supports comma-separated values)
+          if [ "$TARGET_TABLE" = "null" ] || [ -z "$TARGET_TABLE" ]; then
+            TARGET_TABLES_JSON="[]"
+            TARGET_DISPLAY="ALL tables"
+          else
+            # Split by comma and create JSON array
+            IFS=',' read -ra TABLES <<< "$TARGET_TABLE"
+            TARGET_TABLES_JSON="["
+            first=true
+            for table in "${TABLES[@]}"; do
+              table=$(echo "$table" | xargs)  # Trim whitespace
+              if [ -n "$table" ]; then
+                if [ "$first" = true ]; then
+                  first=false
+                else
+                  TARGET_TABLES_JSON+=","
+                fi
+                TARGET_TABLES_JSON+="\"$table\""
+              fi
+            done
+            TARGET_TABLES_JSON+="]"
+            TARGET_DISPLAY="$TARGET_TABLE"
+          fi
+
           echo "backfill_id=$BACKFILL_ID" >> $GITHUB_OUTPUT
           echo "dag_id=$DAG_ID" >> $GITHUB_OUTPUT
           echo "layer=$LAYER" >> $GITHUB_OUTPUT
           echo "target_table=$TARGET_TABLE" >> $GITHUB_OUTPUT
+          echo "target_tables_json=$TARGET_TABLES_JSON" >> $GITHUB_OUTPUT
           echo "start_date=$START_DATE" >> $GITHUB_OUTPUT
           echo "end_date=$END_DATE" >> $GITHUB_OUTPUT
           echo "execution_mode=$EXECUTION_MODE" >> $GITHUB_OUTPUT
@@ -108,7 +133,7 @@ jobs:
 
           echo "🔄 Backfill Request: $BACKFILL_ID"
           echo "   DAG: $DAG_ID ($LAYER layer)"
-          echo "   Target table: $TARGET_TABLE"
+          echo "   Target tables: $TARGET_DISPLAY"
           echo "   Date range: $START_DATE to $END_DATE"
           echo "   Mode: $EXECUTION_MODE"
           echo "   Requested by: $REQUESTED_BY"
@@ -137,87 +162,144 @@ jobs:
         run: |
           echo "🚀 Starting backfill for DAG: ${{ steps.parse.outputs.dag_id }}"
           echo "   Date range: ${{ steps.parse.outputs.start_date }} to ${{ steps.parse.outputs.end_date }}"
+          echo "   Execution mode: ${{ steps.parse.outputs.execution_mode }}"
 
           START_TIME=$(date +%s)
 
-          # Create date array
-          current_date="${{ steps.parse.outputs.start_date }}"
-          end_date="${{ steps.parse.outputs.end_date }}"
+          # Build conf JSON based on whether target_tables is specified
+          TARGET_TABLES_JSON='${{ steps.parse.outputs.target_tables_json }}'
+          if [ "$TARGET_TABLES_JSON" = "[]" ]; then
+            # No target tables - backfill all
+            CONF_TEMPLATE='{
+              "backfill_mode": true,
+              "backfill_id": "${{ steps.parse.outputs.backfill_id }}"
+            }'
+          else
+            # Specific target tables
+            CONF_TEMPLATE='{
+              "backfill_mode": true,
+              "backfill_id": "${{ steps.parse.outputs.backfill_id }}",
+              "target_tables": '"$TARGET_TABLES_JSON"'
+            }'
+          fi
 
-          success_count=0
-          fail_count=0
-          total_count=0
-
-          # Loop through each date and trigger DAG run
-          while [ "$current_date" != $(date -I -d "$end_date + 1 day") ]; do
-            total_count=$((total_count + 1))
-
-            echo "📅 Processing DAG run for date: $current_date"
+          # Function to trigger a single DAG run
+          trigger_dag_run() {
+            local run_date=$1
+            local execution_date_encoded="${run_date}T00:00:00Z"
 
             # Check if DAG run already exists
-            execution_date_encoded="${current_date}T00:00:00Z"
             check_response=$(curl -s -w "\n%{http_code}" -X GET \
               "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns?execution_date_gte=${execution_date_encoded}&execution_date_lte=${execution_date_encoded}" \
               -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}")
 
             check_http_code=$(echo "$check_response" | tail -n1)
             check_body=$(echo "$check_response" | head -n-1)
-
             existing_runs=$(echo "$check_body" | jq '.total_entries // 0' 2>/dev/null || echo "0")
 
             if [ "$existing_runs" -gt 0 ]; then
               if [ "${{ steps.parse.outputs.clear_existing }}" = "true" ]; then
-                echo "   🗑️  Deleting existing DAG run..."
-                # Get the dag_run_id
+                echo "   🗑️  Deleting existing DAG run for $run_date..."
                 dag_run_id=$(echo "$check_body" | jq -r '.dag_runs[0].dag_run_id' 2>/dev/null)
-
-                # Delete existing run
                 curl -s -X DELETE \
                   "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns/${dag_run_id}" \
                   -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}" > /dev/null
-
                 sleep 1
               else
-                echo "   ⏭️  DAG run already exists (skipping per clear_existing=false)"
-                success_count=$((success_count + 1))
-                current_date=$(date -I -d "$current_date + 1 day")
-                sleep 1
-                continue
+                echo "   ⏭️  DAG run already exists for $run_date (skipping)"
+                return 0  # Return success
               fi
             fi
 
-            # Trigger DAG via Airflow REST API
+            # Trigger DAG run
             response=$(curl -s -w "\n%{http_code}" -X POST \
               "${AIRFLOW_URL}/api/v1/dags/${{ steps.parse.outputs.dag_id }}/dagRuns" \
               -H "Content-Type: application/json" \
               -u "${AIRFLOW_USERNAME}:${AIRFLOW_PASSWORD}" \
               -d '{
-                "execution_date": "'"${current_date}T00:00:00Z"'",
-                "conf": {
-                  "backfill_mode": true,
-                  "backfill_id": "${{ steps.parse.outputs.backfill_id }}",
-                  "target_tables": ["${{ steps.parse.outputs.target_table }}"]
-                }
+                "execution_date": "'"${execution_date_encoded}"'",
+                "conf": '"$CONF_TEMPLATE"'
               }')
 
             http_code=$(echo "$response" | tail -n1)
             response_body=$(echo "$response" | head -n-1)
 
             if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
-              echo "   ✅ DAG run triggered successfully"
-              success_count=$((success_count + 1))
+              echo "   ✅ DAG run triggered successfully for $run_date"
+              return 0
             else
-              echo "   ❌ Failed to trigger DAG run (HTTP $http_code)"
+              echo "   ❌ Failed to trigger DAG run for $run_date (HTTP $http_code)"
               echo "      Response: $response_body"
-              fail_count=$((fail_count + 1))
+              return 1
             fi
+          }
 
-            # Move to next date
+          # Build array of dates to process
+          dates=()
+          current_date="${{ steps.parse.outputs.start_date }}"
+          end_date="${{ steps.parse.outputs.end_date }}"
+
+          while [ "$current_date" != $(date -I -d "$end_date + 1 day") ]; do
+            dates+=("$current_date")
             current_date=$(date -I -d "$current_date + 1 day")
-
-            # Small delay to avoid overwhelming Airflow
-            sleep 2
           done
+
+          total_count=${#dates[@]}
+          success_count=0
+          fail_count=0
+
+          echo "📅 Total dates to process: $total_count"
+          echo ""
+
+          # Execute based on mode
+          if [ "${{ steps.parse.outputs.execution_mode }}" = "parallel" ]; then
+            echo "⚡ Parallel mode: Triggering all dates concurrently"
+
+            # Trigger all in parallel (background jobs)
+            for date in "${dates[@]}"; do
+              (
+                if trigger_dag_run "$date"; then
+                  echo "success" > "/tmp/backfill_${date}_result.txt"
+                else
+                  echo "failed" > "/tmp/backfill_${date}_result.txt"
+                fi
+              ) &
+
+              # Small delay between triggers to avoid overwhelming API
+              sleep 0.5
+            done
+
+            # Wait for all background jobs to complete
+            echo "⏳ Waiting for all DAG runs to be triggered..."
+            wait
+
+            # Count results
+            for date in "${dates[@]}"; do
+              result=$(cat "/tmp/backfill_${date}_result.txt" 2>/dev/null || echo "unknown")
+              if [ "$result" = "success" ]; then
+                success_count=$((success_count + 1))
+              else
+                fail_count=$((fail_count + 1))
+              fi
+              rm -f "/tmp/backfill_${date}_result.txt"
+            done
+
+          else
+            echo "🔄 Sequential mode: Processing dates one by one"
+
+            # Process sequentially
+            for date in "${dates[@]}"; do
+              echo "📅 Processing date: $date"
+              if trigger_dag_run "$date"; then
+                success_count=$((success_count + 1))
+              else
+                fail_count=$((fail_count + 1))
+              fi
+
+              # Delay between sequential runs
+              sleep 2
+            done
+          fi
 
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - START_TIME))
