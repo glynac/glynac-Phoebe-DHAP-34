@@ -311,6 +311,7 @@ jobs:
 
       - name: Cleanup backfill request file
         if: success()
+        continue-on-error: true
         run: |
           echo "🗑️  Cleaning up backfill request file"
 
