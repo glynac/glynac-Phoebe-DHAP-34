@@ -16,15 +16,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Fetch last 2 commits for git diff
 
       - name: Detect backfill requests
         id: detect
         run: |
-          # Find all backfill YAML files
-          files=$(find backfill_requests -name "*.yaml" -type f 2>/dev/null || echo "")
+          # Get only the changed/added YAML files in this push
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger - process all files
+            files=$(find backfill_requests -name "*.yaml" -type f 2>/dev/null || echo "")
+          else
+            # Auto trigger - only process changed files
+            files=$(git diff --name-only HEAD~1 HEAD | grep '^backfill_requests/.*\.yaml$' || echo "")
+          fi
 
           if [ -z "$files" ]; then
-            echo "No backfill requests found"
+            echo "No backfill requests found in this push"
             echo "files=[]" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -33,17 +41,20 @@ jobs:
           json_array="["
           first=true
           for file in $files; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              json_array+=","
+            # Only include if file still exists (not deleted)
+            if [ -f "$file" ]; then
+              if [ "$first" = true ]; then
+                first=false
+              else
+                json_array+=","
+              fi
+              json_array+="\"$file\""
             fi
-            json_array+="\"$file\""
           done
           json_array+="]"
 
           echo "files=$json_array" >> $GITHUB_OUTPUT
-          echo "✅ Found backfill requests: $json_array"
+          echo "✅ Found changed backfill requests: $json_array"
 
   execute-backfill:
     needs: detect-backfill
@@ -309,21 +320,8 @@ jobs:
               "failed_at": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
             }' || echo "⚠️  Webhook call failed"
 
-      - name: Cleanup backfill request file
-        if: success()
-        continue-on-error: true
-        run: |
-          echo "🗑️  Cleaning up backfill request file"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git pull origin main
-          git rm "${{ matrix.backfill_file }}"
-          git commit -m "✅ Backfill ${{ steps.parse.outputs.backfill_id }} completed - auto cleanup"
-          git push origin main
-
-          echo "✅ Cleanup complete"
+      # No cleanup needed - files remain as archive
+      # Only changed files are processed, so old files won't trigger re-runs
 
       - name: Summary
         if: always()
