@@ -25,21 +25,8 @@ metadata:
     - pii-tokenized
   data_classification: confidential
   contains_pii_tokens: true
-  pii_token_columns:
-    - first_name_hash
-    - last_name_hash
-    - full_name_hash
-    - email_hash
-    - phone_hash
-    - phone_2_hash
-    - mobile_hash
-    - work_phone_hash
-    - home_phone_hash
-    - fax_hash
-    - address_hash
-    - city_hash
-    - zip_hash
-    - dob_hash
+  # Note: Individual PII token columns are identified by pii_token: true flag
+  # on each column definition. Bronze schema (data-contracts) is source of truth.
   update_frequency: hourly
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:
