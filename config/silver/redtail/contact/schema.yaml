@@ -10,7 +10,10 @@ metadata:
     Cleaned and transformed Redtail contact data from Bronze layer.
     Represents all contacts including clients, prospects, leads, and general contacts
     with personal, professional, and contact information.
-  
+
+    **PII Naming Policy:** All PII token columns use *_hash suffix to indicate
+    they contain tokenized/aliased values, not raw PII.
+
   owner: ai-team
   domain: redtail
   tags:
@@ -19,25 +22,24 @@ metadata:
     - clients
     - crm
     - silver
-    - pii
+    - pii-tokenized
   data_classification: confidential
-  contains_pii: true
-  pii_columns:
-    - first_name
-    - last_name
-    - full_name
-    - email
-    - phone
-    - phone_2
-    - mobile
-    - work_phone
-    - home_phone
-    - fax
-    - address_line1
-    - city
-    - state
-    - zip_code
-    - date_of_birth
+  contains_pii_tokens: true
+  pii_token_columns:
+    - first_name_hash
+    - last_name_hash
+    - full_name_hash
+    - email_hash
+    - phone_hash
+    - phone_2_hash
+    - mobile_hash
+    - work_phone_hash
+    - home_phone_hash
+    - fax_hash
+    - address_hash
+    - city_hash
+    - zip_hash
+    - dob_hash
   update_frequency: hourly
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:
@@ -56,10 +58,10 @@ clickhouse:
     - rec_id
   ttl: "processing_date + INTERVAL 2555 DAY"
   settings:
-    index_granularity: 8192  
+    index_granularity: 8192
   indexes:
-    - name: email_idx
-      expression: email
+    - name: email_hash_idx
+      expression: email_hash
       type: bloom_filter
       granularity: 1
     - name: contact_type_idx
@@ -78,232 +80,245 @@ columns:
     description: "Redtail internal record ID (primary key)"
     primary_key: true
     example: 12345
-    
+
   - name: glynac_organization_id
     type: String
     nullable: false
     description: "Organization identifier for data isolation"
     example: "org-abc123"
-    
-  # Name fields
-  - name: first_name
+
+  # Name fields (PII TOKEN ALIASING)
+  - name: first_name_hash
     type: String
     nullable: false
-    description: "Contact's first name (trimmed)"
-    pii: true
-    example: "John"
-    
-  - name: last_name
+    description: "First name token (aliased from first_name for PII naming policy)"
+    pii_token: true
+    source_field: first_name
+    example: "PERSON_TOKEN_003-1"
+
+  - name: last_name_hash
     type: String
     nullable: false
-    description: "Contact's last name (trimmed)"
-    pii: true
-    example: "Doe"
-    
-  - name: full_name
+    description: "Last name token (aliased from last_name for PII naming policy)"
+    pii_token: true
+    source_field: last_name
+    example: "PERSON_TOKEN_004"
+
+  - name: full_name_hash
     type: String
     nullable: false
-    description: "Contact's full name (trimmed)"
-    pii: true
-    example: "John Doe"
-    
+    description: "Full name token (aliased from full_name for PII naming policy)"
+    pii_token: true
+    source_field: full_name
+    example: "PERSON_TOKEN_005"
+
   - name: salutation
     type: String
     nullable: false
     description: "Name prefix/salutation (Mr., Mrs., Dr., etc.) (trimmed)"
     example: "Mr."
-    
-  # Contact information
-  - name: email
+
+  # Contact information (PII TOKEN ALIASING)
+  - name: email_hash
     type: String
     nullable: false
-    description: "Primary email address (trimmed)"
-    pii: true
-    example: "john.doe@example.com"
-    
-  # Phone numbers
-  - name: phone
+    description: "Email token (aliased from email for PII naming policy)"
+    pii_token: true
+    source_field: email
+    example: "EMAIL_ADDRESS_TOKEN_002"
+
+  # Phone numbers (PII TOKEN ALIASING)
+  - name: phone_hash
     type: String
     nullable: false
-    description: "Primary phone number (trimmed)"
-    pii: true
-    example: "555-123-4567"
-    
-  - name: phone_2
+    description: "Primary phone token (aliased from phone_number for PII naming policy)"
+    pii_token: true
+    source_field: phone_number
+    example: "PHONE_NUMBER_TOKEN_100"
+
+  - name: phone_2_hash
     type: String
     nullable: false
-    description: "Secondary phone number (trimmed)"
-    pii: true
-    example: "555-987-6543"
-    
-  - name: mobile
+    description: "Secondary phone token (aliased from phone_number2 for PII naming policy)"
+    pii_token: true
+    source_field: phone_number2
+    example: "PHONE_NUMBER_TOKEN_101"
+
+  - name: mobile_hash
     type: String
     nullable: false
-    description: "Mobile phone number (trimmed)"
-    pii: true
-    example: "555-111-2222"
-    
-  - name: work_phone
+    description: "Mobile phone token (aliased from mobile_phone for PII naming policy)"
+    pii_token: true
+    source_field: mobile_phone
+    example: "PHONE_NUMBER_TOKEN_102"
+
+  - name: work_phone_hash
     type: String
     nullable: false
-    description: "Work phone number (trimmed)"
-    pii: true
-    example: "555-333-4444"
-    
-  - name: home_phone
+    description: "Work phone token (aliased from work_phone for PII naming policy)"
+    pii_token: true
+    source_field: work_phone
+    example: "PHONE_NUMBER_TOKEN_103"
+
+  - name: home_phone_hash
     type: String
     nullable: false
-    description: "Home phone number (trimmed)"
-    pii: true
-    example: "555-555-6666"
-    
-  - name: fax
+    description: "Home phone token (aliased from home_phone for PII naming policy)"
+    pii_token: true
+    source_field: home_phone
+    example: "PHONE_NUMBER_TOKEN_104"
+
+  - name: fax_hash
     type: String
     nullable: false
-    description: "Fax number (trimmed)"
-    pii: true
-    example: "555-777-8888"
-    
-  # Address information
-  - name: address_line1
+    description: "Fax number token (aliased from fax_number for PII naming policy)"
+    pii_token: true
+    source_field: fax_number
+    example: "PHONE_NUMBER_TOKEN_105"
+
+  # Address information (PII TOKEN ALIASING)
+  - name: address_hash
     type: String
     nullable: false
-    description: "Primary address line (trimmed)"
-    pii: true
-    example: "123 Main Street"
-    
-  - name: city
+    description: "Primary address token (aliased from address1 for PII naming policy)"
+    pii_token: true
+    source_field: address1
+    example: "ADDRESS_TOKEN_200"
+
+  - name: city_hash
     type: String
     nullable: false
-    description: "City (trimmed)"
-    pii: true
-    example: "San Francisco"
-    
+    description: "City token (aliased from city for PII naming policy)"
+    pii_token: true
+    source_field: city
+    example: "CITY_TOKEN_300"
+
   - name: state
     type: String
     nullable: false
-    description: "State/province (trimmed)"
-    pii: true
+    description: "State/province (trimmed, not PII)"
     example: "CA"
-    
-  - name: zip_code
+
+  - name: zip_hash
     type: String
     nullable: false
-    description: "Postal/ZIP code (trimmed)"
-    pii: true
-    example: "94102"
-    
+    description: "ZIP code token (aliased from zip_code for PII naming policy)"
+    pii_token: true
+    source_field: zip_code
+    example: "ZIP_CODE_TOKEN_400"
+
   - name: country
     type: String
     nullable: false
     description: "Country (trimmed, default USA)"
     example: "USA"
-    
-  # Personal information
-  - name: date_of_birth
+
+  # Personal information (PII TOKEN ALIASING)
+  - name: dob_hash
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date of birth (parsed from string)"
-    pii: true
-    example: "1980-05-15 00:00:00.000"
-    
+    description: "Date of birth token (aliased from date_of_birth for PII naming policy)"
+    pii_token: true
+    source_field: date_of_birth
+    example: "DOB_TOKEN_500"
+
   - name: gender
     type: String
     nullable: false
     description: "Gender (trimmed)"
     example: "Male"
-    
+
   - name: marital_status
     type: String
     nullable: false
     description: "Marital status (trimmed)"
     example: "Married"
-    
+
   # Professional information
   - name: company
     type: String
     nullable: false
     description: "Company name (trimmed)"
     example: "Acme Corporation"
-    
+
   - name: job_title
     type: String
     nullable: false
     description: "Job title (trimmed)"
     example: "Senior Engineer"
-    
+
   - name: occupation
     type: String
     nullable: false
     description: "Occupation/profession (trimmed)"
     example: "Software Engineer"
-    
+
   # Contact classification
   - name: contact_type
     type: String
     nullable: false
     description: "Type of contact (Contact, Client, Prospect, Lead) (trimmed)"
     example: "Client"
-    
+
   - name: status
     type: String
     nullable: false
     description: "Contact status (trimmed)"
     example: "Active"
-    
+
   - name: status_normalized
     type: LowCardinality(String)
     nullable: false
     description: "Normalized status (active/inactive/archived)"
     allowed_values: [active, inactive, archived]
     example: "active"
-    
+
   # Foreign key
   - name: owner_id
     type: Int32
     nullable: false
     description: "User ID who owns/manages this contact (assigned_to in Bronze)"
     example: 42
-    
+
   # Audit fields
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
     description: "Timestamp when record was added in Redtail (parsed from string)"
     example: "2020-01-15 10:30:00.000"
-    
+
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
     description: "Timestamp when record was last edited in Redtail (parsed from string)"
     example: "2025-11-28 14:20:00.000"
-    
+
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
     description: "Unique identifier for the batch run (trimmed)"
     example: "scan_20251128_143022"
-    
+
   - name: batch_number
     type: Int32
     nullable: false
     description: "Sequential batch number in the scan"
     example: 1
-    
+
   - name: processing_date
     type: Date
     nullable: false
     description: "Date when data was processed (partition key)"
     partition_key: true
     example: "2025-11-28"
-    
+
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
     description: "Timestamp when Flink processed this record (parsed from string)"
     example: "2025-11-28 14:30:22.123"
-    
+
   # System columns
   - name: _loaded_at
     type: DateTime
@@ -311,17 +326,18 @@ columns:
     description: "Timestamp when loaded into Silver layer"
     system_column: true
     example: "2025-11-28 15:30:45"
-    
+
   - name: _source_table
     type: String
     nullable: false
     description: "Source table name"
     system_column: true
     example: "redtail.contact_raw"
-    
+
   - name: _source_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
     description: "Source processing timestamp"
     system_column: true
     example: "2025-11-28 14:30:22.123"
+
