@@ -106,7 +106,7 @@ columns:
     example: "Mr."
 
   # Contact information (PII TOKEN ALIASING)
-  - name: email
+  - name: email_hash
     type: String
     nullable: false
     description: "Email token (aliased from email for PII naming policy)"
