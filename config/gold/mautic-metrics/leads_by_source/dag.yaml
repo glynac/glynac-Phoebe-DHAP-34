@@ -1,13 +1,10 @@
+# Gold: Mautic Leads By Source
+# Auto-detects dependencies from query.sql: mautic.page_hits_raw, mautic.leads_raw
+
 dag_id: gold_mautic_leads_by_source
 description: "Leads aggregated by acquisition source from page hits"
 
-schedule_interval: "dataset"
-
-dependencies:
-  mode: dataset_aware
-  datasets:
-    - uri: "bronze://mautic/page_hits_raw"
-    - uri: "bronze://mautic/leads_raw"
+schedule_interval: dataset  # Auto-detects from query.sql (mautic.page_hits_raw, mautic.leads_raw)
 
 catchup: false
 max_active_runs: 1
@@ -17,7 +14,7 @@ tags:
   - mautic
   - leads
   - source_attribution
-  - materialized_view
+  - auto-dependency
 
 task:
   task_type: materialized_view

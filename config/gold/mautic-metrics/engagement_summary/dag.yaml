@@ -1,13 +1,10 @@
+# Gold: Mautic Engagement Summary
+# Auto-detects dependencies from query.sql: mautic.page_hits_raw, mautic.leads_raw
+
 dag_id: gold_mautic_engagement_summary
 description: "Weekly engagement summary with advanced aggregates using AggregatingMergeTree"
 
-schedule_interval: "dataset"
-
-dependencies:
-  mode: dataset_aware
-  datasets:
-    - uri: "bronze://mautic/page_hits_raw"
-    - uri: "bronze://mautic/leads_raw"
+schedule_interval: dataset  # Auto-detects from query.sql (mautic.page_hits_raw, mautic.leads_raw)
 
 catchup: false
 max_active_runs: 1
@@ -17,7 +14,7 @@ tags:
   - mautic
   - engagement
   - weekly
-  - aggregating_merge_tree
+  - auto-dependency
 
 task:
   task_type: materialized_view

@@ -1,12 +1,10 @@
+# Gold: Mautic Leads Daily Stats
+# Auto-detects dependency from query.sql: mautic.leads_raw
+
 dag_id: gold_mautic_leads_daily_stats
 description: "Daily aggregated lead statistics from Mautic"
 
-schedule_interval: "dataset"
-
-dependencies:
-  mode: dataset_aware
-  datasets:
-    - uri: "bronze://mautic/leads_raw"
+schedule_interval: dataset  # Auto-detects from query.sql (mautic.leads_raw)
 
 catchup: false
 max_active_runs: 1
@@ -16,7 +14,7 @@ tags:
   - mautic
   - leads
   - daily_stats
-  - materialized_view
+  - auto-dependency
 
 task:
   task_type: materialized_view

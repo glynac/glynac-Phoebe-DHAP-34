@@ -1,31 +1,26 @@
-version: "1.0"
+# Gold: Dimension Account
+# Auto-detects dependency from query.sql
 
-dag:
-  dag_id: "gold__user_daily_metrics2"
-  description: "Calculate daily user metrics for dashboards"
-  schedule_interval: "dataset"
-  start_date: "2025-01-01"
-  catchup: false
-  tags: [gold, metrics, daily]
-  
-  default_args:
-    owner: analytics-team
-    retries: 3
-    retry_delay_minutes: 10
+dag_id: gold_dim_account
+description: "Account dimension table for dashboards"
+
+schedule_interval: dataset  # Auto-detects from query.sql
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - dimension
+  - account
+  - auto-dependency
 
 task:
-  task_id: "calculate_metrics"
-  task_type: clickhouse_aggregation
-  incremental:
-    enabled: true
-    strategy: partition_based
-    partition_column: metric_date
+  task_type: clickhouse_transformation
 
-dependencies:
-  auto_detect: true
-  mode: dataset_aware
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
 
-notifications:
-  on_success:
-    - type: log
-      message: "✅ User daily metrics calculated"
+execution_timeout: 1800

@@ -1,18 +1,27 @@
-schedule_interval: "0 4 * * *"  # Daily at 4 AM
+# Gold: Revenue Metrics
+# Auto-detects dependency from query.sql
 
-depends_on:
-  - silver_revenue_transactions
+dag_id: gold_salesforce_revenue_metrics
+description: "Revenue metrics aggregated from Salesforce"
+
+schedule_interval: dataset  # Auto-detects from query.sql
 
 catchup: false
 max_active_runs: 1
 
 tags:
   - gold
+  - salesforce
   - metrics
-  - python
   - revenue
+  - auto-dependency
 
-execution_timeout: 3600  # 1 hour
+task:
+  task_type: clickhouse_transformation
 
-retries: 2
-retry_delay: 300
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
+
+execution_timeout: 3600

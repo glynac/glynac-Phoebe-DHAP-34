@@ -1,12 +1,10 @@
+# Gold: Mautic Page Hits Daily
+# Auto-detects dependency from query.sql: mautic.page_hits_raw
+
 dag_id: gold_mautic_page_hits_daily
 description: "Daily aggregated page hit statistics from Mautic"
 
-schedule_interval: "dataset"
-
-dependencies:
-  mode: dataset_aware
-  datasets:
-    - uri: "bronze://mautic/page_hits_raw"
+schedule_interval: dataset  # Auto-detects from query.sql (mautic.page_hits_raw)
 
 catchup: false
 max_active_runs: 1
@@ -16,7 +14,7 @@ tags:
   - mautic
   - page_hits
   - engagement
-  - materialized_view
+  - auto-dependency
 
 task:
   task_type: materialized_view
