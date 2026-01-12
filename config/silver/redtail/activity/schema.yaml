@@ -99,33 +99,33 @@ columns:
   - name: activity_type
     type: String
     nullable: false
-    description: "Type of activity (Meeting, Call, Task, Email, Note) (trimmed)"
+    description: "Type of activity (Meeting, Call, Task, Email, Note)"
     example: "Meeting"
     
   - name: category
     type: String
     nullable: false
-    description: "Activity category (trimmed)"
+    description: "Activity category"
     example: "Client Review"
     
   - name: subcategory
     type: String
     nullable: false
-    description: "Activity subcategory (trimmed)"
+    description: "Activity subcategory"
     example: "Quarterly Review"
     
   # Activity details
   - name: subject
     type: String
     nullable: false
-    description: "Activity subject/title (trimmed)"
+    description: "Activity subject/title"
     pii: true
     example: "Q4 Portfolio Review with Client"
     
   - name: description
     type: String
     nullable: false
-    description: "Detailed activity description (trimmed)"
+    description: "Detailed activity description"
     pii: true
     example: "Review portfolio performance, discuss rebalancing strategy"
     
@@ -146,7 +146,7 @@ columns:
   - name: activity_status
     type: String
     nullable: false
-    description: "Current status of activity (Completed, Pending, In Progress, Cancelled, Scheduled) (trimmed)"
+    description: "Current status of activity (Completed, Pending, In Progress, Cancelled, Scheduled)"
     example: "Completed"
     
   - name: status_normalized
@@ -159,7 +159,7 @@ columns:
   - name: priority
     type: String
     nullable: false
-    description: "Activity priority level (High, Medium, Low, Urgent) (trimmed)"
+    description: "Activity priority level (High, Medium, Low, Urgent)"
     example: "High"
     
   - name: priority_normalized
@@ -173,7 +173,7 @@ columns:
   - name: activity_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date and time when activity occurred or is scheduled (parsed from string)"
+    description: "Date and time when activity occurred or is scheduled"
     example: "2025-11-28 14:00:00.000"
     
   - name: duration_minutes
@@ -186,21 +186,21 @@ columns:
   - name: outcome
     type: String
     nullable: false
-    description: "Activity outcome or result (trimmed)"
+    description: "Activity outcome or result"
     pii: true
     example: "Client agreed to rebalancing strategy, follow-up in Q1"
     
   - name: location
     type: String
     nullable: false
-    description: "Location where activity occurred (trimmed)"
+    description: "Location where activity occurred"
     pii: true
     example: "Office Conference Room A"
     
   - name: tags
     type: String
     nullable: false
-    description: "Activity tags, comma-separated (trimmed)"
+    description: "Activity tags, comma-separated"
     example: "portfolio, review, Q4"
     
   # Follow-up
@@ -213,14 +213,14 @@ columns:
   - name: follow_up_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when follow-up is due (parsed from string)"
+    description: "Date when follow-up is due"
     example: "2026-01-15 00:00:00.000"
     
   # Notes
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes about the activity (trimmed)"
+    description: "Additional notes about the activity"
     pii: true
     example: "Client was very pleased with performance, no concerns raised"
     
@@ -228,20 +228,20 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 14:00:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 16:20:00.000"
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -260,7 +260,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

@@ -77,27 +77,27 @@ columns:
   - name: account_number
     type: String
     nullable: false
-    description: "External account number (trimmed, may be empty string)"
+    description: "External account number"
     pii: true
     example: "ACC-2024-001"
     
   - name: account_name
     type: String
     nullable: false
-    description: "Display name of the account (trimmed)"
+    description: "Display name of the account"
     pii: true
     example: "John's Retirement IRA"
     
   - name: account_type
     type: String
     nullable: false
-    description: "Type/category of account (trimmed)"
+    description: "Type/category of account"
     example: "IRA"
     
   - name: account_status
     type: String
     nullable: false
-    description: "Current status of the account (trimmed)"
+    description: "Current status of the account"
     example: "Active"
     
   - name: status_normalized
@@ -110,20 +110,20 @@ columns:
   - name: description
     type: String
     nullable: false
-    description: "Additional account description or notes (trimmed)"
+    description: "Additional account description or notes"
     example: "Primary retirement account"
     
   # Institution
   - name: institution_name
     type: String
     nullable: false
-    description: "Name of the financial institution (trimmed)"
+    description: "Name of the financial institution"
     example: "Fidelity Investments"
     
   - name: institution_type
     type: String
     nullable: false
-    description: "Type of institution (trimmed)"
+    description: "Type of institution"
     example: "Brokerage"
     
   # Foreign keys
@@ -222,7 +222,7 @@ columns:
   - name: tags
     type: String
     nullable: false
-    description: "Comma-separated tags for categorization (trimmed)"
+    description: "Comma-separated tags for categorization"
     example: "retirement,primary"
     
   - name: is_active
@@ -236,7 +236,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251118_143022"
     
   - name: batch_number

@@ -1,0 +1,260 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_investment
+
+metadata:
+  display_name: "Orion Finance Investments (Cleaned)"
+  description: |
+    Cleaned and transformed Orion finance investment data from the Bronze layer.
+    Represents investment records including asset details, valuation metrics,
+    performance indicators, and risk attributes within the Orion CRM platform.
+
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance
+    - investment
+    - silver
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - asset_name
+    - tags
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.finance_investment_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - investment_id
+  primary_key:
+    - investment_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: investment_type_idx
+      expression: investment_type
+      type: set
+      granularity: 4
+    - name: investment_status_idx
+      expression: investment_status
+      type: set
+      granularity: 4
+    - name: risk_rating_idx
+      expression: risk_rating
+      type: set
+      granularity: 4
+
+columns:
+  # Primary identifiers
+  - name: investment_id
+    type: String
+    nullable: false
+    description: "Unique investment identifier (primary key)"
+    primary_key: true
+    example: "inv-abc123"
+
+  - name: investment_record_id
+    type: String
+    nullable: false
+    description: "Investment record identifier"
+    example: "inv-rec-001"
+
+  - name: investment_record_type
+    type: String
+    nullable: false
+    description: "Type of investment record"
+    example: "equity"
+
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Associated account identifier"
+    example: "acc-123"
+
+  - name: portfolio_id
+    type: String
+    nullable: false
+    description: "Associated portfolio identifier"
+    example: "port-456"
+
+  - name: asset_id
+    type: String
+    nullable: false
+    description: "Associated asset identifier"
+    example: "asset-789"
+
+  - name: asset_name
+    type: String
+    nullable: false
+    description: "Name of the investment asset"
+    pii: true
+    example: "Apple Inc"
+
+  # Investment details
+  - name: investment_type
+    type: String
+    nullable: false
+    description: "Type of investment"
+    example: "stock"
+
+  - name: investment_status
+    type: String
+    nullable: false
+    description: "Current investment status"
+    example: "active"
+
+  - name: risk_rating
+    type: String
+    nullable: false
+    description: "Risk rating of the investment"
+    example: "medium"
+
+  # Financial metrics
+  - name: amount
+    type: Float64
+    nullable: false
+    description: "Total invested amount"
+    example: 100000.50
+
+  - name: currency
+    type: String
+    nullable: false
+    description: "Investment currency"
+    example: "USD"
+
+  - name: quantity
+    type: Float64
+    nullable: false
+    description: "Quantity of assets held"
+    example: 150.75
+
+  - name: purchase_price
+    type: Float64
+    nullable: false
+    description: "Purchase price per unit"
+    example: 120.50
+
+  - name: current_price
+    type: Float64
+    nullable: false
+    description: "Current price per unit"
+    example: 135.25
+
+  - name: current_value
+    type: Float64
+    nullable: false
+    description: "Current total value of investment"
+    example: 20300.75
+
+  - name: gain_loss
+    type: Float64
+    nullable: false
+    description: "Absolute gain or loss"
+    example: 1800.25
+
+  - name: gain_loss_percentage
+    type: Float64
+    nullable: false
+    description: "Gain or loss percentage"
+    example: 9.72
+
+  - name: yield_rate
+    type: Float64
+    nullable: false
+    description: "Yield rate percentage"
+    example: 4.5
+
+  - name: is_tax_advantaged
+    type: Boolean
+    nullable: false
+    description: "Whether investment is tax advantaged"
+    example: false
+
+  # Dates
+  - name: purchase_date
+    type: String
+    nullable: false
+    description: "Investment purchase date (raw string)"
+    example: "2024-01-10"
+
+  - name: maturity_date
+    type: String
+    nullable: false
+    description: "Investment maturity date (raw string)"
+    example: "2030-01-10"
+
+  - name: created_date
+    type: String
+    nullable: false
+    description: "Investment record creation date (raw string)"
+    example: "2024-01-10 10:00:00"
+
+  - name: modified_date
+    type: String
+    nullable: false
+    description: "Investment record last modified date (raw string)"
+    example: "2025-01-05 14:20:00"
+
+  # Additional metadata
+  - name: tags
+    type: String
+    nullable: false
+    description: "User-defined tags or labels"
+    pii: true
+    example: "long-term,retirement"
+
+  # Processing metadata
+  - name: processing_timestamp
+    type: String
+    nullable: false
+    description: "Timestamp when data was processed"
+    example: "2025-01-05T14:30:22Z"
+
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-05"
+
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-05 15:30:45"
+
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_investment_raw"
+
+  - name: _source_timestamp
+    type: String
+    nullable: false
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-05T14:30:22Z"

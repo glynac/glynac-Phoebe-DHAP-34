@@ -1,0 +1,205 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_ACCOUNT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(finance_account_id IS NULL) as null_finance_account_id,
+        countIf(finance_account_id = '') as empty_finance_account_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(account_status IS NULL) as null_account_status,
+        countIf(account_status = '') as empty_account_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_finance_account_id: 0
+      empty_finance_account_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_account_status: 0
+      empty_account_status: 0
+      null_processing_date: 0
+  
+  - name: finance_account_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "finance_account_id should be unique per org per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT finance_account_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY finance_account_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_finance_accounts_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance accounts should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_accounts
+      FROM orion_silver.finance_account s
+      LEFT JOIN orion.finance_account_raw b
+        ON s.finance_account_id = b.finance_account_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.finance_account_id IS NULL
+    expect:
+      orphaned_finance_accounts: 0
+  
+  - name: account_number_not_empty
+    type: assertion
+    description: "Account number should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (account_number IS NULL OR account_number = '')
+    expect:
+      invalid_count: 0
+  
+  - name: balance_not_null
+    type: assertion
+    description: "Balance should not be NULL"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND balance IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: available_balance_not_exceed_balance
+    type: assertion
+    description: "Available balance should not exceed total balance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND available_balance > balance
+    expect:
+      invalid_count: 0
+  
+  - name: pending_balance_non_negative
+    type: assertion
+    description: "Pending balance should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND pending_balance < 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: interest_rate_valid_range
+    type: assertion
+    description: "Interest rate should be between 0 and 100%"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (interest_rate < 0 OR interest_rate > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: customer_id_not_empty
+    type: assertion
+    description: "Customer ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: account_type_not_empty
+    type: assertion
+    description: "Account type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (account_type IS NULL OR account_type = '')
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: last_activity_reasonable
+    type: assertion
+    description: "Last activity should not be in the future"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND last_activity > now()
+    expect:
+      invalid_count: 0
+  
+  - name: valid_routing_number_format
+    type: assertion
+    description: "Routing number should be 9 digits when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_account
+      WHERE processing_date = toDate('{{ ds }}')
+        AND routing_number != ''
+        AND (length(routing_number) != 9 OR routing_number NOT REGEXP '^[0-9]+$')
+    expect:
+      invalid_count: 0

@@ -1,0 +1,253 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_REVENUE
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(revenue_id IS NULL) as null_revenue_id,
+        countIf(revenue_id = '') as empty_revenue_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(revenue_status IS NULL) as null_revenue_status,
+        countIf(revenue_status = '') as empty_revenue_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_revenue_id: 0
+      empty_revenue_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_revenue_status: 0
+      empty_revenue_status: 0
+      null_processing_date: 0
+  
+  - name: revenue_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "revenue_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT revenue_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY revenue_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_finance_revenue_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance revenue should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_revenue
+      FROM orion_silver.finance_revenue s
+      LEFT JOIN orion.finance_revenue_raw b
+        ON s.revenue_id = b.revenue_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.revenue_id IS NULL
+    expect:
+      orphaned_finance_revenue: 0
+  
+  - name: reference_not_empty
+    type: assertion
+    description: "Revenue reference should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (reference IS NULL OR reference = '')
+    expect:
+      invalid_count: 0
+  
+  - name: customer_id_not_empty
+    type: assertion
+    description: "Customer ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_positive
+    type: assertion
+    description: "Revenue amount should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: tax_non_negative
+    type: assertion
+    description: "Tax should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND tax < 0
+    expect:
+      invalid_count: 0
+  
+  - name: cost_of_sales_non_negative
+    type: assertion
+    description: "Cost of sales should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND cost_of_sales < 0
+    expect:
+      invalid_count: 0
+  
+  - name: margin_calculation_reasonable
+    type: assertion
+    description: "Margin should equal amount minus cost of sales within tolerance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND abs((amount - cost_of_sales) - margin) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: margin_not_exceed_amount
+    type: assertion
+    description: "Margin should not exceed revenue amount"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND margin > amount
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: created_by_not_empty
+    type: assertion
+    description: "Created by ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (created_by_id IS NULL OR created_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: recognition_date_not_future
+    type: assertion
+    description: "Recognition date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND recognition_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: recognized_revenue_has_recognition_date
+    type: assertion
+    description: "Recognized revenue should have recognition date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND revenue_status = 'recognized'
+        AND recognition_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: revenue_type_not_empty
+    type: assertion
+    description: "Revenue type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (revenue_type IS NULL OR revenue_type = '')
+    expect:
+      invalid_count: 0
+  
+  - name: category_not_empty
+    type: assertion
+    description: "Category should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (category IS NULL OR category = '')
+    expect:
+      invalid_count: 0
+  
+  - name: recognition_model_not_empty
+    type: assertion
+    description: "Recognition model should not be empty"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_revenue
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (recognition_model IS NULL OR recognition_model = '')
+    expect:
+      invalid_count: 0

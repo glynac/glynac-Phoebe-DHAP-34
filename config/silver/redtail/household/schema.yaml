@@ -98,14 +98,14 @@ columns:
   - name: household_name
     type: String
     nullable: false
-    description: "Household name (trimmed)"
+    description: "Household name"
     pii: true
     example: "The Johnson Household"
     
   - name: household_number
     type: String
     nullable: false
-    description: "Household reference number (trimmed)"
+    description: "Household reference number"
     pii: true
     example: "HH-2025-001"
     
@@ -119,13 +119,13 @@ columns:
   - name: household_type
     type: String
     nullable: false
-    description: "Type of household (Single, Married, Family, Multi-generational) (trimmed)"
+    description: "Type of household (Single, Married, Family, Multi-generational)"
     example: "Family"
     
   - name: household_status
     type: String
     nullable: false
-    description: "Current status of household (trimmed)"
+    description: "Current status of household"
     example: "Active"
     
   - name: status_normalized
@@ -139,14 +139,14 @@ columns:
   - name: total_net_worth
     type: Decimal64(2)
     nullable: false
-    description: "Total household net worth (parsed from string, currency symbols removed)"
+    description: "Total household net worth"
     pii: true
     example: 3500000.00
     
   - name: total_income
     type: Decimal64(2)
     nullable: false
-    description: "Total household annual income (parsed from string, currency symbols removed)"
+    description: "Total household annual income"
     pii: true
     example: 250000.00
     
@@ -154,49 +154,49 @@ columns:
   - name: address_line1
     type: String
     nullable: false
-    description: "Primary address line (trimmed)"
+    description: "Primary address line"
     pii: true
     example: "123 Main Street"
     
   - name: address_line2
     type: String
     nullable: false
-    description: "Secondary address line (trimmed)"
+    description: "Secondary address line"
     pii: true
     example: "Apt 4B"
     
   - name: city
     type: String
     nullable: false
-    description: "City (trimmed)"
+    description: "City"
     pii: true
     example: "San Francisco"
     
   - name: state
     type: String
     nullable: false
-    description: "State/province (trimmed)"
+    description: "State/province"
     pii: true
     example: "CA"
     
   - name: zip_code
     type: String
     nullable: false
-    description: "Postal/ZIP code (trimmed)"
+    description: "Postal/ZIP code"
     pii: true
     example: "94102"
     
   - name: country
     type: String
     nullable: false
-    description: "Country (trimmed, default USA)"
+    description: "Country"
     example: "USA"
     
   # Notes
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes about the household (trimmed)"
+    description: "Additional notes about the household"
     pii: true
     example: "Prefers annual reviews, interested in estate planning"
     
@@ -204,13 +204,13 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2020-01-15 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_add_user
@@ -229,7 +229,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -248,7 +248,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

@@ -1,0 +1,218 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: account
+
+
+metadata:
+  display_name: "Orion Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Orion account data from Bronze layer.
+    Represents organizational accounts in the Orion CRM platform with 
+    subscription details, user counts, and company information.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - account
+    - crm
+    - organization
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - email
+    - phone
+    - address
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.account_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - account_id
+  primary_key:
+    - account_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: account_status_idx
+      expression: account_status
+      type: set
+      granularity: 4
+    - name: plan_idx
+      expression: plan
+      type: set
+      granularity: 4
+    - name: domain_idx
+      expression: domain
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Unique account identifier (primary key)"
+    primary_key: true
+    example: "acc-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Account details
+  - name: account_type
+    type: String
+    nullable: false
+    description: "Type of account"
+    example: "enterprise"
+    
+  - name: account_name
+    type: String
+    nullable: false
+    description: "Account name"
+    example: "Acme Corporation"
+    
+  - name: domain
+    type: String
+    nullable: false
+    description: "Account domain"
+    example: "acme.com"
+    
+  - name: plan
+    type: String
+    nullable: false
+    description: "Subscription plan type"
+    example: "professional"
+    
+  - name: account_status
+    type: String
+    nullable: false
+    description: "Current account status"
+    example: "active"
+    allowed_values: ["active", "inactive", "suspended", "trial"]
+    
+  # User counts
+  - name: max_users
+    type: Int32
+    nullable: false
+    description: "Maximum number of users allowed"
+    example: 50
+    
+  - name: current_users
+    type: Int32
+    nullable: false
+    description: "Current number of active users"
+    example: 42
+    
+  # Company information
+  - name: industry
+    type: String
+    nullable: false
+    description: "Industry classification"
+    example: "Technology"
+    
+  - name: company_size
+    type: String
+    nullable: false
+    description: "Company size category"
+    example: "51-200"
+    
+  # Contact information (PII)
+  - name: email
+    type: String
+    nullable: false
+    description: "Primary contact email"
+    pii: true
+    example: "contact@acme.com"
+    
+  - name: phone
+    type: String
+    nullable: false
+    description: "Contact phone number"
+    pii: true
+    example: "+1-555-0100"
+    
+  - name: website
+    type: String
+    nullable: false
+    description: "Company website URL"
+    example: "https://www.acme.com"
+    
+  - name: address
+    type: String
+    nullable: false
+    description: "Physical address"
+    pii: true
+    example: "123 Main St, San Francisco, CA 94105"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Account creation date"
+    example: "2024-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-05 14:20:00.000"
+    
+  # Settings
+  - name: settings
+    type: String
+    nullable: false
+    description: "Account settings"
+    example: '{"notifications":true,"theme":"dark"}'
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-05"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-05 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-05 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.account_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-05 14:30:22.123"

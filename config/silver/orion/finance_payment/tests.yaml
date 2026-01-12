@@ -1,0 +1,256 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_PAYMENT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(payment_id IS NULL) as null_payment_id,
+        countIf(payment_id = '') as empty_payment_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(payment_status IS NULL) as null_payment_status,
+        countIf(payment_status = '') as empty_payment_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_payment_id: 0
+      empty_payment_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_payment_status: 0
+      empty_payment_status: 0
+      null_processing_date: 0
+  
+  - name: payment_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "payment_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT payment_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY payment_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_finance_payments_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance payments should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_payments
+      FROM orion_silver.finance_payment s
+      LEFT JOIN orion.finance_payment_raw b
+        ON s.payment_id = b.payment_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.payment_id IS NULL
+    expect:
+      orphaned_finance_payments: 0
+  
+  - name: reference_not_empty
+    type: assertion
+    description: "Payment reference should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (reference IS NULL OR reference = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_positive
+    type: assertion
+    description: "Payment amount should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: fees_non_negative
+    type: assertion
+    description: "Fees should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND fees < 0
+    expect:
+      invalid_count: 0
+  
+  - name: net_amount_calculation_reasonable
+    type: assertion
+    description: "Net amount should equal amount minus fees within tolerance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND abs((amount - fees) - net_amount) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: net_amount_positive
+    type: assertion
+    description: "Net amount should be positive"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND net_amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: customer_id_not_empty
+    type: assertion
+    description: "Customer ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: created_by_not_empty
+    type: assertion
+    description: "Created by ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (created_by_id IS NULL OR created_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: payment_date_not_future
+    type: assertion
+    description: "Payment date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND payment_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: cleared_date_after_payment
+    type: assertion
+    description: "Cleared date should be after or equal to payment date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND payment_date IS NOT NULL
+        AND cleared_date IS NOT NULL
+        AND cleared_date < payment_date
+    expect:
+      invalid_count: 0
+  
+  - name: completed_payments_have_payment_date
+    type: assertion
+    description: "Completed payments should have payment date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND payment_status IN ('completed', 'cleared')
+        AND payment_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: cleared_payments_have_cleared_date
+    type: assertion
+    description: "Cleared payments should have cleared date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND payment_status = 'cleared'
+        AND cleared_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: method_not_empty
+    type: assertion
+    description: "Payment method should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (method IS NULL OR method = '')
+    expect:
+      invalid_count: 0
+  
+  - name: payment_type_not_empty
+    type: assertion
+    description: "Payment type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_payment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (payment_type IS NULL OR payment_type = '')
+    expect:
+      invalid_count: 0

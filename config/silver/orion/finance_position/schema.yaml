@@ -1,0 +1,279 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_position
+
+
+metadata:
+  display_name: "Orion Finance Positions (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial position data from Bronze layer.
+    Represents investment positions within portfolios with holdings, valuations,
+    cost basis, and performance metrics.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_position
+    - financial
+    - investments
+    - portfolio
+    - holdings
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - quantity
+    - cost_basis
+    - market_value
+    - unrealized_gain_loss
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_position_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - position_record_id
+  primary_key:
+    - position_record_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: position_status_idx
+      expression: position_status
+      type: set
+      granularity: 4
+    - name: position_type_idx
+      expression: position_type
+      type: set
+      granularity: 4
+    - name: symbol_idx
+      expression: symbol
+      type: minmax
+      granularity: 2
+    - name: portfolio_id_idx
+      expression: portfolio_id
+      type: minmax
+      granularity: 2
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: position_record_id
+    type: String
+    nullable: false
+    description: "Unique position record identifier (primary key)"
+    primary_key: true
+    example: "pos-rec-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Position classification
+  - name: position_type_record
+    type: String
+    nullable: false
+    description: "Position record type"
+    example: "equity_position"
+    
+  - name: position_id
+    type: String
+    nullable: false
+    description: "Position identifier"
+    example: "pos-def456"
+    
+  - name: position_type
+    type: String
+    nullable: false
+    description: "Type of position"
+    example: "long"
+    
+  - name: position_status
+    type: String
+    nullable: false
+    description: "Current position status"
+    example: "active"
+    
+  # Relationships
+  - name: portfolio_id
+    type: String
+    nullable: false
+    description: "Portfolio identifier"
+    example: "port-ghi789"
+    
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Account identifier"
+    example: "acc-jkl012"
+    
+  - name: asset_id
+    type: String
+    nullable: false
+    description: "Asset identifier"
+    example: "asset-mno345"
+    
+  # Asset details
+  - name: symbol
+    type: String
+    nullable: false
+    description: "Trading symbol"
+    example: "AAPL"
+    
+  - name: asset_name
+    type: String
+    nullable: false
+    description: "Asset name"
+    example: "Apple Inc."
+    
+  # Quantity and pricing
+  - name: quantity
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Number of units held"
+    pii: true
+    example: 100.0000
+    
+  - name: cost_basis
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Total cost basis"
+    pii: true
+    example: 15000.00
+    
+  - name: cost_basis_per_share
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Cost basis per unit"
+    example: 150.0000
+    
+  - name: current_price
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Current market price per unit"
+    example: 175.5000
+    
+  - name: market_value
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Current market value"
+    pii: true
+    example: 17550.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: average_price
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Average purchase price"
+    example: 150.0000
+    
+  # Performance metrics
+  - name: unrealized_gain_loss
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Unrealized gain or loss amount"
+    pii: true
+    example: 2550.00
+    
+  - name: unrealized_gain_loss_percent
+    type: Decimal(8, 2)
+    nullable: false
+    description: "Unrealized gain or loss percentage"
+    example: 17.00
+    
+  - name: allocation_percentage
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Portfolio allocation percentage"
+    example: 12.50
+    
+  # Holding period
+  - name: open_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when position was opened"
+    example: "2024-06-15 00:00:00.000"
+    
+  - name: days_held
+    type: Int32
+    nullable: false
+    description: "Number of days position has been held"
+    example: 210
+    
+  # Additional information
+  - name: tags
+    type: String
+    nullable: false
+    description: "Classification tags"
+    example: "core_holding,dividend_stock"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2024-06-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-12 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-12"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-12 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-12 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_position_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-12 14:30:22.123"

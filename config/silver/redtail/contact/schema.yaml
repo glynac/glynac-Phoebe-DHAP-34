@@ -78,7 +78,7 @@ columns:
   - name: first_name_hash
     type: String
     nullable: false
-    description: "First name token (aliased from first_name for PII naming policy)"
+    description: "First name token"
     pii_token: true
     source_field: first_name
     example: "PERSON_TOKEN_003-1"
@@ -86,7 +86,7 @@ columns:
   - name: last_name_hash
     type: String
     nullable: false
-    description: "Last name token (aliased from last_name for PII naming policy)"
+    description: "Last name token"
     pii_token: true
     source_field: last_name
     example: "PERSON_TOKEN_004"
@@ -94,7 +94,7 @@ columns:
   - name: full_name_hash
     type: String
     nullable: false
-    description: "Full name token (aliased from full_name for PII naming policy)"
+    description: "Full name token"
     pii_token: true
     source_field: full_name
     example: "PERSON_TOKEN_005"
@@ -102,14 +102,14 @@ columns:
   - name: salutation
     type: String
     nullable: false
-    description: "Name prefix/salutation (Mr., Mrs., Dr., etc.) (trimmed)"
+    description: "Name prefix/salutation (Mr., Mrs., Dr., etc.)"
     example: "Mr."
 
   # Contact information (PII TOKEN ALIASING)
   - name: email_hash
     type: String
     nullable: false
-    description: "Email token (aliased from email for PII naming policy)"
+    description: "Email token"
     pii_token: true
     source_field: email
     example: "EMAIL_ADDRESS_TOKEN_002"
@@ -118,7 +118,7 @@ columns:
   - name: phone_hash
     type: String
     nullable: false
-    description: "Primary phone token (aliased from phone_number for PII naming policy)"
+    description: "Primary phone token"
     pii_token: true
     source_field: phone_number
     example: "PHONE_NUMBER_TOKEN_100"
@@ -126,7 +126,7 @@ columns:
   - name: phone_2_hash
     type: String
     nullable: false
-    description: "Secondary phone token (aliased from phone_number2 for PII naming policy)"
+    description: "Secondary phone token"
     pii_token: true
     source_field: phone_number2
     example: "PHONE_NUMBER_TOKEN_101"
@@ -134,7 +134,7 @@ columns:
   - name: mobile_hash
     type: String
     nullable: false
-    description: "Mobile phone token (aliased from mobile_phone for PII naming policy)"
+    description: "Mobile phone token"
     pii_token: true
     source_field: mobile_phone
     example: "PHONE_NUMBER_TOKEN_102"
@@ -142,7 +142,7 @@ columns:
   - name: work_phone_hash
     type: String
     nullable: false
-    description: "Work phone token (aliased from work_phone for PII naming policy)"
+    description: "Work phone token"
     pii_token: true
     source_field: work_phone
     example: "PHONE_NUMBER_TOKEN_103"
@@ -150,7 +150,7 @@ columns:
   - name: home_phone_hash
     type: String
     nullable: false
-    description: "Home phone token (aliased from home_phone for PII naming policy)"
+    description: "Home phone token"
     pii_token: true
     source_field: home_phone
     example: "PHONE_NUMBER_TOKEN_104"
@@ -158,7 +158,7 @@ columns:
   - name: fax_hash
     type: String
     nullable: false
-    description: "Fax number token (aliased from fax_number for PII naming policy)"
+    description: "Fax number token"
     pii_token: true
     source_field: fax_number
     example: "PHONE_NUMBER_TOKEN_105"
@@ -167,7 +167,7 @@ columns:
   - name: address_hash
     type: String
     nullable: false
-    description: "Primary address token (aliased from address1 for PII naming policy)"
+    description: "Primary address token"
     pii_token: true
     source_field: address1
     example: "ADDRESS_TOKEN_200"
@@ -175,7 +175,7 @@ columns:
   - name: city_hash
     type: String
     nullable: false
-    description: "City token (aliased from city for PII naming policy)"
+    description: "City token"
     pii_token: true
     source_field: city
     example: "CITY_TOKEN_300"
@@ -183,13 +183,13 @@ columns:
   - name: state
     type: String
     nullable: false
-    description: "State/province (trimmed, not PII)"
+    description: "State/province"
     example: "CA"
 
   - name: zip_hash
     type: String
     nullable: false
-    description: "ZIP code token (aliased from zip_code for PII naming policy)"
+    description: "ZIP code token"
     pii_token: true
     source_field: zip_code
     example: "ZIP_CODE_TOKEN_400"
@@ -197,14 +197,14 @@ columns:
   - name: country
     type: String
     nullable: false
-    description: "Country (trimmed, default USA)"
+    description: "Country"
     example: "USA"
 
   # Personal information (PII TOKEN ALIASING)
   - name: dob_hash
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date of birth token (aliased from date_of_birth for PII naming policy)"
+    description: "Date of birth token"
     pii_token: true
     source_field: date_of_birth
     example: "DOB_TOKEN_500"
@@ -212,45 +212,45 @@ columns:
   - name: gender
     type: String
     nullable: false
-    description: "Gender (trimmed)"
+    description: "Gender"
     example: "Male"
 
   - name: marital_status
     type: String
     nullable: false
-    description: "Marital status (trimmed)"
+    description: "Marital status"
     example: "Married"
 
   # Professional information
   - name: company
     type: String
     nullable: false
-    description: "Company name (trimmed)"
+    description: "Company name"
     example: "Acme Corporation"
 
   - name: job_title
     type: String
     nullable: false
-    description: "Job title (trimmed)"
+    description: "Job title"
     example: "Senior Engineer"
 
   - name: occupation
     type: String
     nullable: false
-    description: "Occupation/profession (trimmed)"
+    description: "Occupation/profession"
     example: "Software Engineer"
 
   # Contact classification
   - name: contact_type
     type: String
     nullable: false
-    description: "Type of contact (Contact, Client, Prospect, Lead) (trimmed)"
+    description: "Type of contact (Contact, Client, Prospect, Lead)"
     example: "Client"
 
   - name: status
     type: String
     nullable: false
-    description: "Contact status (trimmed)"
+    description: "Contact status"
     example: "Active"
 
   - name: status_normalized
@@ -264,27 +264,27 @@ columns:
   - name: owner_id
     type: Int32
     nullable: false
-    description: "User ID who owns/manages this contact (assigned_to in Bronze)"
+    description: "User ID who owns/manages this contact"
     example: 42
 
   # Audit fields
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2020-01-15 10:30:00.000"
 
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
 
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
 
   - name: batch_number
@@ -303,7 +303,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
 
   # System columns

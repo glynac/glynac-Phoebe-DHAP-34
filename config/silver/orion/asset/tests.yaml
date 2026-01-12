@@ -1,0 +1,236 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(asset_id IS NULL) as null_asset_id,
+        countIf(asset_id = '') as empty_asset_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(asset_type IS NULL) as null_asset_type,
+        countIf(asset_type = '') as empty_asset_type,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_asset_id: 0
+      empty_asset_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_asset_type: 0
+      empty_asset_type: 0
+      null_processing_date: 0
+  
+  - name: asset_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "asset_id should be unique per org per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT asset_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY asset_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_assets_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver assets should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_assets
+      FROM orion_silver.asset s
+      LEFT JOIN orion.asset_raw b
+        ON s.asset_id = b.asset_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.asset_id IS NULL
+    expect:
+      orphaned_assets: 0
+  
+  - name: valid_asset_class_values
+    type: accepted_values
+    description: "asset_class should have valid values when not empty"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND asset_class != ''
+        AND asset_class NOT IN ('equity', 'fixed_income', 'cash', 'alternative', 'commodity', 'real_estate', 'cryptocurrency')
+    expect:
+      invalid_count: 0
+  
+  - name: current_price_non_negative
+    type: assertion
+    description: "current_price should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND current_price < 0
+    expect:
+      invalid_count: 0
+  
+  - name: market_cap_non_negative
+    type: assertion
+    description: "market_cap should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND market_cap < 0
+    expect:
+      invalid_count: 0
+  
+  - name: fifty_two_week_range_valid
+    type: assertion
+    description: "52-week high should be greater than or equal to 52-week low"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND fifty_two_week_high > 0
+        AND fifty_two_week_low > 0
+        AND fifty_two_week_high < fifty_two_week_low
+    expect:
+      invalid_count: 0
+  
+  - name: current_price_within_52week_range
+    type: assertion
+    description: "Current price should be within reasonable range of 52-week high/low"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND current_price > 0
+        AND fifty_two_week_high > 0
+        AND fifty_two_week_low > 0
+        AND (current_price > fifty_two_week_high * 1.5 OR current_price < fifty_two_week_low * 0.5)
+    expect:
+      invalid_count: 0
+  
+  - name: pe_ratio_reasonable
+    type: assertion
+    description: "P/E ratio should be reasonable (between -1000 and 1000)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND pe_ratio != 0
+        AND (pe_ratio < -1000 OR pe_ratio > 1000)
+    expect:
+      invalid_count: 0
+  
+  - name: dividend_yield_reasonable
+    type: assertion
+    description: "Dividend yield should be reasonable (between 0 and 100%)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND dividend_yield < 0
+        OR dividend_yield > 100
+    expect:
+      invalid_count: 0
+  
+  - name: beta_reasonable
+    type: assertion
+    description: "Beta should be reasonable (between -10 and 10)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND beta != 0
+        AND (beta < -10 OR beta > 10)
+    expect:
+      invalid_count: 0
+  
+  - name: coupon_rate_reasonable
+    type: assertion
+    description: "Coupon rate should be reasonable (between 0 and 100%)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND coupon_rate < 0
+        OR coupon_rate > 100
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Price currency should be 3-letter code when not empty"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND price_currency != ''
+        AND length(price_currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: symbol_not_empty_for_equities
+    type: assertion
+    description: "Symbol should not be empty for equity asset class"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND asset_class = 'equity'
+        AND (symbol IS NULL OR symbol = '')
+    expect:
+      invalid_count: 0
+  
+  - name: asset_name_not_empty
+    type: assertion
+    description: "Asset name should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (asset_name IS NULL OR asset_name = '')
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.asset
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0

@@ -72,25 +72,25 @@ columns:
   - name: investment_name
     type: String
     nullable: false
-    description: "Full name of the investment/security (trimmed)"
+    description: "Full name of the investment/security"
     example: "Apple Inc."
     
   - name: symbol
     type: String
     nullable: false
-    description: "Trading symbol/ticker (trimmed)"
+    description: "Trading symbol/ticker"
     example: "AAPL"
     
   - name: cusip
     type: String
     nullable: false
-    description: "CUSIP identifier (trimmed)"
+    description: "CUSIP identifier"
     example: "037833100"
     
   - name: isin
     type: String
     nullable: false
-    description: "ISIN identifier (trimmed)"
+    description: "ISIN identifier"
     example: "US0378331005"
     
   # Investment classification
@@ -109,144 +109,144 @@ columns:
   - name: category
     type: String
     nullable: false
-    description: "Investment category (trimmed)"
+    description: "Investment category"
     example: "Large Cap Growth"
     
   # Current pricing
   - name: current_price
     type: Decimal(15, 4)
     nullable: false
-    description: "Current price per share/unit (converted from string)"
+    description: "Current price per share/unit"
     example: 185.5000
     
   - name: previous_close
     type: Decimal(15, 4)
     nullable: false
-    description: "Previous closing price (converted from string)"
+    description: "Previous closing price"
     example: 183.2500
     
   - name: price_change
     type: Decimal(15, 4)
     nullable: false
-    description: "Price change from previous close (converted from string)"
+    description: "Price change from previous close"
     example: 2.2500
     
   - name: price_change_percent
     type: Decimal(8, 2)
     nullable: false
-    description: "Price change percentage (converted from string)"
+    description: "Price change percentage"
     example: 1.23
     
   # Description and metadata
   - name: description
     type: String
     nullable: false
-    description: "Investment description (trimmed)"
+    description: "Investment description"
     example: "Technology company specializing in consumer electronics"
     
   - name: currency
     type: String
     nullable: false
-    description: "Currency code (trimmed, default USD)"
+    description: "Currency code"
     example: "USD"
     
   - name: country
     type: String
     nullable: false
-    description: "Country of origin (trimmed)"
+    description: "Country of origin"
     example: "United States"
     
   - name: exchange
     type: String
     nullable: false
-    description: "Trading exchange (trimmed)"
+    description: "Trading exchange"
     example: "NASDAQ"
     
   - name: sector
     type: String
     nullable: false
-    description: "Market sector (trimmed)"
+    description: "Market sector"
     example: "Technology"
     
   - name: industry
     type: String
     nullable: false
-    description: "Industry classification (trimmed)"
+    description: "Industry classification"
     example: "Consumer Electronics"
     
   # Bond-specific fields
   - name: coupon_rate
     type: Decimal(6, 3)
     nullable: false
-    description: "Bond coupon rate percentage (converted from string)"
+    description: "Bond coupon rate percentage"
     example: 4.250
     
   - name: maturity_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Bond maturity date (parsed from string)"
+    description: "Bond maturity date"
     example: "2030-12-31 00:00:00.000"
     
   - name: credit_rating
     type: String
     nullable: false
-    description: "Credit rating (e.g., AAA, AA+) (trimmed)"
+    description: "Credit rating (e.g., AAA, AA+)"
     example: "AA+"
     
   # Fund-specific fields
   - name: expense_ratio
     type: Decimal(6, 4)
     nullable: false
-    description: "Fund expense ratio percentage (converted from string)"
+    description: "Fund expense ratio percentage"
     example: 0.0500
     
   - name: fund_manager
     type: String
     nullable: false
-    description: "Fund manager name (trimmed)"
+    description: "Fund manager name"
     example: "Vanguard Group"
     
   - name: fund_family
     type: String
     nullable: false
-    description: "Fund family name (trimmed)"
+    description: "Fund family name"
     example: "Vanguard"
     
   - name: fund_aum
     type: Decimal(20, 2)
     nullable: false
-    description: "Fund assets under management (converted from string)"
+    description: "Fund assets under management"
     example: 500000000000.00
     
   # Performance metrics
   - name: ytd_return
     type: Decimal(6, 2)
     nullable: false
-    description: "Year-to-date return percentage (converted from string)"
+    description: "Year-to-date return percentage"
     example: 15.50
     
   - name: one_year_return
     type: Decimal(6, 2)
     nullable: false
-    description: "One year return percentage (converted from string)"
+    description: "One year return percentage"
     example: 22.75
     
   - name: three_year_return
     type: Decimal(6, 2)
     nullable: false
-    description: "Three year annualized return percentage (converted from string)"
+    description: "Three year annualized return percentage"
     example: 18.30
     
   - name: five_year_return
     type: Decimal(6, 2)
     nullable: false
-    description: "Five year annualized return percentage (converted from string)"
+    description: "Five year annualized return percentage"
     example: 20.10
     
   - name: dividend_yield
     type: Decimal(6, 2)
     nullable: false
-    description: "Dividend yield percentage (converted from string)"
+    description: "Dividend yield percentage"
     example: 0.55
     
   # Flags
@@ -261,7 +261,7 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2020-01-15 10:30:00.000"
     
   - name: rec_add_user
@@ -273,7 +273,7 @@ columns:
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_edit_user
@@ -286,7 +286,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -305,7 +305,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

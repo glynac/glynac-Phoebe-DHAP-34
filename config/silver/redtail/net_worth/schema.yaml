@@ -105,63 +105,63 @@ columns:
   - name: as_of_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date this net worth statement is effective as of (parsed from string)"
+    description: "Date this net worth statement is effective as of"
     example: "2025-11-30 00:00:00.000"
     
   # Assets
   - name: cash_and_equivalents
     type: Decimal64(2)
     nullable: false
-    description: "Cash and cash equivalent assets (parsed from string, currency symbols removed)"
+    description: "Cash and cash equivalent assets"
     pii: true
     example: 250000.00
     
   - name: investments
     type: Decimal64(2)
     nullable: false
-    description: "Investment portfolio value (parsed from string, currency symbols removed)"
+    description: "Investment portfolio value"
     pii: true
     example: 1500000.00
     
   - name: retirement_accounts
     type: Decimal64(2)
     nullable: false
-    description: "Retirement account balances (IRA, 401k, etc.) (parsed from string, currency symbols removed)"
+    description: "Retirement account balances (IRA, 401k, etc.)"
     pii: true
     example: 800000.00
     
   - name: real_estate
     type: Decimal64(2)
     nullable: false
-    description: "Real estate property values (parsed from string, currency symbols removed)"
+    description: "Real estate property values"
     pii: true
     example: 1200000.00
     
   - name: business_interests
     type: Decimal64(2)
     nullable: false
-    description: "Business ownership and interests value (parsed from string, currency symbols removed)"
+    description: "Business ownership and interests value"
     pii: true
     example: 500000.00
     
   - name: personal_property
     type: Decimal64(2)
     nullable: false
-    description: "Personal property value (vehicles, jewelry, etc.) (parsed from string, currency symbols removed)"
+    description: "Personal property value (vehicles, jewelry, etc.)"
     pii: true
     example: 150000.00
     
   - name: other_assets
     type: Decimal64(2)
     nullable: false
-    description: "Other miscellaneous assets (parsed from string, currency symbols removed)"
+    description: "Other miscellaneous assets"
     pii: true
     example: 50000.00
     
   - name: total_assets
     type: Decimal64(2)
     nullable: false
-    description: "Total of all assets (parsed from string, currency symbols removed)"
+    description: "Total of all assets"
     pii: true
     example: 4450000.00
     
@@ -169,35 +169,35 @@ columns:
   - name: short_term_liabilities
     type: Decimal64(2)
     nullable: false
-    description: "Short-term debts and liabilities (parsed from string, currency symbols removed)"
+    description: "Short-term debts and liabilities"
     pii: true
     example: 25000.00
     
   - name: mortgages
     type: Decimal64(2)
     nullable: false
-    description: "Mortgage loan balances (parsed from string, currency symbols removed)"
+    description: "Mortgage loan balances"
     pii: true
     example: 600000.00
     
   - name: loans
     type: Decimal64(2)
     nullable: false
-    description: "Other loan balances (parsed from string, currency symbols removed)"
+    description: "Other loan balances"
     pii: true
     example: 100000.00
     
   - name: other_liabilities
     type: Decimal64(2)
     nullable: false
-    description: "Other miscellaneous liabilities (parsed from string, currency symbols removed)"
+    description: "Other miscellaneous liabilities"
     pii: true
     example: 25000.00
     
   - name: total_liabilities
     type: Decimal64(2)
     nullable: false
-    description: "Total of all liabilities (parsed from string, currency symbols removed)"
+    description: "Total of all liabilities"
     pii: true
     example: 750000.00
     
@@ -205,7 +205,7 @@ columns:
   - name: net_worth_amount
     type: Decimal64(2)
     nullable: false
-    description: "Net worth (total_assets - total_liabilities) (parsed from string, currency symbols removed)"
+    description: "Net worth (total_assets - total_liabilities)"
     pii: true
     example: 3700000.00
     
@@ -213,7 +213,7 @@ columns:
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes about the net worth statement (trimmed)"
+    description: "Additional notes about the net worth statement"
     pii: true
     example: "Annual review, real estate values updated based on recent appraisal"
     
@@ -221,13 +221,13 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-30 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-30 14:20:00.000"
     
   - name: rec_add_user
@@ -246,7 +246,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -265,7 +265,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

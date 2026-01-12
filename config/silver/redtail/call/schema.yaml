@@ -88,19 +88,19 @@ columns:
   - name: call_type
     type: String
     nullable: false
-    description: "Type of call (Inbound, Outbound, Missed) (trimmed)"
+    description: "Type of call (Inbound, Outbound, Missed)"
     example: "Outbound"
     
   - name: call_status
     type: String
     nullable: false
-    description: "Status of call (Completed, Scheduled, Cancelled) (trimmed)"
+    description: "Status of call (Completed, Scheduled, Cancelled)"
     example: "Completed"
     
   - name: phone_number
     type: String
     nullable: false
-    description: "Phone number associated with call (trimmed)"
+    description: "Phone number associated with call"
     pii: true
     example: "555-123-4567"
     
@@ -121,13 +121,13 @@ columns:
   - name: call_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when call occurred (parsed from string)"
+    description: "Date when call occurred"
     example: "2025-11-28 00:00:00.000"
     
   - name: call_time
     type: String
     nullable: false
-    description: "Time of call (trimmed)"
+    description: "Time of call"
     example: "14:30:00"
     
   - name: duration_seconds
@@ -146,27 +146,27 @@ columns:
   - name: subject
     type: String
     nullable: false
-    description: "Call subject/title (trimmed)"
+    description: "Call subject/title"
     pii: true
     example: "Follow-up on investment portfolio"
     
   - name: notes
     type: String
     nullable: false
-    description: "Detailed call notes (trimmed)"
+    description: "Detailed call notes"
     pii: true
     example: "Discussed Q4 performance and rebalancing strategy"
     
   - name: disposition
     type: String
     nullable: false
-    description: "Call disposition/category (trimmed)"
+    description: "Call disposition/category"
     example: "Client Meeting"
     
   - name: outcome
     type: String
     nullable: false
-    description: "Call outcome/result (trimmed)"
+    description: "Call outcome/result"
     example: "Successful"
     
   # Follow-up
@@ -179,7 +179,7 @@ columns:
   - name: follow_up_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when follow-up is due (parsed from string)"
+    description: "Date when follow-up is due"
     example: "2025-12-05 00:00:00.000"
     
   # Recording
@@ -192,27 +192,27 @@ columns:
   - name: recording_url
     type: String
     nullable: false
-    description: "URL to call recording if available (trimmed)"
+    description: "URL to call recording if available"
     example: "https://recordings.example.com/call_12345.mp3"
     
   # Audit fields
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 14:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 15:20:00.000"
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -231,7 +231,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

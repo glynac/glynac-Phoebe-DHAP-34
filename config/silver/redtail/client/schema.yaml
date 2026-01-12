@@ -97,7 +97,7 @@ columns:
   - name: client_number
     type: String
     nullable: false
-    description: "Client account/reference number (trimmed)"
+    description: "Client account/reference number"
     pii: true
     example: "CLT-2025-001"
     
@@ -105,13 +105,13 @@ columns:
   - name: client_type
     type: String
     nullable: false
-    description: "Type of client relationship (Individual, Joint, Corporate, Trust) (trimmed)"
+    description: "Type of client relationship (Individual, Joint, Corporate, Trust)"
     example: "Individual"
     
   - name: client_status
     type: String
     nullable: false
-    description: "Current status of client relationship (trimmed)"
+    description: "Current status of client relationship"
     example: "Active"
     
   - name: status_normalized
@@ -125,20 +125,20 @@ columns:
   - name: service_level
     type: String
     nullable: false
-    description: "Service tier/level for client (Premium, Standard, Basic) (trimmed)"
+    description: "Service tier/level for client (Premium, Standard, Basic)"
     example: "Premium"
     
   - name: risk_profile
     type: String
     nullable: false
-    description: "Risk tolerance profile (Conservative, Moderate, Aggressive) (trimmed)"
+    description: "Risk tolerance profile (Conservative, Moderate, Aggressive)"
     example: "Moderate"
     
   # Financial data
   - name: assets_under_management
     type: Decimal64(2)
     nullable: false
-    description: "Total assets under management (parsed from string, currency symbols removed)"
+    description: "Total assets under management"
     pii: true
     example: 1500000.00
     
@@ -146,20 +146,20 @@ columns:
   - name: onboarding_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when client was onboarded (parsed from string)"
+    description: "Date when client was onboarded"
     example: "2020-03-15 00:00:00.000"
     
   - name: review_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Next scheduled review date (parsed from string)"
+    description: "Next scheduled review date"
     example: "2025-12-15 00:00:00.000"
     
   # Notes
   - name: notes
     type: String
     nullable: false
-    description: "Client notes and additional information (trimmed)"
+    description: "Client notes and additional information"
     pii: true
     example: "Prefers quarterly reviews, interested in ESG investments"
     
@@ -167,13 +167,13 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2020-03-15 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_add_user
@@ -192,7 +192,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -211,7 +211,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

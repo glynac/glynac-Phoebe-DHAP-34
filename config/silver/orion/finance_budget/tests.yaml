@@ -1,0 +1,221 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_BUDGET
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(budget_id IS NULL) as null_budget_id,
+        countIf(budget_id = '') as empty_budget_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(budget_status IS NULL) as null_budget_status,
+        countIf(budget_status = '') as empty_budget_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_budget_id: 0
+      empty_budget_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_budget_status: 0
+      empty_budget_status: 0
+      null_processing_date: 0
+  
+  - name: budget_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "budget_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT budget_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY budget_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_finance_budgets_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance budgets should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_budgets
+      FROM orion_silver.finance_budget s
+      LEFT JOIN orion.finance_budget_raw b
+        ON s.budget_id = b.budget_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.budget_id IS NULL
+    expect:
+      orphaned_finance_budgets: 0
+  
+  - name: name_not_empty
+    type: assertion
+    description: "Budget name should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (name IS NULL OR name = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_positive
+    type: assertion
+    description: "Budget amount should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: allocated_not_exceed_amount
+    type: assertion
+    description: "Allocated should not exceed total amount"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND allocated > amount
+    expect:
+      invalid_count: 0
+  
+  - name: spent_not_negative
+    type: assertion
+    description: "Spent should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND spent < 0
+    expect:
+      invalid_count: 0
+  
+  - name: remaining_calculation_reasonable
+    type: assertion
+    description: "Remaining should equal amount minus spent within tolerance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND abs((amount - spent) - remaining) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: created_by_not_empty
+    type: assertion
+    description: "Created by ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (created_by_id IS NULL OR created_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: start_date_before_end_date
+    type: assertion
+    description: "Start date should be before or equal to end date"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_date IS NOT NULL
+        AND end_date IS NOT NULL
+        AND start_date > end_date
+    expect:
+      invalid_count: 0
+  
+  - name: end_date_not_far_past
+    type: assertion
+    description: "End date should not be more than 5 years in the past"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND end_date IS NOT NULL
+        AND end_date < now() - INTERVAL 5 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: last_review_not_before_created
+    type: assertion
+    description: "Last review date should not be before created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND last_review_date IS NOT NULL
+        AND last_review_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: budget_type_not_empty
+    type: assertion
+    description: "Budget type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_budget
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (budget_type IS NULL OR budget_type = '')
+    expect:
+      invalid_count: 0

@@ -96,28 +96,28 @@ columns:
   - name: from_address
     type: String
     nullable: false
-    description: "Sender email address (trimmed)"
+    description: "Sender email address"
     pii: true
     example: "advisor@example.com"
     
   - name: to_addresses
     type: String
     nullable: false
-    description: "Recipient email addresses, comma-separated (trimmed)"
+    description: "Recipient email addresses, comma-separated"
     pii: true
     example: "client1@example.com, client2@example.com"
     
   - name: cc_addresses
     type: String
     nullable: false
-    description: "CC email addresses, comma-separated (trimmed)"
+    description: "CC email addresses, comma-separated"
     pii: true
     example: "colleague@example.com"
     
   - name: bcc_addresses
     type: String
     nullable: false
-    description: "BCC email addresses, comma-separated (trimmed)"
+    description: "BCC email addresses, comma-separated"
     pii: true
     example: "manager@example.com"
     
@@ -125,21 +125,21 @@ columns:
   - name: subject
     type: String
     nullable: false
-    description: "Email subject line (trimmed)"
+    description: "Email subject line"
     pii: true
     example: "Your Q4 2025 Portfolio Performance Report"
     
   - name: body_text
     type: String
     nullable: false
-    description: "Email body in plain text format (trimmed)"
+    description: "Email body in plain text format"
     pii: true
     example: "Dear Client, Please find attached your quarterly report..."
     
   - name: body_html
     type: String
     nullable: false
-    description: "Email body in HTML format (trimmed)"
+    description: "Email body in HTML format"
     pii: true
     example: "<html><body><p>Dear Client...</p></body></html>"
     
@@ -160,7 +160,7 @@ columns:
   - name: email_status
     type: String
     nullable: false
-    description: "Email delivery status (Sent, Delivered, Bounced, Failed, Draft, Queued) (trimmed)"
+    description: "Email delivery status (Sent, Delivered, Bounced, Failed, Draft, Queued)"
     example: "Delivered"
     
   - name: status_normalized
@@ -180,19 +180,19 @@ columns:
   - name: sent_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date and time when email was sent (parsed from string)"
+    description: "Date and time when email was sent"
     example: "2025-11-28 14:30:00.000"
     
   - name: read_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date and time when email was first read (parsed from string)"
+    description: "Date and time when email was first read"
     example: "2025-11-28 15:45:00.000"
     
   - name: delivered_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date and time when email was delivered (parsed from string)"
+    description: "Date and time when email was delivered"
     example: "2025-11-28 14:30:15.000"
     
   # Engagement metrics
@@ -225,20 +225,20 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 14:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 15:20:00.000"
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -257,7 +257,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

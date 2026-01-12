@@ -94,14 +94,14 @@ columns:
   - name: title
     type: String
     nullable: false
-    description: "Note title or subject (trimmed)"
+    description: "Note title or subject"
     pii: true
     example: "Meeting Notes - Q4 Strategy Discussion"
     
   - name: content
     type: String
     nullable: false
-    description: "Full note content/body (trimmed)"
+    description: "Full note content/body"
     pii: true
     example: "Discussed investment strategy for Q4, client prefers conservative approach..."
     
@@ -109,19 +109,19 @@ columns:
   - name: note_type
     type: String
     nullable: false
-    description: "Type of note (General, Meeting, Call, Contact, Task) (trimmed)"
+    description: "Type of note (General, Meeting, Call, Contact, Task)"
     example: "Meeting"
     
   - name: category
     type: String
     nullable: false
-    description: "Note category for organization (trimmed)"
+    description: "Note category for organization"
     example: "Client Strategy"
     
   - name: tags
     type: String
     nullable: false
-    description: "Note tags, comma-separated (trimmed)"
+    description: "Note tags, comma-separated"
     example: "Q4, strategy, conservative"
     
   # Relationships
@@ -154,20 +154,20 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 14:00:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 16:20:00.000"
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -186,7 +186,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

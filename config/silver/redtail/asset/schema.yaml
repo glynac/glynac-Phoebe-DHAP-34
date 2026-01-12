@@ -91,41 +91,41 @@ columns:
   - name: asset_id
     type: Int64
     nullable: false
-    description: "Asset identifier (may duplicate rec_id)"
+    description: "Asset identifier"
     example: 12345
     
   # Quantity
   - name: quantity
     type: Decimal(15, 4)
     nullable: false
-    description: "Number of units/shares held (converted from string)"
+    description: "Number of units/shares held"
     example: 100.5000
     
   # Cost basis
   - name: cost_basis
     type: Decimal(15, 2)
     nullable: false
-    description: "Total cost basis (converted from string)"
+    description: "Total cost basis"
     pii: true
     example: 10500.00
     
   - name: cost_basis_per_unit
     type: Decimal(15, 4)
     nullable: false
-    description: "Cost basis per unit/share (converted from string)"
+    description: "Cost basis per unit/share"
     example: 104.4776
     
   # Current pricing
   - name: current_price
     type: Decimal(15, 4)
     nullable: false
-    description: "Current price per unit/share (converted from string)"
+    description: "Current price per unit/share"
     example: 125.5000
     
   - name: current_value
     type: Decimal(15, 2)
     nullable: false
-    description: "Current market value of position (converted from string)"
+    description: "Current market value of position"
     pii: true
     example: 12612.75
     
@@ -133,40 +133,40 @@ columns:
   - name: unrealized_gain_loss
     type: Decimal(15, 2)
     nullable: false
-    description: "Unrealized gain/loss amount (converted from string)"
+    description: "Unrealized gain/loss amount"
     pii: true
     example: 2112.75
     
   - name: unrealized_gain_loss_percent
     type: Decimal(8, 2)
     nullable: false
-    description: "Unrealized gain/loss percentage (converted from string)"
+    description: "Unrealized gain/loss percentage"
     example: 20.12
     
   # Allocation
   - name: allocation_percent
     type: Decimal(5, 2)
     nullable: false
-    description: "Percentage of account allocated to this position (converted from string)"
+    description: "Percentage of account allocated to this position"
     example: 15.50
     
   - name: target_allocation
     type: Decimal(5, 2)
     nullable: false
-    description: "Target allocation percentage (converted from string)"
+    description: "Target allocation percentage"
     example: 18.00
     
   # Dates
   - name: purchase_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when position was purchased (parsed from string)"
+    description: "Date when position was purchased"
     example: "2023-03-15 00:00:00.000"
     
   - name: last_update_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Last update timestamp for pricing (parsed from string)"
+    description: "Last update timestamp for pricing"
     example: "2025-11-28 16:00:00.000"
     
   # Flags
@@ -188,7 +188,7 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2023-03-15 10:30:00.000"
     
   - name: rec_add_user
@@ -200,7 +200,7 @@ columns:
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_edit_user
@@ -213,7 +213,7 @@ columns:
   - name: investment_data
     type: String
     nullable: false
-    description: "Serialized investment/security information (JSON)"
+    description: "Serialized investment/security information"
     pii: true
     example: '{"symbol":"AAPL","name":"Apple Inc."}'
     
@@ -221,14 +221,14 @@ columns:
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes or comments (trimmed)"
+    description: "Additional notes or comments"
     example: "Long-term hold position"
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -247,7 +247,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

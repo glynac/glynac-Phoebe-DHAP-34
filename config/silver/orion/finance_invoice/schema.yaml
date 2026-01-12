@@ -1,0 +1,287 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_invoice
+
+
+metadata:
+  display_name: "Orion Finance Invoices (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial invoice data from Bronze layer.
+    Represents invoices for accounts receivable with payment tracking,
+    line items, and billing information.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_invoice
+    - financial
+    - billing
+    - accounts_receivable
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - amount
+    - amount_paid
+    - amount_due
+    - tax
+    - lineitems
+    - terms
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_invoice_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - invoice_id
+  primary_key:
+    - invoice_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: invoice_status_idx
+      expression: invoice_status
+      type: set
+      granularity: 4
+    - name: invoice_type_idx
+      expression: invoice_type
+      type: set
+      granularity: 4
+    - name: customer_id_idx
+      expression: customer_id
+      type: minmax
+      granularity: 2
+    - name: deal_id_idx
+      expression: deal_id
+      type: minmax
+      granularity: 2
+    - name: invoice_number_idx
+      expression: invoice_number
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: invoice_id
+    type: String
+    nullable: false
+    description: "Unique invoice identifier (primary key)"
+    primary_key: true
+    example: "inv-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation (primary key)"
+    example: "org-xyz789"
+    
+  # Invoice classification
+  - name: invoice_type
+    type: String
+    nullable: false
+    description: "Type of invoice"
+    example: "sales"
+    
+  - name: invoice_number
+    type: String
+    nullable: false
+    description: "Human-readable invoice number"
+    example: "INV-2025-001"
+    
+  - name: invoice_status
+    type: String
+    nullable: false
+    description: "Current invoice status"
+    example: "pending"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Invoice description"
+    example: "Professional services for January 2025"
+    
+  # Financial details
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Total invoice amount"
+    pii: true
+    example: 25000.00
+    
+  - name: amount_paid
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Amount paid"
+    pii: true
+    example: 15000.00
+    
+  - name: amount_due
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Amount still due"
+    pii: true
+    example: 10000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: tax
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Tax amount"
+    pii: true
+    example: 2000.00
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account/GL code"
+    example: "acc-def456"
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-ghi789"
+    
+  - name: customer_id
+    type: String
+    nullable: false
+    description: "Customer who is billed"
+    example: "cust-jkl012"
+    
+  - name: contact_id
+    type: String
+    nullable: false
+    description: "Contact person for invoice"
+    example: "cnt-mno345"
+    
+  - name: deal_id
+    type: String
+    nullable: false
+    description: "Associated deal"
+    example: "deal-pqr678"
+    
+  - name: created_by_id
+    type: String
+    nullable: false
+    description: "User who created the invoice"
+    example: "usr-stu901"
+    
+  - name: approved_by_id
+    type: String
+    nullable: false
+    description: "User who approved the invoice"
+    example: "usr-vwx234"
+    
+  # Invoice details
+  - name: terms
+    type: String
+    nullable: false
+    description: "Payment terms and conditions"
+    pii: true
+    example: "Net 30, 2% discount if paid within 10 days"
+    
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes"
+    pii: true
+    example: "Rush payment requested"
+    
+  - name: lineitems
+    type: String
+    nullable: false
+    description: "Invoice line items details"
+    pii: true
+    example: '[{"description":"Consulting","qty":100,"rate":200,"amount":20000}]'
+    
+  - name: meta_data
+    type: String
+    nullable: false
+    description: "Additional metadata"
+    example: '{"payment_method":"wire_transfer","po_number":"PO-12345"}'
+    
+  # Dates
+  - name: issue_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when invoice was issued"
+    example: "2025-01-01 00:00:00.000"
+    
+  - name: due_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Payment due date"
+    example: "2025-01-31 00:00:00.000"
+    
+  - name: paid_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when invoice was paid"
+    example: "2025-01-25 00:00:00.000"
+    
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2025-01-01 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-12 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-12"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-12 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-12 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_invoice_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-12 14:30:22.123"

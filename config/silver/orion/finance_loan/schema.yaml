@@ -1,0 +1,290 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_loan
+
+
+metadata:
+  display_name: "Orion Finance Loans (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial loan data from Bronze layer.
+    Represents loan accounts with borrower information, payment schedules,
+    interest rates, and balance tracking.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_loan
+    - financial
+    - lending
+    - credit
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - borrower_name
+    - principal_amount
+    - outstanding_balance
+    - payment_amount
+    - collateral
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_loan_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - loan_id
+  primary_key:
+    - loan_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: loan_status_idx
+      expression: loan_status
+      type: set
+      granularity: 4
+    - name: loan_type_idx
+      expression: loan_type
+      type: set
+      granularity: 4
+    - name: borrower_id_idx
+      expression: borrower_id
+      type: minmax
+      granularity: 2
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: loan_id
+    type: String
+    nullable: false
+    description: "Unique loan identifier (primary key)"
+    primary_key: true
+    example: "loan-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation (primary key)"
+    example: "org-xyz789"
+    
+  # Loan classification
+  - name: loan_type_class
+    type: String
+    nullable: false
+    description: "Loan type classification"
+    example: "commercial"
+    
+  - name: loan_number
+    type: String
+    nullable: false
+    description: "Human-readable loan number"
+    example: "LOAN-2025-001"
+    
+  - name: loan_type
+    type: String
+    nullable: false
+    description: "Type of loan"
+    example: "term_loan"
+    
+  - name: loan_purpose
+    type: String
+    nullable: false
+    description: "Purpose of the loan"
+    example: "equipment_purchase"
+    
+  - name: loan_status
+    type: String
+    nullable: false
+    description: "Current loan status"
+    example: "active"
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account"
+    example: "acc-def456"
+    
+  - name: borrower_id
+    type: String
+    nullable: false
+    description: "Borrower identifier"
+    example: "borr-ghi789"
+    
+  - name: borrower_name
+    type: String
+    nullable: false
+    description: "Borrower name"
+    pii: true
+    example: "John Doe"
+    
+  # Financial details
+  - name: principal_amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Original loan principal amount"
+    pii: true
+    example: 500000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: outstanding_balance
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Current outstanding balance"
+    pii: true
+    example: 425000.00
+    
+  - name: interest_rate
+    type: Decimal(8, 4)
+    nullable: false
+    description: "Interest rate as percentage"
+    example: 5.2500
+    
+  - name: interest_type
+    type: String
+    nullable: false
+    description: "Type of interest rate"
+    example: "fixed"
+    
+  # Loan terms
+  - name: origination_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when loan was originated"
+    example: "2024-01-15 00:00:00.000"
+    
+  - name: maturity_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Loan maturity date"
+    example: "2029-01-15 00:00:00.000"
+    
+  - name: term_months
+    type: Int32
+    nullable: false
+    description: "Loan term in months"
+    example: 60
+    
+  # Payment details
+  - name: payment_frequency
+    type: String
+    nullable: false
+    description: "Payment frequency"
+    example: "monthly"
+    
+  - name: payment_amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Regular payment amount"
+    pii: true
+    example: 9500.00
+    
+  - name: next_payment_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Next payment due date"
+    example: "2025-02-01 00:00:00.000"
+    
+  # Fees and penalties
+  - name: late_fee_amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Late fee amount if applicable"
+    example: 50.00
+    
+  - name: prepayment_penalty
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Prepayment penalty amount"
+    example: 1000.00
+    
+  # Security
+  - name: is_secured
+    type: UInt8
+    nullable: false
+    description: "Whether loan is secured"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: collateral
+    type: String
+    nullable: false
+    description: "Collateral details"
+    pii: true
+    example: "Commercial property at 123 Main St"
+    
+  # Additional information
+  - name: tags
+    type: String
+    nullable: false
+    description: "Classification tags"
+    example: "priority,large_balance"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2024-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-12 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-12"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-12 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-12 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_loan_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-12 14:30:22.123"

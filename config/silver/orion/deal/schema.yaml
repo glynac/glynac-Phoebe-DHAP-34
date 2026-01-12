@@ -1,0 +1,238 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: deal
+
+
+metadata:
+  display_name: "Orion Deals (Cleaned)"
+  description: |
+    Cleaned and transformed Orion deal/opportunity data from Bronze layer.
+    Represents sales deals and opportunities with pipeline information,
+    financial details, and deal progression tracking.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - deal
+    - opportunity
+    - sales
+    - pipeline
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - deal_name
+    - amount
+    - description
+    - terms
+    - products
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.deal_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - deal_id
+  primary_key:
+    - deal_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: deal_status_idx
+      expression: deal_status
+      type: set
+      granularity: 4
+    - name: stage_idx
+      expression: stage
+      type: set
+      granularity: 4
+    - name: customer_id_idx
+      expression: customer_id
+      type: minmax
+      granularity: 2
+    - name: owner_id_idx
+      expression: owner_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: deal_id
+    type: String
+    nullable: false
+    description: "Unique deal identifier (primary key)"
+    primary_key: true
+    example: "deal-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Deal classification
+  - name: deal_type
+    type: String
+    nullable: false
+    description: "Type of deal"
+    example: "new_business"
+    
+  - name: deal_name
+    type: String
+    nullable: false
+    description: "Name/title of the deal"
+    pii: true
+    example: "Enterprise Software License - Acme Corp"
+    
+  - name: stage
+    type: String
+    nullable: false
+    description: "Current pipeline stage"
+    example: "negotiation"
+    
+  - name: deal_status
+    type: String
+    nullable: false
+    description: "Current deal status"
+    example: "open"
+    
+  # Financial details (PII)
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Deal amount/value"
+    pii: true
+    example: 150000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: probability
+    type: Decimal(5, 2)
+    nullable: false
+    description: "Win probability as percentage"
+    example: 75.00
+    
+  # Dates
+  - name: expected_close_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Expected deal close date"
+    example: "2025-03-31 00:00:00.000"
+    
+  - name: actual_close_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Actual deal close date"
+    example: "2025-03-28 00:00:00.000"
+    
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Deal creation date"
+    example: "2025-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-12 14:20:00.000"
+    
+  # Relationships
+  - name: customer_id
+    type: String
+    nullable: false
+    description: "Foreign key to customer"
+    example: "cust-def456"
+    
+  - name: opportunity_id
+    type: String
+    nullable: false
+    description: "Associated opportunity identifier"
+    example: "opp-ghi789"
+    
+  - name: contact_id
+    type: String
+    nullable: false
+    description: "Primary contact for the deal"
+    example: "cnt-jkl012"
+    
+  - name: owner_id
+    type: String
+    nullable: false
+    description: "Deal owner/sales rep identifier"
+    example: "usr-mno345"
+    
+  # Deal details (PII)
+  - name: description
+    type: String
+    nullable: false
+    description: "Deal description"
+    pii: true
+    example: "Multi-year enterprise software licensing agreement"
+    
+  - name: terms
+    type: String
+    nullable: false
+    description: "Deal terms and conditions"
+    pii: true
+    example: "Net 30, 3-year commitment, annual billing"
+    
+  - name: products
+    type: String
+    nullable: false
+    description: "Products included in deal"
+    pii: true
+    example: '["Enterprise License","Premium Support","Training"]'
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-12"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-12 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-12 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.deal_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-12 14:30:22.123"

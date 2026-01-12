@@ -81,7 +81,7 @@ columns:
   - name: transaction_number
     type: String
     nullable: false
-    description: "Unique transaction number (trimmed)"
+    description: "Unique transaction number"
     example: "TXN-2025-001234"
     
   - name: transaction_type
@@ -107,59 +107,59 @@ columns:
   - name: amount
     type: Decimal(15, 2)
     nullable: false
-    description: "Transaction amount (converted from string)"
+    description: "Transaction amount"
     pii: true
     example: 10000.00
     
   - name: fees
     type: Decimal(10, 2)
     nullable: false
-    description: "Transaction fees (converted from string)"
+    description: "Transaction fees"
     pii: true
     example: 9.99
     
   - name: price_per_unit
     type: Decimal(15, 4)
     nullable: false
-    description: "Price per share/unit (converted from string)"
+    description: "Price per share/unit"
     example: 125.5000
     
   - name: quantity
     type: Decimal(15, 4)
     nullable: false
-    description: "Number of shares/units (converted from string)"
+    description: "Number of shares/units"
     example: 100.0000
     
   - name: currency
     type: String
     nullable: false
-    description: "Currency code (trimmed, default USD)"
+    description: "Currency code"
     example: "USD"
     
   # Dates
   - name: transaction_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Transaction date (parsed from string)"
+    description: "Transaction date"
     example: "2025-11-28 00:00:00.000"
     
   - name: settlement_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Settlement date (parsed from string)"
+    description: "Settlement date"
     example: "2025-11-30 00:00:00.000"
     
   - name: entry_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date transaction was entered into system (parsed from string)"
+    description: "Date transaction was entered into system"
     example: "2025-11-28 14:30:00.000"
     
   # Status
   - name: status
     type: String
     nullable: false
-    description: "Transaction status (trimmed)"
+    description: "Transaction status"
     example: "Completed"
     
   - name: status_normalized
@@ -173,19 +173,19 @@ columns:
   - name: description
     type: String
     nullable: false
-    description: "Transaction description (trimmed)"
+    description: "Transaction description"
     example: "Purchase of AAPL shares"
     
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes or comments (trimmed)"
+    description: "Additional notes or comments"
     example: "Quarterly investment"
     
   - name: reference_number
     type: String
     nullable: false
-    description: "External reference number (trimmed)"
+    description: "External reference number"
     example: "REF-123456"
     
   # Flags
@@ -200,21 +200,21 @@ columns:
   - name: investment_data
     type: String
     nullable: false
-    description: "Serialized investment/security information (JSON)"
+    description: "Serialized investment/security information"
     pii: true
     example: '{"symbol":"AAPL","name":"Apple Inc."}'
     
   - name: investment_name
     type: String
     nullable: false
-    description: "Investment name (denormalized field, trimmed)"
+    description: "Investment name"
     example: "Apple Inc."
     
   # Audit fields
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 10:30:00.000"
     
   - name: rec_add_user
@@ -226,7 +226,7 @@ columns:
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_edit_user
@@ -239,7 +239,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -258,7 +258,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

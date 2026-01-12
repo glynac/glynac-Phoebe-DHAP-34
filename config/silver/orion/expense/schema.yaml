@@ -1,0 +1,310 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: expense
+
+
+metadata:
+  display_name: "Orion Expenses (Cleaned)"
+  description: |
+    Cleaned and transformed Orion expense data from Bronze layer.
+    Represents business expenses with approval workflow, reimbursement tracking,
+    and billing information.
+  
+  owner: data-engineering
+  domain: orion
+  tags:
+    - orion
+    - expense
+    - financial
+    - accounting
+    - reimbursement
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - amount
+    - tax
+    - vendor
+    - receipt_url
+    - description
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.expense_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - expense_id
+  primary_key:
+    - expense_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: expense_status_idx
+      expression: expense_status
+      type: set
+      granularity: 4
+    - name: expense_type_idx
+      expression: expense_type
+      type: set
+      granularity: 4
+    - name: category_idx
+      expression: category
+      type: set
+      granularity: 4
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+    - name: customer_id_idx
+      expression: customer_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: expense_id
+    type: String
+    nullable: false
+    description: "Unique expense identifier (primary key)"
+    primary_key: true
+    example: "exp-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Expense classification
+  - name: expense_type
+    type: String
+    nullable: false
+    description: "Type of expense"
+    example: "travel"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Expense category"
+    example: "airfare"
+    
+  - name: expense_status
+    type: String
+    nullable: false
+    description: "Current expense status"
+    example: "approved"
+    
+  # Reference and description
+  - name: reference
+    type: String
+    nullable: false
+    description: "Reference number or identifier"
+    example: "INV-2025-001"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Expense description"
+    pii: true
+    example: "Flight to customer meeting"
+    
+  # Financial details
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Expense amount"
+    pii: true
+    example: 850.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: tax
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Tax amount"
+    pii: true
+    example: 68.00
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account/GL code"
+    example: "acc-def456"
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-ghi789"
+    
+  - name: budget_id
+    type: String
+    nullable: false
+    description: "Budget allocation identifier"
+    example: "budg-jkl012"
+    
+  - name: submitted_by_id
+    type: String
+    nullable: false
+    description: "User who submitted the expense"
+    example: "usr-mno345"
+    
+  - name: approved_by_id
+    type: String
+    nullable: false
+    description: "User who approved the expense"
+    example: "usr-pqr678"
+    
+  - name: customer_id
+    type: String
+    nullable: false
+    description: "Customer if billable expense"
+    example: "cust-stu901"
+    
+  # Flags
+  - name: reimbursable
+    type: UInt8
+    nullable: false
+    description: "Whether expense is reimbursable"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: reimbursed
+    type: UInt8
+    nullable: false
+    description: "Whether expense has been reimbursed"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: billable
+    type: UInt8
+    nullable: false
+    description: "Whether expense is billable to customer"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: billed
+    type: UInt8
+    nullable: false
+    description: "Whether expense has been billed"
+    allowed_values: [0, 1]
+    example: 0
+    
+  # Vendor and payment
+  - name: vendor
+    type: String
+    nullable: false
+    description: "Vendor name"
+    pii: true
+    example: "Delta Airlines"
+    
+  - name: payment_method
+    type: String
+    nullable: false
+    description: "Payment method used"
+    example: "corporate_card"
+    
+  - name: receipt_url
+    type: String
+    nullable: false
+    description: "URL to receipt document"
+    pii: true
+    example: "s3://receipts/2025/01/receipt-abc123.pdf"
+    
+  # Additional information
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes"
+    pii: true
+    example: "Business class approved due to flight duration"
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Classification tags"
+    example: "urgent,pre-approved"
+    
+  # Dates
+  - name: expense_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when expense occurred"
+    example: "2025-01-10 00:00:00.000"
+    
+  - name: submission_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when expense was submitted"
+    example: "2025-01-11 14:30:00.000"
+    
+  - name: approval_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when expense was approved"
+    example: "2025-01-12 10:15:00.000"
+    
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2025-01-11 14:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-12 10:15:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-12"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-12 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-12 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.expense_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-12 14:30:22.123"

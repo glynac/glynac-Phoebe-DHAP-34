@@ -99,7 +99,7 @@ columns:
   - name: prospect_number
     type: String
     nullable: false
-    description: "Prospect reference number (trimmed)"
+    description: "Prospect reference number"
     pii: true
     example: "PROS-2025-001"
     
@@ -107,7 +107,7 @@ columns:
   - name: prospect_status
     type: String
     nullable: false
-    description: "Current status of prospect (Qualified, Active, Converted, Closed, Inactive, Lost) (trimmed)"
+    description: "Current status of prospect (Qualified, Active, Converted, Closed, Inactive, Lost)"
     example: "Qualified"
     
   - name: status_normalized
@@ -120,7 +120,7 @@ columns:
   - name: stage
     type: String
     nullable: false
-    description: "Sales stage (Discovery, Qualification, Proposal, Negotiation, Closed Won, Closed Lost, Contract) (trimmed)"
+    description: "Sales stage (Discovery, Qualification, Proposal, Negotiation, Closed Won, Closed Lost, Contract)"
     example: "Proposal"
     
   - name: stage_normalized
@@ -133,14 +133,14 @@ columns:
   - name: source
     type: String
     nullable: false
-    description: "Prospect source/origin (Website, Referral, Event, etc.) (trimmed)"
+    description: "Prospect source/origin (Website, Referral, Event, etc.)"
     example: "Referral"
     
   # Financial data
   - name: expected_revenue
     type: Decimal64(2)
     nullable: false
-    description: "Expected revenue from this prospect (parsed from string, currency symbols removed)"
+    description: "Expected revenue from this prospect"
     pii: true
     example: 150000.00
     
@@ -154,14 +154,14 @@ columns:
   - name: expected_close_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Expected date to close this prospect (parsed from string)"
+    description: "Expected date to close this prospect"
     example: "2026-01-15 00:00:00.000"
     
   # Notes
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes about the prospect (trimmed)"
+    description: "Additional notes about the prospect"
     pii: true
     example: "High potential client, interested in comprehensive wealth management"
     
@@ -169,13 +169,13 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-10-28 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_add_user
@@ -194,7 +194,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -213,7 +213,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

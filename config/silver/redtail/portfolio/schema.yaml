@@ -71,76 +71,76 @@ columns:
   - name: portfolio_name
     type: String
     nullable: false
-    description: "Display name of the portfolio (trimmed)"
+    description: "Display name of the portfolio"
     example: "Conservative Growth Portfolio"
     
   - name: portfolio_code
     type: String
     nullable: false
-    description: "Unique portfolio code (trimmed)"
+    description: "Unique portfolio code"
     example: "CGP-001"
     
   - name: portfolio_type
     type: String
     nullable: false
-    description: "Type/category of portfolio (trimmed)"
+    description: "Type/category of portfolio"
     example: "Model"
     
   # Strategy and objective
   - name: strategy
     type: String
     nullable: false
-    description: "Investment strategy description (trimmed)"
+    description: "Investment strategy description"
     example: "Balanced growth with capital preservation"
     
   - name: objective
     type: String
     nullable: false
-    description: "Investment objective (trimmed)"
+    description: "Investment objective"
     example: "Long-term growth"
     
   - name: risk_level
     type: String
     nullable: false
-    description: "Risk tolerance level (trimmed)"
+    description: "Risk tolerance level"
     example: "Moderate"
     
   # Target return
   - name: target_return
     type: Decimal(5, 2)
     nullable: false
-    description: "Target annual return percentage (converted from string)"
+    description: "Target annual return percentage"
     example: 7.50
     
   # Performance metrics
   - name: ytd_return
     type: Decimal(5, 2)
     nullable: false
-    description: "Year-to-date return percentage (converted from string)"
+    description: "Year-to-date return percentage"
     example: 8.25
     
   - name: one_year_return
     type: Decimal(5, 2)
     nullable: false
-    description: "One year return percentage (converted from string)"
+    description: "One year return percentage"
     example: 12.50
     
   - name: three_year_return
     type: Decimal(5, 2)
     nullable: false
-    description: "Three year annualized return percentage (converted from string)"
+    description: "Three year annualized return percentage"
     example: 9.75
     
   - name: five_year_return
     type: Decimal(5, 2)
     nullable: false
-    description: "Five year annualized return percentage (converted from string)"
+    description: "Five year annualized return percentage"
     example: 10.20
     
   - name: inception_return
     type: Decimal(5, 2)
     nullable: false
-    description: "Inception-to-date return percentage (converted from string)"
+    description: "Inception-to-date return percentage"
     example: 11.80
     
   # Foreign keys
@@ -160,32 +160,32 @@ columns:
   - name: inception_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Portfolio inception date (parsed from string)"
+    description: "Portfolio inception date"
     example: "2020-01-15 00:00:00.000"
     
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2020-01-15 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   # Description and notes
   - name: description
     type: String
     nullable: false
-    description: "Portfolio description (trimmed)"
+    description: "Portfolio description"
     example: "Balanced portfolio designed for moderate risk investors"
     
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes or comments (trimmed)"
+    description: "Additional notes or comments"
     example: "Rebalanced quarterly"
     
   # Flags
@@ -220,20 +220,20 @@ columns:
   - name: accounts_data
     type: String
     nullable: false
-    description: "Serialized accounts information (JSON)"
+    description: "Serialized accounts information"
     example: '[{"account_id":123,"account_name":"IRA Account"}]'
     
   - name: portfolio_allocations_data
     type: String
     nullable: false
-    description: "Serialized portfolio allocations information (JSON)"
+    description: "Serialized portfolio allocations information"
     example: '[{"investment_id":456,"target_percentage":25.00}]'
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -252,7 +252,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

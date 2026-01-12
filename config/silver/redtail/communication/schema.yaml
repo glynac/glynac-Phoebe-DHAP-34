@@ -97,26 +97,26 @@ columns:
   - name: communication_type
     type: String
     nullable: false
-    description: "Type of communication (Email, Note, Message, SMS) (trimmed)"
+    description: "Type of communication (Email, Note, Message, SMS)"
     example: "Email"
     
   - name: direction
     type: String
     nullable: false
-    description: "Direction of communication (Inbound, Outbound, Internal) (trimmed)"
+    description: "Direction of communication (Inbound, Outbound, Internal)"
     example: "Outbound"
     
   - name: subject
     type: String
     nullable: false
-    description: "Communication subject line (trimmed)"
+    description: "Communication subject line"
     pii: true
     example: "Q4 Portfolio Review Meeting"
     
   - name: body
     type: String
     nullable: false
-    description: "Communication body/content (trimmed)"
+    description: "Communication body/content"
     pii: true
     example: "Dear Client, I wanted to schedule our quarterly review..."
     
@@ -143,7 +143,7 @@ columns:
   - name: comm_status
     type: String
     nullable: false
-    description: "Communication status (Sent, Delivered, Read, Failed, Draft) (trimmed)"
+    description: "Communication status (Sent, Delivered, Read, Failed, Draft)"
     example: "Delivered"
     
   - name: status_normalized
@@ -163,7 +163,7 @@ columns:
   - name: communication_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date and time when communication occurred (parsed from string)"
+    description: "Date and time when communication occurred"
     example: "2025-11-28 14:30:00.000"
     
   # Attachments
@@ -177,7 +177,7 @@ columns:
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes about the communication (trimmed)"
+    description: "Additional notes about the communication"
     pii: true
     example: "Follow-up scheduled for next week"
     
@@ -185,20 +185,20 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 14:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 15:20:00.000"
     
   # Batch metadata
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -217,7 +217,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

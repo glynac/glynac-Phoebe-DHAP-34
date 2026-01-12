@@ -101,21 +101,21 @@ columns:
   - name: first_name
     type: String
     nullable: false
-    description: "Lead's first name (trimmed)"
+    description: "Lead's first name"
     pii: true
     example: "John"
     
   - name: last_name
     type: String
     nullable: false
-    description: "Lead's last name (trimmed)"
+    description: "Lead's last name"
     pii: true
     example: "Smith"
     
   - name: full_name
     type: String
     nullable: false
-    description: "Lead's full name (trimmed)"
+    description: "Lead's full name"
     pii: true
     example: "John Smith"
     
@@ -123,14 +123,14 @@ columns:
   - name: email
     type: String
     nullable: false
-    description: "Lead's email address (trimmed)"
+    description: "Lead's email address"
     pii: true
     example: "john.smith@example.com"
     
   - name: phone_number
     type: String
     nullable: false
-    description: "Lead's phone number (trimmed)"
+    description: "Lead's phone number"
     pii: true
     example: "555-123-4567"
     
@@ -138,28 +138,28 @@ columns:
   - name: company_name
     type: String
     nullable: false
-    description: "Lead's company name (trimmed)"
+    description: "Lead's company name"
     pii: true
     example: "Acme Corporation"
     
   - name: job_title
     type: String
     nullable: false
-    description: "Lead's job title (trimmed)"
+    description: "Lead's job title"
     pii: true
     example: "CFO"
     
   - name: industry
     type: String
     nullable: false
-    description: "Lead's industry (trimmed)"
+    description: "Lead's industry"
     example: "Technology"
     
   # Lead management
   - name: lead_status
     type: String
     nullable: false
-    description: "Current status of the lead (New, Contacted, Qualified, Unqualified, Converted, Closed) (trimmed)"
+    description: "Current status of the lead (New, Contacted, Qualified, Unqualified, Converted, Closed)"
     example: "Qualified"
     
   - name: status_normalized
@@ -172,13 +172,13 @@ columns:
   - name: source
     type: String
     nullable: false
-    description: "Lead source/origin (Website, Referral, Event, Cold Call, etc.) (trimmed)"
+    description: "Lead source/origin (Website, Referral, Event, Cold Call, etc.)"
     example: "Website"
     
   - name: rating
     type: String
     nullable: false
-    description: "Lead rating/priority (Hot, Warm, Cold) (trimmed)"
+    description: "Lead rating/priority (Hot, Warm, Cold)"
     example: "Hot"
     
   - name: rating_normalized
@@ -204,14 +204,14 @@ columns:
   - name: converted_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when lead was converted (parsed from string)"
+    description: "Date when lead was converted"
     example: "2025-11-15 10:30:00.000"
     
   # Notes
   - name: notes
     type: String
     nullable: false
-    description: "Additional notes about the lead (trimmed)"
+    description: "Additional notes about the lead"
     pii: true
     example: "Met at financial planning conference, interested in retirement planning"
     
@@ -219,13 +219,13 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-10-28 14:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 15:20:00.000"
     
   - name: rec_add_user
@@ -244,7 +244,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -263,7 +263,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

@@ -110,28 +110,28 @@ columns:
   - name: target_percentage
     type: Decimal64(4)
     nullable: false
-    description: "Target allocation percentage (parsed from string, % symbol removed)"
+    description: "Target allocation percentage"
     pii: true
     example: 25.0000
     
   - name: current_percentage
     type: Decimal64(4)
     nullable: false
-    description: "Current allocation percentage (parsed from string, % symbol removed)"
+    description: "Current allocation percentage"
     pii: true
     example: 26.5000
     
   - name: min_percentage
     type: Decimal64(4)
     nullable: false
-    description: "Minimum allowed allocation percentage (parsed from string, % symbol removed)"
+    description: "Minimum allowed allocation percentage"
     pii: true
     example: 20.0000
     
   - name: max_percentage
     type: Decimal64(4)
     nullable: false
-    description: "Maximum allowed allocation percentage (parsed from string, % symbol removed)"
+    description: "Maximum allowed allocation percentage"
     pii: true
     example: 30.0000
     
@@ -139,14 +139,14 @@ columns:
   - name: investment_data
     type: String
     nullable: false
-    description: "Additional investment data or metadata (trimmed)"
+    description: "Additional investment data or metadata"
     pii: true
     example: "Large Cap US Equity, Growth Focus"
     
   - name: notes
     type: String
     nullable: false
-    description: "Notes about this allocation (trimmed)"
+    description: "Notes about this allocation"
     pii: true
     example: "Slightly overweight, rebalancing planned for Q1"
     
@@ -167,13 +167,13 @@ columns:
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2025-11-28 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_add_user
@@ -192,7 +192,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -211,7 +211,7 @@ columns:
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns
