@@ -1,0 +1,145 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_USER_PROFILE
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(profile_id IS NULL) as null_profile_id,
+        countIf(profile_id = '') as empty_profile_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(user_id IS NULL) as null_user_id,
+        countIf(user_id = '') as empty_user_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_profile_id: 0
+      empty_profile_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_user_id: 0
+      empty_user_id: 0
+      null_processing_date: 0
+  
+  - name: profile_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "profile_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT profile_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY profile_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_user_profiles_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver user profiles should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_user_profiles
+      FROM orion_silver.user_profile s
+      LEFT JOIN orion.user_profile_raw b
+        ON s.profile_id = b.profile_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.profile_id IS NULL
+    expect:
+      orphaned_user_profiles: 0
+  
+  - name: user_id_not_empty
+    type: assertion
+    description: "User ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (user_id IS NULL OR user_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: profile_type_not_empty
+    type: assertion
+    description: "Profile type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (profile_type IS NULL OR profile_type = '')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_phone_format
+    type: assertion
+    description: "Phone should have minimum length when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND phone != ''
+        AND length(phone) < 7
+    expect:
+      invalid_count: 0
+  
+  - name: valid_language_code
+    type: assertion
+    description: "Language should be valid locale format when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND language != ''
+        AND length(language) < 2
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: time_zone_not_empty
+    type: assertion
+    description: "Time zone should not be empty"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.user_profile
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (time_zone IS NULL OR time_zone = '')
+    expect:
+      invalid_count: 0

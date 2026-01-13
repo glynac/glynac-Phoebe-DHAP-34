@@ -1,0 +1,235 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_TRANSACTION
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(transaction_id IS NULL) as null_transaction_id,
+        countIf(transaction_id = '') as empty_transaction_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(transaction_status IS NULL) as null_transaction_status,
+        countIf(transaction_status = '') as empty_transaction_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_transaction_id: 0
+      empty_transaction_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_transaction_status: 0
+      empty_transaction_status: 0
+      null_processing_date: 0
+  
+  - name: transaction_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "transaction_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT transaction_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY transaction_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_finance_transactions_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance transactions should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_transactions
+      FROM orion_silver.finance_transaction s
+      LEFT JOIN orion.finance_transaction_raw b
+        ON s.transaction_id = b.transaction_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.transaction_id IS NULL
+    expect:
+      orphaned_finance_transactions: 0
+  
+  - name: reference_not_empty
+    type: assertion
+    description: "Transaction reference should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (reference IS NULL OR reference = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_non_zero
+    type: assertion
+    description: "Transaction amount should not be zero"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount = 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: created_by_not_empty
+    type: assertion
+    description: "Created by ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (created_by_id IS NULL OR created_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: source_or_destination_account_present
+    type: assertion
+    description: "Either source or destination account should be present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (source_account_id IS NULL OR source_account_id = '')
+        AND (destination_account_id IS NULL OR destination_account_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: transfer_has_both_accounts
+    type: assertion
+    description: "Transfer transactions should have both source and destination accounts"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_type = 'transfer'
+        AND ((source_account_id IS NULL OR source_account_id = '')
+             OR (destination_account_id IS NULL OR destination_account_id = ''))
+    expect:
+      invalid_count: 0
+  
+  - name: transaction_date_not_future
+    type: assertion
+    description: "Transaction date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: cleared_date_after_transaction
+    type: assertion
+    description: "Cleared date should be after or equal to transaction date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_date IS NOT NULL
+        AND cleared_date IS NOT NULL
+        AND cleared_date < transaction_date
+    expect:
+      invalid_count: 0
+  
+  - name: completed_transactions_have_transaction_date
+    type: assertion
+    description: "Completed transactions should have transaction date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_status IN ('completed', 'cleared')
+        AND transaction_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: cleared_transactions_have_cleared_date
+    type: assertion
+    description: "Cleared transactions should have cleared date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_status = 'cleared'
+        AND cleared_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: transaction_type_not_empty
+    type: assertion
+    description: "Transaction type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (transaction_type IS NULL OR transaction_type = '')
+    expect:
+      invalid_count: 0
+  
+  - name: category_not_empty
+    type: assertion
+    description: "Category should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (category IS NULL OR category = '')
+    expect:
+      invalid_count: 0

@@ -1,0 +1,167 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_LEAD
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(lead_id IS NULL) as null_lead_id,
+        countIf(lead_id = '') as empty_lead_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(lead_status IS NULL) as null_lead_status,
+        countIf(lead_status = '') as empty_lead_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_lead_id: 0
+      empty_lead_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_lead_status: 0
+      empty_lead_status: 0
+      null_processing_date: 0
+  
+  - name: lead_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "lead_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT lead_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY lead_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_leads_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver leads should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_leads
+      FROM orion_silver.lead s
+      LEFT JOIN orion.lead_raw b
+        ON s.lead_id = b.lead_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.lead_id IS NULL
+    expect:
+      orphaned_leads: 0
+  
+  - name: first_or_last_name_present
+    type: assertion
+    description: "Lead should have at least first name or last name"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND first_name = ''
+        AND last_name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: email_or_phone_present
+    type: assertion
+    description: "Lead should have at least email or phone"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email = ''
+        AND phone = ''
+    expect:
+      invalid_count: 0
+  
+  - name: valid_email_format
+    type: assertion
+    description: "Email should contain @ and . when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND (email NOT LIKE '%@%.%')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_phone_format
+    type: assertion
+    description: "Phone should have minimum length when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND phone != ''
+        AND length(phone) < 7
+    expect:
+      invalid_count: 0
+  
+  - name: owner_id_not_empty
+    type: assertion
+    description: "Owner ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (owner_id IS NULL OR owner_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: lead_score_valid_range
+    type: assertion
+    description: "Lead score should be between 0 and 100"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND lead_score != 0
+        AND (lead_score < 0 OR lead_score > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: estimated_value_non_negative
+    type: assertion
+    description: "Estimated value should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND estimated_value < 0
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.lead
+      WHERE processin
