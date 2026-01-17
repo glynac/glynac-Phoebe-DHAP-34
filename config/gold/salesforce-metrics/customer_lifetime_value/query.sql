@@ -25,7 +25,7 @@ SELECT
     -- Aggregation metadata
     toDate('{{ ds }}') as calculation_date
 
-FROM {{ source('silver', 'customer_orders') }}
+FROM silver.customer_orders
 
 WHERE processing_date <= toDate('{{ ds }}')
 

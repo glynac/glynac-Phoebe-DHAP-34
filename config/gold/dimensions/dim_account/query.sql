@@ -59,6 +59,6 @@ SELECT
     now() as _calculated_at,
     'silver.salesforce_user' as _source_table
 
-FROM {{ source('silver', 'salesforce_user') }}
+FROM silver.salesforce_user
 WHERE processing_date = toDate('{{ ds }}')
 GROUP BY processing_date, glynac_organization_id
