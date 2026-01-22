@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+logs/
+airflow.db
+webserver_config.py
+.env.*
+.venv/
+venv/
+.idea/
+.vscode/
+node_modules/
