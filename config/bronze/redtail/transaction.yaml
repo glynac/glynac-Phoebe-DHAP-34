@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: transaction_raw
+view: transaction_raw
 
 metadata:
   description: "Raw Redtail transaction data from MinIO"

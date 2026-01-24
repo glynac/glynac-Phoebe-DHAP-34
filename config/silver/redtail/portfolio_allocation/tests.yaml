@@ -1,0 +1,263 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_PORTFOLIO_ALLOCATION
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(record_id IS NULL) as null_record_id,
+        countIf(record_id = 0) as zero_record_id,
+        countIf(portfolio_id = 0) as zero_portfolio_id,
+        countIf(investment_id = 0) as zero_investment_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_record_id: 0
+      zero_record_id: 0
+      zero_portfolio_id: 0
+      zero_investment_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: record_id_unique_per_partition
+    type: uniqueness
+    description: "record_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT record_id, processing_date, count() as cnt
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY record_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_portfolio_allocations_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver portfolio allocations should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_portfolio_allocations
+      FROM silver.redtail_portfolio_allocation s
+      LEFT JOIN redtail.portfolio_allocation_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_portfolio_allocations: 0
+  
+  - name: percentages_non_negative
+    type: assertion
+    description: "All percentages should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (target_percentage < 0 
+          OR current_percentage < 0 
+          OR min_percentage < 0 
+          OR max_percentage < 0)
+    expect:
+      invalid_count: 0
+  
+  - name: percentages_reasonable_range
+    type: assertion
+    description: "All percentages should be between 0 and 100"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (target_percentage > 100 
+          OR current_percentage > 100 
+          OR min_percentage > 100 
+          OR max_percentage > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: min_max_percentage_consistency
+    type: assertion
+    description: "Min percentage should be less than or equal to max percentage"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND min_percentage > max_percentage
+    expect:
+      invalid_count: 0
+  
+  - name: target_within_min_max_range
+    type: assertion
+    description: "Target percentage should be within min/max range"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (target_percentage < min_percentage OR target_percentage > max_percentage)
+    expect:
+      invalid_count: 0
+  
+  - name: current_within_min_max_tolerance
+    type: assertion
+    description: "Current percentage should be reasonably within min/max range (with 5% tolerance)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (current_percentage < (min_percentage - 5) OR current_percentage > (max_percentage + 5))
+    expect:
+      invalid_count: 0
+  
+  - name: portfolio_total_allocation_reasonable
+    type: assertion
+    description: "Total current allocation per portfolio should be close to 100% (within 10% tolerance)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM (
+        SELECT portfolio_id, sum(current_percentage) as total_allocation
+        FROM silver.redtail_portfolio_allocation
+        WHERE processing_date = toDate('{{ ds }}')
+          AND is_active = true
+        GROUP BY portfolio_id
+        HAVING total_allocation < 90 OR total_allocation > 110
+      )
+    expect:
+      invalid_count: 0
+  
+  - name: portfolio_target_allocation_reasonable
+    type: assertion
+    description: "Total target allocation per portfolio should be close to 100% (within 5% tolerance)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM (
+        SELECT portfolio_id, sum(target_percentage) as total_target
+        FROM silver.redtail_portfolio_allocation
+        WHERE processing_date = toDate('{{ ds }}')
+          AND is_active = true
+        GROUP BY portfolio_id
+        HAVING total_target < 95 OR total_target > 105
+      )
+    expect:
+      invalid_count: 0
+  
+  - name: active_allocations_have_current_percentage
+    type: assertion
+    description: "Active allocations should have current_percentage > 0"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active = true
+        AND current_percentage = 0
+    expect:
+      invalid_count: 0
+  
+  - name: inactive_allocations_low_current
+    type: assertion
+    description: "Inactive allocations should typically have low or zero current_percentage"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active = false
+        AND current_percentage > 1
+    expect:
+      invalid_count: 0
+  
+  - name: core_holdings_have_reasonable_target
+    type: assertion
+    description: "Core holdings should typically have target > 5%"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_core_holding = true
+        AND target_percentage < 5
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_not_future
+    type: assertion
+    description: "Record add date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add > now()
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_reasonable
+    type: assertion
+    description: "Record add date should be reasonable (within last 30 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_add < now() - INTERVAL 30 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: portfolio_investment_unique_combination
+    type: uniqueness
+    description: "Each portfolio-investment combination should be unique per partition"
+    severity: warning
+    query: |
+      SELECT portfolio_id, investment_id, processing_date, count() as cnt
+      FROM silver.redtail_portfolio_allocation
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active = true
+      GROUP BY portfolio_id, investment_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true

@@ -1,0 +1,34 @@
+# Silver Layer - OpenCATS Settings (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS settings from Bronze to Silver"
+  tags: ["silver", "opencats", "settings", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: settings_raw
+
+target:
+  database: opencats_silver
+  table: settings
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [setting, partition]
+  order_by: [setting DESC]
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

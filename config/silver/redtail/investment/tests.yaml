@@ -1,0 +1,175 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_INVESTMENT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(investment_name = '') as empty_investment_name,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      empty_investment_name: 0
+      null_processing_date: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: symbol_unique_when_present
+    type: uniqueness
+    description: "symbol should be unique when not empty per processing_date"
+    severity: warning
+    query: |
+      SELECT symbol, processing_date, count() as cnt
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND symbol != ''
+      GROUP BY symbol, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_investments_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver investments should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_investments
+      FROM silver.redtail_investment s
+      LEFT JOIN redtail.investment_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_investments: 0
+  
+  - name: valid_is_active_values
+    type: accepted_values
+    description: "is_active must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: prices_non_negative
+    type: assertion
+    description: "Prices should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (current_price < 0 OR previous_close < 0)
+    expect:
+      invalid_count: 0
+  
+  - name: return_percentages_reasonable
+    type: assertion
+    description: "Return percentages should be reasonable (-100% to +1000%)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (
+          ytd_return < -100 OR ytd_return > 1000
+          OR one_year_return < -100 OR one_year_return > 1000
+          OR three_year_return < -100 OR three_year_return > 1000
+          OR five_year_return < -100 OR five_year_return > 1000
+        )
+    expect:
+      invalid_count: 0
+  
+  - name: expense_ratio_reasonable
+    type: assertion
+    description: "Expense ratio should be reasonable (0% to 10%)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND expense_ratio != 0
+        AND (expense_ratio < 0 OR expense_ratio > 10)
+    expect:
+      invalid_count: 0
+  
+  - name: coupon_rate_reasonable
+    type: assertion
+    description: "Coupon rate should be reasonable (0% to 20%)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND coupon_rate != 0
+        AND (coupon_rate < 0 OR coupon_rate > 20)
+    expect:
+      invalid_count: 0
+  
+  - name: maturity_date_not_past_for_active_bonds
+    type: assertion
+    description: "Active bonds should not have maturity dates in the past"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active = 1
+        AND investment_type ILIKE '%bond%'
+        AND maturity_date < now()
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_codes
+    type: accepted_values
+    description: "Currency codes should be valid 3-letter codes"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0

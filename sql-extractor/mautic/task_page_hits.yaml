@@ -1,0 +1,12 @@
+# Mautic Page Hits Table Extraction
+# Website page visit tracking
+
+task_id: extract_page_hits
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "page_hits"
+  OUTPUT_PREFIX: "mautic/page_hits"
+  PARTITION_COLUMN: "date_hit"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

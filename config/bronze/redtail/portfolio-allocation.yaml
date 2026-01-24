@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: portfolio_allocation_raw
+view: portfolio_allocation_raw
 
 metadata:
   description: "Raw Redtail portfolio allocation data from MinIO"

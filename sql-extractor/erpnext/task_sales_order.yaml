@@ -1,0 +1,10 @@
+# ERPNext Sales Order Table Extraction
+# Sales orders
+
+task_id: extract_sales_order
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabSales Order"
+  OUTPUT_PREFIX: "erpnext/sales_order"
+  INCREMENTAL_MODE: "false"

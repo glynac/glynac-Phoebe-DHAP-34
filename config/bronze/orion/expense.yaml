@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: expense_raw
+
+source:
+  bucket: main-data
+  path: orion/expense
+  
+description: "Orion expense data"
+tags:
+  - bronze
+  - orion
+  - expense
+  - auto-schema

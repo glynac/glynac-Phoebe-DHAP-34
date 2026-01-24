@@ -1,0 +1,290 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_ACTIVITY
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(activity_id IS NULL) as null_activity_id,
+        countIf(activity_id = 0) as zero_activity_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date,
+        countIf(contact_id = 0) as zero_contact_id,
+        countIf(owner_id = 0) as zero_owner_id
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_activity_id: 0
+      zero_activity_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+      zero_contact_id: 0
+      zero_owner_id: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: activity_id_unique_per_partition
+    type: uniqueness
+    description: "activity_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT activity_id, processing_date, count() as cnt
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY activity_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_activities_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver activities should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_activities
+      FROM silver.redtail_activity s
+      LEFT JOIN redtail.activity_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_activities: 0
+  
+  - name: valid_status_normalized
+    type: accepted_values
+    description: "status_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized NOT IN ('completed', 'pending', 'in_progress', 'cancelled', 'scheduled')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_priority_normalized
+    type: accepted_values
+    description: "priority_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND priority_normalized NOT IN ('high', 'medium', 'low', 'urgent')
+    expect:
+      invalid_count: 0
+  
+  - name: subject_present
+    type: assertion
+    description: "Subject should be present for activities"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND subject = ''
+    expect:
+      invalid_count: 0
+  
+  - name: activity_date_not_too_far_future
+    type: assertion
+    description: "Activity date should not be more than 5 years in the future"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND activity_date > now() + INTERVAL 5 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: activity_date_reasonable_past
+    type: assertion
+    description: "Activity date should be reasonable (within last 20 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND activity_date IS NOT NULL
+        AND activity_date < now() - INTERVAL 20 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: duration_non_negative
+    type: assertion
+    description: "Duration should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND duration_minutes < 0
+    expect:
+      invalid_count: 0
+  
+  - name: duration_reasonable
+    type: assertion
+    description: "Duration should be reasonable (< 16 hours)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND duration_minutes > 960
+    expect:
+      invalid_count: 0
+  
+  - name: follow_up_date_when_required
+    type: assertion
+    description: "When follow-up required, should have follow-up date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND follow_up_required = 1
+        AND (follow_up_date IS NULL OR follow_up_date = toDateTime64('1970-01-01', 3))
+    expect:
+      invalid_count: 0
+  
+  - name: follow_up_date_after_activity_date
+    type: assertion
+    description: "Follow-up date should be after activity date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND activity_date IS NOT NULL
+        AND follow_up_date IS NOT NULL
+        AND follow_up_date < activity_date
+    expect:
+      invalid_count: 0
+  
+  - name: follow_up_date_reasonable_future
+    type: assertion
+    description: "Follow-up date should not be too far in future (< 2 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND follow_up_date IS NOT NULL
+        AND follow_up_date > now() + INTERVAL 2 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: completed_activities_have_date
+    type: assertion
+    description: "Completed activities should have activity_date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'completed'
+        AND activity_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: completed_activities_have_outcome
+    type: assertion
+    description: "Completed activities should typically have outcome"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'completed'
+        AND outcome = ''
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_activity_types
+    type: accepted_values
+    description: "Activity type should be valid"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND activity_type != ''
+        AND activity_type NOT IN ('Meeting', 'Call', 'Task', 'Email', 'Note', 'Appointment', 'Review', 'Follow-up', 'Presentation', 'Workshop')
+    expect:
+      invalid_count: 0
+  
+  - name: urgent_priority_consistency
+    type: assertion
+    description: "Urgent activities should not be cancelled without outcome"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND priority_normalized = 'urgent'
+        AND status_normalized = 'cancelled'
+        AND outcome = ''
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_not_future
+    type: assertion
+    description: "Record add date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add > now()
+    expect:
+      invalid_count: 0
+  
+  - name: scheduled_activities_future_date
+    type: assertion
+    description: "Scheduled activities should typically have future activity_date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_activity
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'scheduled'
+        AND activity_date IS NOT NULL
+        AND activity_date < now()
+    expect:
+      invalid_count: 0

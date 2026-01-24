@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: role_raw
+
+source:
+  bucket: main-data
+  path: orion/role
+  
+description: "Orion role data"
+tags:
+  - bronze
+  - orion
+  - role
+  - auto-schema

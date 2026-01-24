@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: customer_raw
+
+source:
+  bucket: main-data
+  path: orion/customer
+  
+description: "Orion customer data"
+tags:
+  - bronze
+  - orion
+  - customer
+  - auto-schema

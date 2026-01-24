@@ -1,0 +1,257 @@
+version: "1.0"
+layer: silver
+database: redtail_silver
+table: call
+
+
+metadata:
+  display_name: "Redtail Call Records (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail call records from Bronze layer.
+    Represents all phone call activities including inbound/outbound calls,
+    call duration, subject, notes, disposition, outcome, and follow-up requirements.
+  
+  owner: ai-team
+  domain: redtail
+  tags:
+    - redtail
+    - calls
+    - communications
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - phone_number
+    - subject
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.call_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: call_type_idx
+      expression: call_type
+      type: set
+      granularity: 4
+    - name: call_status_idx
+      expression: call_status
+      type: set
+      granularity: 4
+    - name: contact_id_idx
+      expression: contact_id
+      type: bloom_filter
+      granularity: 1
+    - name: user_id_idx
+      expression: user_id
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Call identifiers
+  - name: call_id
+    type: Int32
+    nullable: false
+    description: "Unique call identifier"
+    example: 98765
+    
+  # Call details
+  - name: call_type
+    type: String
+    nullable: false
+    description: "Type of call (Inbound, Outbound, Missed)"
+    example: "Outbound"
+    
+  - name: call_status
+    type: String
+    nullable: false
+    description: "Status of call (Completed, Scheduled, Cancelled)"
+    example: "Completed"
+    
+  - name: phone_number
+    type: String
+    nullable: false
+    description: "Phone number associated with call"
+    pii: true
+    example: "555-123-4567"
+    
+  # Relationships
+  - name: contact_id
+    type: Int32
+    nullable: false
+    description: "Foreign key to contact record"
+    example: 42
+    
+  - name: user_id
+    type: Int32
+    nullable: false
+    description: "User ID who made/received the call"
+    example: 7
+    
+  # Call timing
+  - name: call_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when call occurred"
+    example: "2025-11-28 00:00:00.000"
+    
+  - name: call_time
+    type: String
+    nullable: false
+    description: "Time of call"
+    example: "14:30:00"
+    
+  - name: duration_seconds
+    type: Int32
+    nullable: false
+    description: "Call duration in seconds"
+    example: 180
+    
+  - name: duration_minutes
+    type: Int32
+    nullable: false
+    description: "Call duration in minutes"
+    example: 3
+    
+  # Call content
+  - name: subject
+    type: String
+    nullable: false
+    description: "Call subject/title"
+    pii: true
+    example: "Follow-up on investment portfolio"
+    
+  - name: notes
+    type: String
+    nullable: false
+    description: "Detailed call notes"
+    pii: true
+    example: "Discussed Q4 performance and rebalancing strategy"
+    
+  - name: disposition
+    type: String
+    nullable: false
+    description: "Call disposition/category"
+    example: "Client Meeting"
+    
+  - name: outcome
+    type: String
+    nullable: false
+    description: "Call outcome/result"
+    example: "Successful"
+    
+  # Follow-up
+  - name: follow_up_required
+    type: UInt8
+    nullable: false
+    description: "Whether follow-up is required (0=No, 1=Yes)"
+    example: 1
+    
+  - name: follow_up_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when follow-up is due"
+    example: "2025-12-05 00:00:00.000"
+    
+  # Recording
+  - name: has_recording
+    type: UInt8
+    nullable: false
+    description: "Whether call has recording (0=No, 1=Yes)"
+    example: 0
+    
+  - name: recording_url
+    type: String
+    nullable: false
+    description: "URL to call recording if available"
+    example: "https://recordings.example.com/call_12345.mp3"
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail"
+    example: "2025-11-28 14:30:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail"
+    example: "2025-11-28 15:20:00.000"
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.call_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

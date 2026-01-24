@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_payment_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_payment
+  
+description: "Orion finance_payment data"
+tags:
+  - bronze
+  - orion
+  - finance_payment
+  - auto-schema

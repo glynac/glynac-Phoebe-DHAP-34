@@ -1,0 +1,178 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: user
+
+metadata:
+  display_name: "Orion Users (Cleaned)"
+  description: |
+    Cleaned and transformed Orion user data from Bronze layer.
+    Represents CRM users in the Orion platform with role, status, and contact information.
+  owner: data-engineering
+  domain: orion
+  tags:
+    - orion
+    - user
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - username
+    - email
+    - first_name
+    - last_name
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.user_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - user_id
+  primary_key:
+    - user_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+
+columns:
+  - name: user_id
+    type: String
+    nullable: false
+    description: "Unique user identifier (primary key)"
+    primary_key: true
+    example: "usr-abc123"
+
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+
+  - name: user_type
+    type: String
+    nullable: false
+    description: "Type of user (internal, external, etc.)"
+    example: "internal"
+
+  - name: username
+    type: String
+    nullable: false
+    description: "Username of the user (trimmed)"
+    pii: true
+    example: "jdoe"
+
+  - name: email
+    type: String
+    nullable: false
+    description: "User email address (trimmed)"
+    pii: true
+    example: "jdoe@example.com"
+
+  - name: first_name
+    type: String
+    nullable: false
+    description: "First name of the user"
+    pii: true
+    example: "John"
+
+  - name: last_name
+    type: String
+    nullable: false
+    description: "Last name of the user"
+    pii: true
+    example: "Doe"
+
+  - name: user_status
+    type: String
+    nullable: false
+    description: "Current user status"
+    example: "active"
+    allowed_values: ["active", "inactive", "suspended"]
+
+  - name: is_active
+    type: Bool
+    nullable: false
+    description: "Indicates if the user is active"
+    example: true
+
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization ID (may be nullable in source)"
+    example: "org-abc456"
+
+  - name: role_id
+    type: String
+    nullable: false
+    description: "Role assigned to user"
+    example: "role-123"
+
+  - name: last_login
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last login timestamp"
+    example: "2025-01-10 12:30:00.000"
+
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "User creation date"
+    example: "2024-05-15 10:30:00.000"
+
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-05 14:20:00.000"
+
+  - name: settings
+    type: String
+    nullable: false
+    description: "User settings (JSON blob)"
+    example: '{"notifications":true,"theme":"dark"}'
+
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-05"
+
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-05 14:30:22.123"
+
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-05 15:30:45"
+
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.user_raw"
+
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-05 14:30:22.123"

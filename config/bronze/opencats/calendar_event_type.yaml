@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: opencats
+view: calendar_event_type_raw
+
+source:
+  bucket: raw-data
+  path: opencats/calendar_event_type
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw OpenCATS calendar_event_type data via sql-extractor"
+tags: [bronze, opencats, calendar_event_type, sql-extractor, auto-schema]

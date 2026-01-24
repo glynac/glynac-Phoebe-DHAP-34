@@ -1,0 +1,10 @@
+# Strapi Core Store Table Extraction
+# Core configuration key-value store
+
+task_id: extract_core_store
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "core_store"
+  OUTPUT_PREFIX: "strapi/core_store"
+  INCREMENTAL_MODE: "false"

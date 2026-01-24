@@ -1,0 +1,208 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_CUSTOMER
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(customer_id IS NULL) as null_customer_id,
+        countIf(customer_id = '') as empty_customer_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(customer_status IS NULL) as null_customer_status,
+        countIf(customer_status = '') as empty_customer_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_customer_id: 0
+      empty_customer_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_customer_status: 0
+      empty_customer_status: 0
+      null_processing_date: 0
+  
+  - name: customer_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "customer_id should be unique per org per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT customer_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY customer_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_customers_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver customers should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_customers
+      FROM orion_silver.customer s
+      LEFT JOIN orion.customer_raw b
+        ON s.customer_id = b.customer_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.customer_id IS NULL
+    expect:
+      orphaned_customers: 0
+  
+  - name: company_name_not_empty
+    type: assertion
+    description: "Company name should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (company_name IS NULL OR company_name = '')
+    expect:
+      invalid_count: 0
+  
+  - name: customer_type_not_empty
+    type: assertion
+    description: "Customer type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_type IS NULL OR customer_type = '')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_email_format
+    type: assertion
+    description: "Email should contain @ and . when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND (email NOT LIKE '%@%.%')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_phone_format
+    type: assertion
+    description: "Phone should have minimum length when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND phone != ''
+        AND length(phone) < 7
+    expect:
+      invalid_count: 0
+  
+  - name: annual_revenue_non_negative
+    type: assertion
+    description: "Annual revenue should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND annual_revenue < 0
+    expect:
+      invalid_count: 0
+  
+  - name: account_manager_not_empty
+    type: assertion
+    description: "Account manager ID should not be empty"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (account_manager_id IS NULL OR account_manager_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: customer_since_not_future
+    type: assertion
+    description: "Customer since date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND customer_since > now()
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: customer_since_after_created
+    type: assertion
+    description: "Customer since should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND customer_since IS NOT NULL
+        AND customer_since < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: customer_status_not_empty
+    type: assertion
+    description: "Customer status should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_status IS NULL OR customer_status = '')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_website_format
+    type: assertion
+    description: "Website should contain dot when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.customer
+      WHERE processing_date = toDate('{{ ds }}')
+        AND website != ''
+        AND website NOT LIKE '%.%'
+    expect:
+      invalid_count: 0

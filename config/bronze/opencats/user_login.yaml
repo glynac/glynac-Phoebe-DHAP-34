@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: opencats
+view: user_login_raw
+
+source:
+  bucket: raw-data
+  path: opencats/user_login
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw OpenCATS user_login data via sql-extractor"
+tags: [bronze, opencats, user_login, sql-extractor, auto-schema]

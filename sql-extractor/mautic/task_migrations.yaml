@@ -1,0 +1,10 @@
+# Mautic Migrations Table Extraction
+# Database migration history
+
+task_id: extract_migrations
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "migrations"
+  OUTPUT_PREFIX: "mautic/migrations"
+  INCREMENTAL_MODE: "false"

@@ -1,0 +1,27 @@
+# Gold: Revenue Metrics
+# Auto-detects dependency from query.sql
+
+dag_id: gold_salesforce_revenue_metrics
+description: "Revenue metrics aggregated from Salesforce"
+
+schedule_interval: dataset  # Auto-detects from query.sql
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - salesforce
+  - metrics
+  - revenue
+  - auto-dependency
+
+task:
+  task_type: clickhouse_transformation
+
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
+
+execution_timeout: 3600

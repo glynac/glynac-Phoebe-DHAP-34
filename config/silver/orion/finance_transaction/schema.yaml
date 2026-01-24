@@ -1,0 +1,276 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_transaction
+
+
+metadata:
+  display_name: "Orion Finance Transactions (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial transaction data from Bronze layer.
+    Represents financial transactions between accounts with category tracking,
+    approval workflow, and associations to expenses, invoices, and payments.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_transaction
+    - financial
+    - transactions
+    - accounting
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - amount
+    - notes
+    - meta_data
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_transaction_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - transaction_id
+  primary_key:
+    - transaction_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: transaction_status_idx
+      expression: transaction_status
+      type: set
+      granularity: 4
+    - name: transaction_type_idx
+      expression: transaction_type
+      type: set
+      granularity: 4
+    - name: category_idx
+      expression: category
+      type: set
+      granularity: 4
+    - name: source_account_id_idx
+      expression: source_account_id
+      type: minmax
+      granularity: 2
+    - name: destination_account_id_idx
+      expression: destination_account_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: transaction_id
+    type: String
+    nullable: false
+    description: "Unique transaction identifier (primary key)"
+    primary_key: true
+    example: "txn-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation (primary key)"
+    example: "org-xyz789"
+    
+  # Transaction classification
+  - name: transaction_type
+    type: String
+    nullable: false
+    description: "Type of transaction"
+    example: "transfer"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Transaction category"
+    example: "internal_transfer"
+    
+  - name: transaction_status
+    type: String
+    nullable: false
+    description: "Current transaction status"
+    example: "completed"
+    
+  # Reference and description
+  - name: reference
+    type: String
+    nullable: false
+    description: "Transaction reference number"
+    example: "TXN-2025-001"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Transaction description"
+    example: "Transfer to operating account"
+    
+  # Financial details
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Transaction amount"
+    pii: true
+    example: 10000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  # Account relationships
+  - name: source_account_id
+    type: String
+    nullable: false
+    description: "Source account for transaction"
+    example: "acc-def456"
+    
+  - name: destination_account_id
+    type: String
+    nullable: false
+    description: "Destination account for transaction"
+    example: "acc-ghi789"
+    
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Primary account reference"
+    example: "acc-jkl012"
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-mno345"
+    
+  # User relationships
+  - name: created_by_id
+    type: String
+    nullable: false
+    description: "User who created the transaction"
+    example: "usr-pqr678"
+    
+  - name: approved_by_id
+    type: String
+    nullable: false
+    description: "User who approved the transaction"
+    example: "usr-stu901"
+    
+  # Associated records
+  - name: expense_id
+    type: String
+    nullable: false
+    description: "Associated expense"
+    example: "exp-vwx234"
+    
+  - name: invoice_id
+    type: String
+    nullable: false
+    description: "Associated invoice"
+    example: "inv-yza567"
+    
+  - name: payment_id
+    type: String
+    nullable: false
+    description: "Associated payment"
+    example: "pay-bcd890"
+    
+  - name: revenue_id
+    type: String
+    nullable: false
+    description: "Associated revenue"
+    example: "rev-efg123"
+    
+  # Additional information
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes"
+    pii: true
+    example: "Quarterly budget allocation transfer"
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Classification tags"
+    example: "recurring,automated"
+    
+  - name: meta_data
+    type: String
+    nullable: false
+    description: "Additional metadata"
+    pii: true
+    example: '{"initiated_by":"system","automation_id":"auto-123"}'
+    
+  # Dates
+  - name: transaction_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when transaction occurred"
+    example: "2025-01-15 00:00:00.000"
+    
+  - name: cleared_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when transaction cleared"
+    example: "2025-01-17 00:00:00.000"
+    
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2025-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-20 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-20"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-20 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-20 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_transaction_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-20 14:30:22.123"

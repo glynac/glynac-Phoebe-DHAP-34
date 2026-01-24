@@ -1,0 +1,10 @@
+# Mautic Lead Tags Table Extraction
+# Tag definitions for categorizing leads
+
+task_id: extract_lead_tags
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "lead_tags"
+  OUTPUT_PREFIX: "mautic/lead_tags"
+  INCREMENTAL_MODE: "false"

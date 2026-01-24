@@ -1,0 +1,172 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_ORGANIZATION
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(organization_id IS NULL) as null_organization_id,
+        countIf(organization_id = '') as empty_organization_id,
+        countIf(glynac_organization_id IS NULL) as null_glynac_org_id,
+        countIf(glynac_organization_id = '') as empty_glynac_org_id,
+        countIf(org_status IS NULL) as null_org_status,
+        countIf(org_status = '') as empty_org_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_organization_id: 0
+      empty_organization_id: 0
+      null_glynac_org_id: 0
+      empty_glynac_org_id: 0
+      null_org_status: 0
+      empty_org_status: 0
+      null_processing_date: 0
+  
+  - name: organization_id_unique_per_glynac_org_per_partition
+    type: uniqueness
+    description: "organization_id should be unique per glynac_organization_id per processing_date"
+    severity: error
+    query: |
+      SELECT organization_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY organization_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_organizations_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver organizations should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_organizations
+      FROM orion_silver.organization s
+      LEFT JOIN orion.organization_raw b
+        ON s.organization_id = b.organization_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.organization_id IS NULL
+    expect:
+      orphaned_organizations: 0
+  
+  - name: name_not_empty
+    type: assertion
+    description: "Organization name should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (name IS NULL OR name = '')
+    expect:
+      invalid_count: 0
+  
+  - name: member_count_non_negative
+    type: assertion
+    description: "Member count should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND member_count < 0
+    expect:
+      invalid_count: 0
+  
+  - name: max_members_positive
+    type: assertion
+    description: "Max members should be positive when set"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND max_members != 0
+        AND max_members <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: member_count_not_exceed_max
+    type: assertion
+    description: "Member count should not exceed max members"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND max_members > 0
+        AND member_count > max_members
+    expect:
+      invalid_count: 0
+  
+  - name: budget_non_negative
+    type: assertion
+    description: "Budget should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND budget < 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_email_format
+    type: assertion
+    description: "Email should contain @ and . when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND (email NOT LIKE '%@%.%')
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: organization_type_not_empty
+    type: assertion
+    description: "Organization type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.organization
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (organization_type IS NULL OR organization_type = '')
+    expect:
+      invalid_count: 0
+  
+  - name: org_type_not_empty

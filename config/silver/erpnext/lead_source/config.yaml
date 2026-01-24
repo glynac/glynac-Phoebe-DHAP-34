@@ -1,0 +1,41 @@
+# Silver Layer - ERPNext Lead Source (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform ERPNext lead_source from Bronze to Silver"
+  tags: ["silver", "erpnext", "lead_source", "auto-mode", "single-tenant"]
+
+source:
+  database: nexterp
+  table: lead_source_raw
+
+target:
+  database: nexterp_silver
+  table: lead_source
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  source_name:
+    transform: clean_string
+
+dedupe:
+  partition_by: [name, partition]
+  order_by: [modified DESC]
+
+filters:
+  - "name IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

@@ -1,0 +1,33 @@
+version: "1.0"
+backfill_id: BF-TEST-003
+
+# Metadata
+metadata:
+  requested_by: nurdin@glynac.ai
+  requested_at: "2026-01-01T13:00:00Z"
+  approved_by: nurdin@glynac.ai
+  approved_at: "2026-01-01T13:05:00Z"
+  reason: "Testing backfill system for Gold layer - validating Gold DAG with materialized views"
+  priority: normal
+
+# Target DAG and specific table
+dag:
+  dag_id: gold_mautic_leads_daily_stats
+  layer: gold
+
+# Date range to backfill
+date_range:
+  start: "2025-12-01"
+  end: "2025-12-03"
+
+# Execution config
+execution:
+  mode: sequential
+  clear_existing: false
+
+# Webhook config - update with your backend URL
+webhook:
+  url: "https://your-backend.com/api/v1/webhooks/backfill-status"
+  on_start: true
+  on_complete: true
+  on_failure: true

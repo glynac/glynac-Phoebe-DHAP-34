@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: strapi
+view: users_permissions_permission_raw
+
+source:
+  bucket: raw-data
+  path: strapi/users_permissions_permission
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Strapi users_permissions_permission data via sql-extractor"
+tags: [bronze, strapi, users_permissions_permission, sql-extractor, auto-schema]

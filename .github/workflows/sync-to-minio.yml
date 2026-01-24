@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'config/**'
-      - 'stream-flink/**'
+      - 'sql-extractor/**'  # Docker job DAG configs
   workflow_dispatch:  # Allow manual trigger
 
 env:
@@ -43,10 +43,32 @@ jobs:
         echo "Syncing configs to MinIO bucket: $MINIO_BUCKET"
 
         # Sync config folder (bronze, silver, gold, global_config.yaml, etc.)
-        mc mirror --overwrite config/ ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/ \
+        # --remove: Delete files in MinIO that don't exist in repo (handles renames/restructures)
+        # --overwrite: Update existing files
+        mc mirror --overwrite --remove config/ ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/ \
           --exclude ".gitkeep"
 
-        echo "Sync completed!"
+        echo "Config sync completed!"
+
+    - name: Sync Docker job configs to MinIO
+      env:
+        MINIO_BUCKET: ${{ secrets.MINIO_CONFIG_BUCKET || 'airflow-configs' }}
+      run: |
+        echo "Syncing Docker job configs to MinIO..."
+
+        # Sync sql-extractor DAG configs to docker-jobs-configs/sql-extractor/
+        # Structure: sql-extractor/{database}/dag_*.yaml -> docker-jobs-configs/sql-extractor/{database}/dag_*.yaml
+        if [ -d "sql-extractor" ]; then
+          echo "Syncing sql-extractor configs..."
+          mc mirror --overwrite --remove sql-extractor/ ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/docker-jobs-configs/sql-extractor/ \
+            --exclude ".gitkeep" \
+            --exclude "README.md"
+          echo "sql-extractor sync completed!"
+        else
+          echo "No sql-extractor folder found, skipping..."
+        fi
+
+        echo "Docker job configs sync completed!"
 
     - name: Verify sync
       env:
@@ -58,6 +80,10 @@ jobs:
         echo ""
         echo "=== Summary ==="
         mc ls ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/
+
+        echo ""
+        echo "=== Docker Jobs Configs ==="
+        mc ls --recursive ${{ env.MINIO_ALIAS }}/$MINIO_BUCKET/docker-jobs-configs/ 2>/dev/null || echo "No docker-jobs-configs yet"
 
     - name: Notify on failure
       if: failure()

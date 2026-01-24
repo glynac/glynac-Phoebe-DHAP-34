@@ -1,0 +1,277 @@
+# ============================================================
+# SILVER LAYER - AUTO MODE CONFIG TEMPLATE (COMPREHENSIVE)
+# ============================================================
+# This template shows ALL available options for auto-mode configs.
+# Auto mode infers schema from Bronze but you can still specify:
+#   - Metadata (PII, owner, classification)
+#   - ClickHouse settings (engine, indexes, TTL)
+#   - Transforms, Filters, Deduplication
+#   - Comprehensive data quality tests
+#
+# Usage:
+#   1. Copy to: silver/{source}/{table}/config.yaml
+#   2. Fill in required sections (source, target, dedupe)
+#   3. Add metadata if table contains PII
+#   4. Add clickhouse indexes for query performance
+#   5. Add tests for data quality
+#   6. Remove sections you don't need (they'll use defaults)
+#
+# ============================================================
+
+version: "1.0"
+
+# ============================================================
+# METADATA (recommended for PII tables)
+# ============================================================
+# If not specified, inherits from _defaults.yaml
+metadata:
+  display_name: "Orion Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Orion account data from Bronze layer.
+    Includes account details, balances, and status information.
+
+  owner: data-engineering
+  domain: orion
+  tags:
+    - silver
+    - orion
+    - account
+    - financial
+    - pii
+
+  # Data classification
+  data_classification: confidential  # public, internal, confidential, restricted
+  contains_pii: true
+  pii_columns:
+    - account_number
+    - account_name
+    - email
+    - balance
+    - available_balance
+
+  # Lifecycle
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial
+
+  # Lineage
+  upstream_dependencies:
+    - orion.account_raw
+  downstream_dependencies: []
+
+# ============================================================
+# CLICKHOUSE SETTINGS (optional - has sensible defaults)
+# ============================================================
+# Override for custom engine, indexes, or TTL
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - account_id
+  primary_key:
+    - account_id
+
+  ttl: "processing_date + INTERVAL 2555 DAY"
+
+  settings:
+    index_granularity: 8192
+
+  # Indexes for query performance
+  indexes:
+    - name: status_idx
+      expression: status_normalized
+      type: set
+      granularity: 4
+
+    - name: account_type_idx
+      expression: account_type
+      type: bloom_filter
+      granularity: 1
+
+    - name: balance_idx
+      expression: balance
+      type: minmax
+      granularity: 2
+
+# ============================================================
+# DAG SETTINGS (optional - inherits from _defaults.yaml)
+# ============================================================
+dag:
+  description: "Transform and clean Orion account data from Bronze to Silver"
+  tags: ["silver", "orion", "account", "auto-mode"]
+
+  # Override if needed:
+  # schedule_interval: "dataset"
+  # default_args:
+  #   owner: custom-team
+  #   retries: 5
+  # sla:
+  #   duration_minutes: 180
+
+# ============================================================
+# SOURCE (Bronze table to read from)
+# ============================================================
+source:
+  database: orion
+  table: account_raw
+
+# ============================================================
+# TARGET (Silver table to write to)
+# ============================================================
+target:
+  database: orion_silver
+  table: account
+
+# ============================================================
+# TRANSFORMS (only columns needing special handling)
+# ============================================================
+# Available transforms:
+#   String:  clean_string, clean_email, clean_phone, clean_upper
+#   Status:  normalize_status, normalize_boolean
+#   Numeric: parse_money, parse_percentage, safe_int, safe_float
+#   Date:    parse_date, parse_date_only, parse_epoch_ms
+transforms:
+  # Rename + transform
+  account_status:
+    target: status_normalized
+    transform: normalize_status
+
+  # Just transform (keep column name)
+  account_name:
+    transform: clean_string
+
+  account_number:
+    transform: clean_string
+
+  email:
+    transform: clean_email
+
+  balance:
+    transform: parse_money
+
+  available_balance:
+    transform: parse_money
+
+  open_date:
+    transform: parse_date
+
+  close_date:
+    transform: parse_date
+
+# ============================================================
+# EXCLUDE COLUMNS
+# ============================================================
+exclude:
+  - internal_field
+  - batch_status
+  - message_type
+
+# ============================================================
+# DEDUPLICATION (required)
+# ============================================================
+dedupe:
+  partition_by:
+    - account_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# ============================================================
+# FILTERS
+# ============================================================
+filters:
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# ============================================================
+# LOOKBACK DAYS
+# ============================================================
+lookback_days: 90
+
+# ============================================================
+# TESTS - COMPREHENSIVE DATA QUALITY
+# ============================================================
+# Test types:
+#   - row_count: Check minimum rows
+#   - not_null: Check columns are not null
+#   - unique: Check uniqueness
+#   - accepted_values: Check allowed values
+#   - custom: Custom SQL query
+
+tests:
+  # Basic existence
+  - type: row_count
+    min: 1
+    severity: error
+
+  # Required columns
+  - type: not_null
+    columns:
+      - account_id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+
+  # Uniqueness
+  - type: unique
+    columns:
+      - account_id
+      - processing_date
+    severity: error
+
+  # Status values
+  - type: accepted_values
+    column: status_normalized
+    values: ["active", "closed", "pending", "unknown"]
+    severity: error
+
+  # Balance checks
+  - type: custom
+    name: balance_non_negative
+    description: "Balances should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM {{ target_table }}
+      WHERE processing_date = toDate('{{ ds }}')
+        AND balance < 0
+
+  - type: custom
+    name: available_lte_current
+    description: "Available balance should not exceed current balance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM {{ target_table }}
+      WHERE processing_date = toDate('{{ ds }}')
+        AND available_balance > balance
+
+  # Referential integrity
+  - type: custom
+    name: all_records_from_bronze
+    description: "All Silver records should exist in Bronze"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_count
+      FROM {{ target_table }} s
+      LEFT JOIN {{ source_table }} b
+        ON s.account_id = b.account_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.account_id IS NULL
+
+  # Date sanity
+  - type: custom
+    name: open_date_not_future
+    description: "Account open date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM {{ target_table }}
+      WHERE processing_date = toDate('{{ ds }}')
+        AND open_date > now()

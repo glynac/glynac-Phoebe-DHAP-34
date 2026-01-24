@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: asset_raw
+
+source:
+  bucket: main-data
+  path: orion/asset
+  
+description: "Orion asset data"
+tags:
+  - bronze
+  - orion
+  - asset
+  - auto-schema

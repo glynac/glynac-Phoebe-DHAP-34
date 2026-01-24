@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: portfolio_raw
+view: portfolio_raw
 
 metadata:
   description: "Raw Redtail portfolio data from MinIO"
@@ -10,7 +10,7 @@ metadata:
 source:
   type: minio
   bucket: main-data
-  path: redtail/portfolio
+  path: redtail/portfolio/
   format: orc
   partitions:
     - name: glynac_organization_id

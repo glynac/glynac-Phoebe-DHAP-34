@@ -1,0 +1,10 @@
+# ERPNext Sales Invoice Table Extraction
+# Sales invoices
+
+task_id: extract_sales_invoice
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabSales Invoice"
+  OUTPUT_PREFIX: "erpnext/sales_invoice"
+  INCREMENTAL_MODE: "false"

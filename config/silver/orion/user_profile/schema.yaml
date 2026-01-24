@@ -1,0 +1,210 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: user_profile
+
+
+metadata:
+  display_name: "Orion User Profiles (Cleaned)"
+  description: |
+    Cleaned and transformed Orion user profile data from Bronze layer.
+    Represents user profile information with preferences, contact details,
+    and personalization settings.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - user_profile
+    - users
+    - preferences
+    - settings
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - phone
+    - bio
+    - address
+    - emergency_contact
+    - custom_fields
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.user_profile_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - profile_id
+  primary_key:
+    - profile_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: profile_type_idx
+      expression: profile_type
+      type: set
+      granularity: 4
+    - name: user_id_idx
+      expression: user_id
+      type: minmax
+      granularity: 2
+    - name: language_idx
+      expression: language
+      type: set
+      granularity: 4
+
+columns:
+  - name: profile_id
+    type: String
+    nullable: false
+    description: "Unique profile identifier (primary key)"
+    primary_key: true
+    example: "prof-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation (primary key)"
+    example: "org-xyz789"
+    
+  # Profile classification
+  - name: profile_type
+    type: String
+    nullable: false
+    description: "Type of profile"
+    example: "personal"
+    
+  - name: user_id
+    type: String
+    nullable: false
+    description: "Associated user identifier"
+    example: "usr-def456"
+    
+  # Contact information (PII)
+  - name: phone
+    type: String
+    nullable: false
+    description: "Phone number"
+    pii: true
+    example: "+1-555-0100"
+    
+  - name: address
+    type: String
+    nullable: false
+    description: "Physical address"
+    pii: true
+    example: "123 Main St, San Francisco, CA 94105"
+    
+  - name: emergency_contact
+    type: String
+    nullable: false
+    description: "Emergency contact information"
+    pii: true
+    example: '{"name":"Jane Doe","phone":"+1-555-0101","relationship":"spouse"}'
+    
+  # Profile details
+  - name: avatar_url
+    type: String
+    nullable: false
+    description: "Profile picture URL"
+    example: "https://cdn.example.com/avatars/user123.jpg"
+    
+  - name: bio
+    type: String
+    nullable: false
+    description: "User biography"
+    pii: true
+    example: "Product manager with 10 years experience"
+    
+  # Preferences
+  - name: time_zone
+    type: String
+    nullable: false
+    description: "User time zone"
+    example: "America/Los_Angeles"
+    
+  - name: language
+    type: String
+    nullable: false
+    description: "Preferred language"
+    example: "en-US"
+    
+  - name: date_format
+    type: String
+    nullable: false
+    description: "Preferred date format"
+    example: "MM/DD/YYYY"
+    
+  - name: notification_preferences
+    type: String
+    nullable: false
+    description: "Notification preferences"
+    example: '{"email":true,"sms":false,"push":true}'
+    
+  # Custom data
+  - name: custom_fields
+    type: String
+    nullable: false
+    description: "Custom profile fields"
+    pii: true
+    example: '{"department":"Engineering","employee_id":"EMP-001"}'
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Profile creation date"
+    example: "2024-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-13 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-13"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-13 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-13 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.user_profile_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-13 14:30:22.123"

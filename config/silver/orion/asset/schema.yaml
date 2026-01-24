@@ -1,0 +1,272 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: asset
+
+
+metadata:
+  display_name: "Orion Assets (Cleaned)"
+  description: |
+    Cleaned and transformed Orion asset data from Bronze layer.
+    Represents financial assets (stocks, bonds, securities) in the Orion CRM platform 
+    with pricing, market data, and asset classification information.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - asset
+    - crm
+    - finance
+    - investment
+    - silver
+  data_classification: confidential
+  contains_pii: false
+  pii_columns: []
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.asset_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - asset_id
+  primary_key:
+    - asset_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: asset_type_idx
+      expression: asset_type
+      type: set
+      granularity: 4
+    - name: asset_class_idx
+      expression: asset_class
+      type: set
+      granularity: 4
+    - name: symbol_idx
+      expression: symbol
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: asset_id
+    type: String
+    nullable: false
+    description: "Unique asset identifier (primary key)"
+    primary_key: true
+    example: "asset-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Asset identification
+  - name: asset_record_id
+    type: String
+    nullable: false
+    description: "Asset record identifier"
+    example: "rec-123456"
+    
+  - name: asset_type_field
+    type: String
+    nullable: false
+    description: "Asset type field"
+    example: "equity"
+    
+  - name: symbol
+    type: String
+    nullable: false
+    description: "Asset trading symbol"
+    example: "AAPL"
+    
+  - name: asset_name
+    type: String
+    nullable: false
+    description: "Asset name"
+    example: "Apple Inc."
+    
+  # Asset classification
+  - name: asset_class
+    type: String
+    nullable: false
+    description: "Primary asset class"
+    example: "equity"
+    
+  - name: asset_subclass
+    type: String
+    nullable: false
+    description: "Asset subclass"
+    example: "common_stock"
+    
+  - name: asset_type
+    type: String
+    nullable: false
+    description: "Specific asset type"
+    example: "stock"
+    
+  # Pricing information
+  - name: current_price
+    type: Float64
+    nullable: false
+    description: "Current asset price"
+    example: 175.50
+    
+  - name: price_currency
+    type: String
+    nullable: false
+    description: "Currency of the price"
+    example: "USD"
+    
+  - name: exchange
+    type: String
+    nullable: false
+    description: "Trading exchange"
+    example: "NASDAQ"
+    
+  # Market data
+  - name: sector
+    type: String
+    nullable: false
+    description: "Business sector"
+    example: "Technology"
+    
+  - name: industry
+    type: String
+    nullable: false
+    description: "Industry classification"
+    example: "Consumer Electronics"
+    
+  - name: market_cap
+    type: Int64
+    nullable: false
+    description: "Market capitalization"
+    example: 2800000000000
+    
+  # Financial metrics
+  - name: pe_ratio
+    type: Float64
+    nullable: false
+    description: "Price-to-earnings ratio"
+    example: 28.5
+    
+  - name: dividend_yield
+    type: Float64
+    nullable: false
+    description: "Dividend yield percentage"
+    example: 0.52
+    
+  - name: beta
+    type: Float64
+    nullable: false
+    description: "Beta coefficient (volatility measure)"
+    example: 1.2
+    
+  - name: fifty_two_week_high
+    type: Float64
+    nullable: false
+    description: "52-week high price"
+    example: 199.62
+    
+  - name: fifty_two_week_low
+    type: Float64
+    nullable: false
+    description: "52-week low price"
+    example: 164.08
+    
+  # Additional details
+  - name: country
+    type: String
+    nullable: false
+    description: "Country of origin/listing"
+    example: "USA"
+    
+  - name: issuer
+    type: String
+    nullable: false
+    description: "Asset issuer"
+    example: "Apple Inc."
+    
+  - name: maturity_date
+    type: String
+    nullable: false
+    description: "Maturity date (for bonds/fixed income)"
+    example: "2030-12-31"
+    
+  - name: coupon_rate
+    type: Float64
+    nullable: false
+    description: "Coupon rate (for bonds)"
+    example: 3.5
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Asset tags"
+    example: "blue-chip,tech"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Asset description"
+    example: "Leading technology company"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Asset creation date"
+    example: "2024-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-05 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-05"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-05 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-05 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.asset_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-05 14:30:22.123"

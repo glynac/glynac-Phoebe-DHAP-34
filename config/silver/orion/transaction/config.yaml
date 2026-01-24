@@ -1,0 +1,71 @@
+# Silver Layer - Orion Transaction (AUTO MODE)
+# Schema inferred from Bronze: orion.transaction_raw
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Orion transaction data from Bronze to Silver"
+  tags: ["silver", "orion", "transaction", "auto-mode"]
+
+source:
+  database: orion
+  table: transaction_raw
+
+target:
+  database: orion_silver
+  table: transaction
+
+# Transform overrides (only columns needing special handling)
+# NOTE: Only apply transforms to columns that NEED transformation
+# If Bronze column is already the correct type (e.g., Float64), don't add transform
+transforms:
+  # Status normalization
+  transaction_status:
+    target: status_normalized
+    transform: normalize_status
+
+  # String cleaning (only for String columns that need cleaning)
+  transaction_type:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  category:
+    transform: clean_string
+
+  # Note: amount, fee, tax, net_amount, balance_after are already Float64 in Bronze
+  # No transform needed - they pass through as-is
+
+  # Dates (only if stored as String in Bronze)
+  transaction_date:
+    transform: parse_date
+
+# Deduplication (Orion uses transaction_id, not rec_id)
+dedupe:
+  partition_by:
+    - transaction_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "transaction_id IS NOT NULL"
+  - "transaction_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - transaction_id
+      - glynac_organization_id
+    severity: error
+

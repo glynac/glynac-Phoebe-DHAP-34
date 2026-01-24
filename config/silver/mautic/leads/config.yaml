@@ -1,0 +1,91 @@
+# Silver Layer - Mautic Leads (AUTO MODE)
+# Schema inferred from Bronze: mautic.leads_raw
+# Settings inherited from _defaults.yaml
+
+version: "1.0"
+
+# Single-tenant mode: mautic data doesn't have glynac_organization_id
+# (direct MariaDB extraction, not multi-tenant Flink data)
+single_tenant: true
+
+dag:
+  description: "Transform Mautic leads data from Bronze to Silver"
+  tags: ["silver", "mautic", "leads", "auto-mode", "sql-extractor", "single-tenant"]
+
+source:
+  database: mautic
+  table: leads_raw
+
+target:
+  database: mautic_silver
+  table: leads
+
+# Override partition column - mautic uses 'partition' not 'processing_date'
+task:
+  incremental:
+    partition_column: partition
+
+# ClickHouse settings - override for 'partition' column
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+# Transforms - common mautic leads fields
+# Only applied if columns exist in bronze
+transforms:
+  # Clean string fields
+  firstname:
+    transform: clean_string
+  lastname:
+    transform: clean_string
+  email:
+    transform: clean_email
+  phone:
+    transform: clean_phone
+  mobile:
+    transform: clean_phone
+  company:
+    transform: clean_string
+  position:
+    transform: clean_string
+  city:
+    transform: clean_string
+  state:
+    transform: clean_string
+  country:
+    transform: clean_string
+
+  # Parse dates (stored as String in ORC)
+  date_added:
+    transform: parse_date
+  date_modified:
+    transform: parse_date
+  last_active:
+    transform: parse_date
+
+# Deduplication
+dedupe:
+  partition_by:
+    - id
+    - partition
+  order_by:
+    - date_modified DESC
+
+# Filters
+filters:
+  - "id IS NOT NULL"
+  - "id != 0"
+
+# Lookback days
+lookback_days: 90
+
+# Tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - id
+    severity: error

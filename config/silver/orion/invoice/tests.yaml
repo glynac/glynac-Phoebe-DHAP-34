@@ -1,0 +1,270 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_INVOICE
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(invoice_id IS NULL) as null_invoice_id,
+        countIf(invoice_id = '') as empty_invoice_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(invoice_status IS NULL) as null_invoice_status,
+        countIf(invoice_status = '') as empty_invoice_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_invoice_id: 0
+      empty_invoice_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_invoice_status: 0
+      empty_invoice_status: 0
+      null_processing_date: 0
+  
+  - name: invoice_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "invoice_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT invoice_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY invoice_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_invoices_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver invoices should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_invoices
+      FROM orion_silver.invoice s
+      LEFT JOIN orion.invoice_raw b
+        ON s.invoice_id = b.invoice_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.invoice_id IS NULL
+    expect:
+      orphaned_invoices: 0
+  
+  - name: invoice_number_not_empty
+    type: assertion
+    description: "Invoice number should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (invoice_number IS NULL OR invoice_number = '')
+    expect:
+      invalid_count: 0
+  
+  - name: customer_id_not_empty
+    type: assertion
+    description: "Customer ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_positive
+    type: assertion
+    description: "Invoice amount should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: amount_paid_non_negative
+    type: assertion
+    description: "Amount paid should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount_paid < 0
+    expect:
+      invalid_count: 0
+  
+  - name: amount_due_non_negative
+    type: assertion
+    description: "Amount due should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount_due < 0
+    expect:
+      invalid_count: 0
+  
+  - name: amount_paid_not_exceed_amount
+    type: assertion
+    description: "Amount paid should not exceed total amount"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount_paid > amount
+    expect:
+      invalid_count: 0
+  
+  - name: amount_due_calculation_reasonable
+    type: assertion
+    description: "Amount due should equal amount minus amount_paid within tolerance"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND abs((amount - amount_paid) - amount_due) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: tax_non_negative
+    type: assertion
+    description: "Tax should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND tax < 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: created_by_not_empty
+    type: assertion
+    description: "Created by ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (created_by_id IS NULL OR created_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: issue_date_not_future
+    type: assertion
+    description: "Issue date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND issue_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: due_date_after_issue_date
+    type: assertion
+    description: "Due date should be after or equal to issue date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND issue_date IS NOT NULL
+        AND due_date IS NOT NULL
+        AND due_date < issue_date
+    expect:
+      invalid_count: 0
+  
+  - name: paid_date_after_issue_date
+    type: assertion
+    description: "Paid date should be after or equal to issue date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND issue_date IS NOT NULL
+        AND paid_date IS NOT NULL
+        AND paid_date < issue_date
+    expect:
+      invalid_count: 0
+  
+  - name: paid_invoices_have_paid_date
+    type: assertion
+    description: "Paid invoices should have paid date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND invoice_status IN ('paid', 'completed')
+        AND paid_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: paid_invoices_have_zero_due
+    type: assertion
+    description: "Paid invoices should have zero amount due"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND invoice_status IN ('paid', 'completed')
+        AND amount_due > 0.01
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.invoice
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0

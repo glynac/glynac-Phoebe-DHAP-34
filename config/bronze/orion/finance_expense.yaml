@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_expense_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_expense
+  
+description: "Orion finance_expense data"
+tags:
+  - bronze
+  - orion
+  - finance_expense
+  - auto-schema

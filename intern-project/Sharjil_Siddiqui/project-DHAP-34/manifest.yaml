@@ -1,0 +1,6 @@
+dataset_name: email_threads
+storage_location: local_csv
+files:
+  - email_thread_details.csv
+  - email_thread_summaries.csv
+validated_field: status

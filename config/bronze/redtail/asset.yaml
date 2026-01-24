@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: asset_raw
+view: asset_raw
 
 metadata:
   description: "Raw Redtail asset data with investment positions, cost basis, and performance metrics"
@@ -47,6 +47,13 @@ schema:
     - name: status
       type: String
       nullable: false
+    - name: glynac_organization_id
+      type: String
+      nullable: false      
+    - name: processing_date
+      type: Date
+      nullable: false
+      source: partition
     - name: rec_id
       type: Int64
       nullable: false

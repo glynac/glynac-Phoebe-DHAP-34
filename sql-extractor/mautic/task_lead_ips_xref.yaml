@@ -1,0 +1,10 @@
+# Mautic Lead IPs Cross-Reference Table Extraction
+# IP addresses associated with leads
+
+task_id: extract_lead_ips_xref
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "lead_ips_xref"
+  OUTPUT_PREFIX: "mautic/lead_ips_xref"
+  INCREMENTAL_MODE: "false"

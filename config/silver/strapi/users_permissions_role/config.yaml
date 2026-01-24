@@ -1,0 +1,43 @@
+# Silver Layer - Strapi Users Permissions Role (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Strapi users_permissions_role from Bronze to Silver"
+  tags: ["silver", "strapi", "users_permissions_role", "auto-mode", "single-tenant"]
+
+source:
+  database: strapi
+  table: users_permissions_role_raw
+
+target:
+  database: strapi_silver
+  table: users_permissions_role
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  name:
+    transform: clean_string
+  description:
+    transform: clean_string
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [id DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

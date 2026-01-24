@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: nexterp
+view: opportunity_type_raw
+
+source:
+  bucket: raw-data
+  path: erpnext/opportunity_type
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw ERPNext opportunity_type data via sql-extractor"
+tags: [bronze, erpnext, opportunity_type, sql-extractor, auto-schema]

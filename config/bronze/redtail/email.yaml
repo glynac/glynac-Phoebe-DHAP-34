@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: email_raw
+view: email_raw
 
 metadata:
   description: "Raw Redtail email data from MinIO"

@@ -1,0 +1,117 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_INVESTMENT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL or empty"
+    severity: error
+    query: |
+      SELECT 
+        countIf(investment_id IS NULL) as null_investment_id,
+        countIf(investment_id = '') as empty_investment_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date,
+        countIf(processing_timestamp IS NULL) as null_processing_timestamp
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_investment_id: 0
+      empty_investment_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+      null_processing_timestamp: 0
+
+  - name: investment_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "investment_id should be unique per org per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT investment_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY investment_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+
+  - name: all_investments_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver investments should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_investments
+      FROM orion_silver.finance_investment s
+      LEFT JOIN orion.finance_investment_raw b
+        ON s.investment_id = b.investment_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.investment_id IS NULL
+    expect:
+      orphaned_investments: 0
+
+  - name: amount_non_negative
+    type: assertion
+    description: "Investment amount should be non-negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount < 0
+    expect:
+      invalid_count: 0
+
+  - name: quantity_non_negative
+    type: assertion
+    description: "Quantity should be non-negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND quantity < 0
+    expect:
+      invalid_count: 0
+
+  - name: gain_loss_percentage_reasonable
+    type: assertion
+    description: "Gain/loss percentage should be within a reasonable range"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (gain_loss_percentage < -100 OR gain_loss_percentage > 1000)
+    expect:
+      invalid_count: 0
+
+  - name: purchase_date_before_maturity
+    type: assertion
+    description: "Purchase date should not be after maturity date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND purchase_date IS NOT NULL
+        AND maturity_date IS NOT NULL
+        AND purchase_date > maturity_date
+    expect:
+      invalid_count: 0
+
+  - name: yield_rate_reasonable
+    type: assertion
+    description: "Yield rate should be within a reasonable range"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (yield_rate < 0 OR yield_rate > 100)
+    expect:
+      invalid_count: 0

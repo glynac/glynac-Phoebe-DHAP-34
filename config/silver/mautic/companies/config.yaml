@@ -1,0 +1,45 @@
+# Silver Layer - Mautic Companies (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Mautic companies from Bronze to Silver"
+  tags: ["silver", "mautic", "companies", "auto-mode", "single-tenant"]
+
+source:
+  database: mautic
+  table: companies_raw
+
+target:
+  database: mautic_silver
+  table: companies
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  companyname:
+    transform: clean_string
+  companyemail:
+    transform: clean_email
+  companyphone:
+    transform: clean_phone
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [date_modified DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

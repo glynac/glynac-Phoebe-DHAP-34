@@ -1,0 +1,37 @@
+# Silver Layer - Strapi Permission (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Strapi strapi_permission from Bronze to Silver"
+  tags: ["silver", "strapi", "strapi_permission", "auto-mode", "single-tenant"]
+
+source:
+  database: strapi
+  table: strapi_permission_raw
+
+target:
+  database: strapi_silver
+  table: strapi_permission
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [id DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

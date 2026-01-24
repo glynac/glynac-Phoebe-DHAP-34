@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_revenue_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_revenue
+  
+description: "Orion finance_revenue data"
+tags:
+  - bronze
+  - orion
+  - finance_revenue
+  - auto-schema

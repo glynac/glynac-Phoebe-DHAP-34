@@ -1,0 +1,278 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_budget
+
+
+metadata:
+  display_name: "Orion Finance Budgets (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial budget data from Bronze layer.
+    Represents budget allocations, spending tracking, and financial planning
+    across different periods and organizational units.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_budget
+    - financial
+    - planning
+    - accounting
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - amount
+    - allocated
+    - spent
+    - remaining
+    - allocation
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_budget_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - budget_id
+  primary_key:
+    - budget_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: budget_status_idx
+      expression: budget_status
+      type: set
+      granularity: 4
+    - name: budget_type_idx
+      expression: budget_type
+      type: set
+      granularity: 4
+    - name: category_idx
+      expression: category
+      type: set
+      granularity: 4
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+    - name: parent_budget_id_idx
+      expression: parent_budget_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: budget_id
+    type: String
+    nullable: false
+    description: "Unique budget identifier (primary key)"
+    primary_key: true
+    example: "budg-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Budget classification
+  - name: budget_type
+    type: String
+    nullable: false
+    description: "Type of budget"
+    example: "departmental"
+    
+  - name: name
+    type: String
+    nullable: false
+    description: "Budget name"
+    example: "Engineering Q1 2025"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Budget category"
+    example: "operations"
+    
+  - name: budget_status
+    type: String
+    nullable: false
+    description: "Current budget status"
+    example: "active"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Budget description"
+    example: "Quarterly engineering operational budget"
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account/GL code"
+    example: "acc-def456"
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-ghi789"
+    
+  - name: created_by_id
+    type: String
+    nullable: false
+    description: "User who created the budget"
+    example: "usr-jkl012"
+    
+  - name: approved_by_id
+    type: String
+    nullable: false
+    description: "User who approved the budget"
+    example: "usr-mno345"
+    
+  - name: parent_budget_id
+    type: String
+    nullable: false
+    description: "Parent budget if hierarchical"
+    example: "budg-pqr678"
+    
+  # Period information
+  - name: period
+    type: String
+    nullable: false
+    description: "Budget period"
+    example: "Q1-2025"
+    
+  - name: start_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Budget start date"
+    example: "2025-01-01 00:00:00.000"
+    
+  - name: end_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Budget end date"
+    example: "2025-03-31 23:59:59.999"
+    
+  # Financial details
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Total budget amount"
+    pii: true
+    example: 500000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: allocated
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Amount allocated to sub-budgets or projects"
+    pii: true
+    example: 450000.00
+    
+  - name: spent
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Amount spent"
+    pii: true
+    example: 325000.00
+    
+  - name: remaining
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Remaining budget amount"
+    pii: true
+    example: 175000.00
+    
+  - name: allocation
+    type: String
+    nullable: false
+    description: "Allocation details or breakdown"
+    pii: true
+    example: '{"salaries":300000,"equipment":100000,"travel":100000}'
+    
+  # Additional information
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes"
+    example: "Approved with 10% contingency reserve"
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Classification tags"
+    example: "engineering,operational,quarterly"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2024-12-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-12 14:20:00.000"
+    
+  - name: last_review_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last budget review date"
+    example: "2025-01-10 09:00:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-12"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-12 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-12 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_budget_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-12 14:30:22.123"

@@ -1,0 +1,183 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_CONTACT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(contact_id IS NULL) as null_contact_id,
+        countIf(contact_id = '') as empty_contact_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(contact_status IS NULL) as null_contact_status,
+        countIf(contact_status = '') as empty_contact_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_contact_id: 0
+      empty_contact_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_contact_status: 0
+      empty_contact_status: 0
+      null_processing_date: 0
+  
+  - name: contact_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "contact_id should be unique per org per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT contact_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY contact_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contacts_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contacts should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_contacts
+      FROM orion_silver.contact s
+      LEFT JOIN orion.contact_raw b
+        ON s.contact_id = b.contact_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.contact_id IS NULL
+    expect:
+      orphaned_contacts: 0
+  
+  - name: valid_is_primary_contact_values
+    type: accepted_values
+    description: "is_primary_contact must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_primary_contact NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_email_format
+    type: assertion
+    description: "Email should contain @ and . when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND (email NOT LIKE '%@%.%')
+    expect:
+      invalid_count: 0
+  
+  - name: first_or_last_name_present
+    type: assertion
+    description: "Contact should have at least first name or last name"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND first_name = ''
+        AND last_name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: customer_id_not_empty
+    type: assertion
+    description: "Customer ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: owner_id_not_empty
+    type: assertion
+    description: "Owner ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (owner_id IS NULL OR owner_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: contact_status_not_empty
+    type: assertion
+    description: "Contact status should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (contact_status IS NULL OR contact_status = '')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_phone_format
+    type: assertion
+    description: "Phone should have minimum length when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND phone != ''
+        AND length(phone) < 7
+    expect:
+      invalid_count: 0
+  
+  - name: valid_mobile_format
+    type: assertion
+    description: "Mobile should have minimum length when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.contact
+      WHERE processing_date = toDate('{{ ds }}')
+        AND mobile != ''
+        AND length(mobile) < 7
+    expect:
+      invalid_count: 0

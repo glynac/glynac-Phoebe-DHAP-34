@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: mautic
+view: audit_log_raw
+
+source:
+  bucket: raw-data
+  path: mautic/audit_log
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Mautic audit_log data via sql-extractor"
+tags: [bronze, mautic, audit_log, sql-extractor, auto-schema]

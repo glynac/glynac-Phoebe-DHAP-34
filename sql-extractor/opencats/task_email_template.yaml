@@ -1,0 +1,10 @@
+# OpenCATS Email Template Table Extraction
+# Email templates for communications
+
+task_id: extract_email_template
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "email_template"
+  OUTPUT_PREFIX: "opencats/email_template"
+  INCREMENTAL_MODE: "false"

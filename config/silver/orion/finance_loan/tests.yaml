@@ -1,0 +1,281 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_LOAN
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(loan_id IS NULL) as null_loan_id,
+        countIf(loan_id = '') as empty_loan_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(loan_status IS NULL) as null_loan_status,
+        countIf(loan_status = '') as empty_loan_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_loan_id: 0
+      empty_loan_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_loan_status: 0
+      empty_loan_status: 0
+      null_processing_date: 0
+  
+  - name: loan_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "loan_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT loan_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY loan_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_finance_loans_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance loans should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_loans
+      FROM orion_silver.finance_loan s
+      LEFT JOIN orion.finance_loan_raw b
+        ON s.loan_id = b.loan_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.loan_id IS NULL
+    expect:
+      orphaned_finance_loans: 0
+  
+  - name: valid_is_secured_values
+    type: accepted_values
+    description: "is_secured must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_secured NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: loan_number_not_empty
+    type: assertion
+    description: "Loan number should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (loan_number IS NULL OR loan_number = '')
+    expect:
+      invalid_count: 0
+  
+  - name: borrower_id_not_empty
+    type: assertion
+    description: "Borrower ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (borrower_id IS NULL OR borrower_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: principal_amount_positive
+    type: assertion
+    description: "Principal amount should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND principal_amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: outstanding_balance_non_negative
+    type: assertion
+    description: "Outstanding balance should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND outstanding_balance < 0
+    expect:
+      invalid_count: 0
+  
+  - name: outstanding_not_exceed_principal
+    type: assertion
+    description: "Outstanding balance should not exceed principal amount"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND outstanding_balance > principal_amount * 1.5
+    expect:
+      invalid_count: 0
+  
+  - name: interest_rate_valid_range
+    type: assertion
+    description: "Interest rate should be between 0 and 100%"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (interest_rate < 0 OR interest_rate > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: term_months_positive
+    type: assertion
+    description: "Term months should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND term_months <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: payment_amount_positive
+    type: assertion
+    description: "Payment amount should be positive when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND payment_amount < 0
+    expect:
+      invalid_count: 0
+  
+  - name: late_fee_non_negative
+    type: assertion
+    description: "Late fee amount should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND late_fee_amount < 0
+    expect:
+      invalid_count: 0
+  
+  - name: prepayment_penalty_non_negative
+    type: assertion
+    description: "Prepayment penalty should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND prepayment_penalty < 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: origination_date_not_future
+    type: assertion
+    description: "Origination date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND origination_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: maturity_after_origination
+    type: assertion
+    description: "Maturity date should be after origination date"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND origination_date IS NOT NULL
+        AND maturity_date IS NOT NULL
+        AND maturity_date <= origination_date
+    expect:
+      invalid_count: 0
+  
+  - name: next_payment_not_before_origination
+    type: assertion
+    description: "Next payment date should not be before origination date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND origination_date IS NOT NULL
+        AND next_payment_date IS NOT NULL
+        AND next_payment_date < origination_date
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: secured_loans_have_collateral
+    type: assertion
+    description: "Secured loans should have collateral information"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_loan
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_secured = 1
+        AND (collateral IS NULL OR collateral = '')
+    expect:
+      invalid_count: 0

@@ -1,0 +1,221 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_DEAL
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(deal_id IS NULL) as null_deal_id,
+        countIf(deal_id = '') as empty_deal_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(deal_status IS NULL) as null_deal_status,
+        countIf(deal_status = '') as empty_deal_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_deal_id: 0
+      empty_deal_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_deal_status: 0
+      empty_deal_status: 0
+      null_processing_date: 0
+  
+  - name: deal_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "deal_id should be unique per org per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT deal_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY deal_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_deals_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver deals should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_deals
+      FROM orion_silver.deal s
+      LEFT JOIN orion.deal_raw b
+        ON s.deal_id = b.deal_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.deal_id IS NULL
+    expect:
+      orphaned_deals: 0
+  
+  - name: deal_name_not_empty
+    type: assertion
+    description: "Deal name should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (deal_name IS NULL OR deal_name = '')
+    expect:
+      invalid_count: 0
+  
+  - name: customer_id_not_empty
+    type: assertion
+    description: "Customer ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: owner_id_not_empty
+    type: assertion
+    description: "Owner ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (owner_id IS NULL OR owner_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_non_negative
+    type: assertion
+    description: "Deal amount should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount < 0
+    expect:
+      invalid_count: 0
+  
+  - name: probability_valid_range
+    type: assertion
+    description: "Probability should be between 0 and 100"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (probability < 0 OR probability > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: expected_close_date_not_far_past
+    type: assertion
+    description: "Expected close date should not be more than 2 years in the past"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND expected_close_date IS NOT NULL
+        AND expected_close_date < now() - INTERVAL 2 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: actual_close_date_reasonable
+    type: assertion
+    description: "Actual close date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND actual_close_date IS NOT NULL
+        AND actual_close_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: actual_close_after_created
+    type: assertion
+    description: "Actual close date should be after created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND actual_close_date IS NOT NULL
+        AND actual_close_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: stage_not_empty
+    type: assertion
+    description: "Stage should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (stage IS NULL OR stage = '')
+    expect:
+      invalid_count: 0
+  
+  - name: closed_deals_have_actual_close_date
+    type: assertion
+    description: "Closed/won deals should have actual close date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.deal
+      WHERE processing_date = toDate('{{ ds }}')
+        AND deal_status IN ('closed', 'won', 'closed_won')
+        AND actual_close_date IS NULL
+    expect:
+      invalid_count: 0

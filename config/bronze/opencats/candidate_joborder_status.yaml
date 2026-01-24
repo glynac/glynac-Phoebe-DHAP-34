@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: opencats
+view: candidate_joborder_status_raw
+
+source:
+  bucket: raw-data
+  path: opencats/candidate_joborder_status
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw OpenCATS candidate_joborder_status data via sql-extractor"
+tags: [bronze, opencats, candidate_joborder_status, sql-extractor, auto-schema]

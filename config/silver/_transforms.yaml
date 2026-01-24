@@ -1,0 +1,189 @@
+# Silver Layer - Shared Transformation Definitions
+# These define reusable transformations that can be referenced in auto-mode configs
+# UDFs are generated and deployed to ClickHouse automatically
+#
+# Version: 1.0
+# Last Updated: December 2024
+
+version: "1.0"
+
+# ============================================================
+# STRING TRANSFORMATIONS
+# ============================================================
+string:
+  # Basic string cleaning - trim whitespace and handle NULL
+  clean_string:
+    description: "Trim whitespace and coalesce NULL to empty string"
+    sql: "trim(COALESCE({col}, ''))"
+    input_type: String
+    output_type: String
+
+  # Clean and lowercase email
+  clean_email:
+    description: "Lowercase, trim, and handle NULL for email"
+    sql: "lower(trim(COALESCE({col}, '')))"
+    input_type: String
+    output_type: String
+
+  # Clean phone number - digits only
+  clean_phone:
+    description: "Extract digits only from phone number"
+    sql: "replaceRegexpAll(COALESCE({col}, ''), '[^0-9]', '')"
+    input_type: String
+    output_type: String
+
+  # Extract domain from email
+  extract_email_domain:
+    description: "Extract domain part from email address"
+    sql: "splitByChar('@', lower(trim(COALESCE({col}, ''))))[2]"
+    input_type: String
+    output_type: String
+
+  # Clean and uppercase
+  clean_upper:
+    description: "Uppercase, trim, and handle NULL"
+    sql: "upper(trim(COALESCE({col}, '')))"
+    input_type: String
+    output_type: String
+
+# ============================================================
+# STATUS NORMALIZATION
+# ============================================================
+# Note: Use {col} placeholder in match patterns for column name substitution
+status:
+  # Generic account status normalization
+  normalize_status:
+    description: "Normalize common status values"
+    type: multiIf
+    mappings:
+      - match: "{col} ILIKE '%active%'"
+        value: "active"
+      - match: "{col} ILIKE '%closed%' OR {col} ILIKE '%inactive%' OR {col} ILIKE '%disabled%'"
+        value: "closed"
+      - match: "{col} ILIKE '%pending%' OR {col} ILIKE '%waiting%'"
+        value: "pending"
+      - match: "{col} ILIKE '%deleted%' OR {col} ILIKE '%removed%'"
+        value: "deleted"
+      - match: "{col} != ''"
+        value: "lower(trim({col}))"
+        is_expression: true
+    default: "unknown"
+
+  # Boolean normalization (string to 0/1)
+  normalize_boolean:
+    description: "Convert string boolean values to 0/1"
+    type: multiIf
+    mappings:
+      - match: "{col} IN ('true', 'yes', '1', 'y', 'True', 'Yes', 'TRUE', 'YES')"
+        value: "1"
+      - match: "{col} IN ('false', 'no', '0', 'n', 'False', 'No', 'FALSE', 'NO')"
+        value: "0"
+    default: "0"
+    output_type: UInt8
+
+# ============================================================
+# NUMERIC TRANSFORMATIONS
+# ============================================================
+numeric:
+  # Parse money string to Decimal
+  parse_money:
+    description: "Convert money string ($1,234.56) to Decimal"
+    sql: "CAST(replaceAll(replaceAll(COALESCE({col}, '0'), ',', ''), '$', '') AS Decimal(15, 2))"
+    input_type: String
+    output_type: "Decimal(15, 2)"
+
+  # Parse percentage
+  parse_percentage:
+    description: "Convert percentage string (45.5%) to Decimal"
+    sql: "CAST(replaceAll(COALESCE({col}, '0'), '%', '') AS Decimal(5, 2))"
+    input_type: String
+    output_type: "Decimal(5, 2)"
+
+  # Safe integer conversion
+  safe_int:
+    description: "Convert to Int64 with NULL fallback"
+    sql: "toInt64OrNull({col})"
+    output_type: "Nullable(Int64)"
+
+  # Safe float conversion
+  safe_float:
+    description: "Convert to Float64 with NULL fallback"
+    sql: "toFloat64OrNull({col})"
+    output_type: "Nullable(Float64)"
+
+# ============================================================
+# DATE/TIME TRANSFORMATIONS
+# ============================================================
+datetime:
+  # Parse various date formats
+  parse_date:
+    description: "Parse various date string formats to DateTime64"
+    sql: "parseDateTime64BestEffortOrNull(toString({col}))"
+    output_type: "Nullable(DateTime64(3))"
+
+  # Parse date only (no time)
+  parse_date_only:
+    description: "Parse to Date (no time component)"
+    sql: "toDateOrNull(toString({col}))"
+    output_type: "Nullable(Date)"
+
+  # Parse epoch milliseconds
+  parse_epoch_ms:
+    description: "Convert epoch milliseconds to DateTime"
+    sql: "toDateTime(toInt64OrZero({col}) / 1000)"
+    output_type: DateTime
+
+  # Parse epoch seconds
+  parse_epoch_sec:
+    description: "Convert epoch seconds to DateTime"
+    sql: "toDateTime(toInt64OrZero({col}))"
+    output_type: DateTime
+
+# ============================================================
+# JSON TRANSFORMATIONS
+# ============================================================
+json:
+  # Extract string from JSON
+  json_string:
+    description: "Extract string value from JSON field"
+    sql: "JSONExtractString({col}, '{param}')"
+    params: ["field_name"]
+    output_type: String
+
+  # Extract int from JSON
+  json_int:
+    description: "Extract integer value from JSON field"
+    sql: "JSONExtractInt({col}, '{param}')"
+    params: ["field_name"]
+    output_type: Int64
+
+  # Check if valid JSON
+  is_valid_json:
+    description: "Check if string is valid JSON"
+    sql: "isValidJSON({col})"
+    output_type: UInt8
+
+# ============================================================
+# DEFAULT TRANSFORMS BY TYPE
+# ============================================================
+# These are applied automatically in auto-mode based on column type
+defaults:
+  String: clean_string
+  Nullable(String): clean_string
+  # Date types use parse_date by default if source is String
+  # Numeric types pass through unchanged
+
+# ============================================================
+# TYPE MAPPINGS
+# ============================================================
+# Map Bronze types to Silver types (for schema generation)
+type_mappings:
+  String: String
+  Nullable(String): String
+  Int64: Int64
+  Nullable(Int64): Nullable(Int64)
+  Float64: Float64
+  Nullable(Float64): Nullable(Float64)
+  Date: Date
+  DateTime: DateTime64(3)
+  DateTime64: DateTime64(3)

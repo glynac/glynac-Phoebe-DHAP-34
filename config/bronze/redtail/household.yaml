@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: household_raw
+view: household_raw
 
 metadata:
   description: "Raw Redtail household data from MinIO"

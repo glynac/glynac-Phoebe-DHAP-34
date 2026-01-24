@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: mautic
+view: lead_ips_xref_raw
+
+source:
+  bucket: raw-data
+  path: mautic/lead_ips_xref
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Mautic lead_ips_xref data via sql-extractor"
+tags: [bronze, mautic, lead_ips_xref, sql-extractor, auto-schema]

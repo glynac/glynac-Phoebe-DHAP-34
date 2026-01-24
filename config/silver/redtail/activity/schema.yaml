@@ -1,0 +1,286 @@
+version: "1.0"
+layer: silver
+database: redtail_silver
+table: activity
+
+
+metadata:
+  display_name: "Redtail Activities (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail activity data from Bronze layer.
+    Represents all activity records including tasks, meetings, calls, and other
+    interactions with contacts, tracking status, priority, outcomes, and follow-ups.
+  
+  owner: ai-team
+  domain: redtail
+  tags:
+    - redtail
+    - activities
+    - tasks
+    - meetings
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - subject
+    - description
+    - outcome
+    - location
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.activity_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: activity_id_idx
+      expression: activity_id
+      type: bloom_filter
+      granularity: 1
+    - name: activity_type_idx
+      expression: activity_type
+      type: set
+      granularity: 4
+    - name: category_idx
+      expression: category
+      type: set
+      granularity: 4
+    - name: activity_status_idx
+      expression: activity_status
+      type: set
+      granularity: 4
+    - name: contact_id_idx
+      expression: contact_id
+      type: bloom_filter
+      granularity: 1
+    - name: owner_id_idx
+      expression: owner_id
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Activity identifiers
+  - name: activity_id
+    type: Int32
+    nullable: false
+    description: "Unique activity identifier"
+    example: 98765
+    
+  # Activity classification
+  - name: activity_type
+    type: String
+    nullable: false
+    description: "Type of activity (Meeting, Call, Task, Email, Note)"
+    example: "Meeting"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Activity category"
+    example: "Client Review"
+    
+  - name: subcategory
+    type: String
+    nullable: false
+    description: "Activity subcategory"
+    example: "Quarterly Review"
+    
+  # Activity details
+  - name: subject
+    type: String
+    nullable: false
+    description: "Activity subject/title"
+    pii: true
+    example: "Q4 Portfolio Review with Client"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Detailed activity description"
+    pii: true
+    example: "Review portfolio performance, discuss rebalancing strategy"
+    
+  # Relationships
+  - name: contact_id
+    type: Int32
+    nullable: false
+    description: "Foreign key to contact record"
+    example: 42
+    
+  - name: owner_id
+    type: Int32
+    nullable: false
+    description: "User ID who owns/is responsible for this activity"
+    example: 7
+    
+  # Activity management
+  - name: activity_status
+    type: String
+    nullable: false
+    description: "Current status of activity (Completed, Pending, In Progress, Cancelled, Scheduled)"
+    example: "Completed"
+    
+  - name: status_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized status (completed/pending/in_progress/cancelled/scheduled)"
+    allowed_values: [completed, pending, in_progress, cancelled, scheduled]
+    example: "completed"
+    
+  - name: priority
+    type: String
+    nullable: false
+    description: "Activity priority level (High, Medium, Low, Urgent)"
+    example: "High"
+    
+  - name: priority_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized priority (high/medium/low/urgent)"
+    allowed_values: [high, medium, low, urgent]
+    example: "high"
+    
+  # Activity timing
+  - name: activity_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date and time when activity occurred or is scheduled"
+    example: "2025-11-28 14:00:00.000"
+    
+  - name: duration_minutes
+    type: Int32
+    nullable: false
+    description: "Duration of activity in minutes"
+    example: 60
+    
+  # Activity outcome
+  - name: outcome
+    type: String
+    nullable: false
+    description: "Activity outcome or result"
+    pii: true
+    example: "Client agreed to rebalancing strategy, follow-up in Q1"
+    
+  - name: location
+    type: String
+    nullable: false
+    description: "Location where activity occurred"
+    pii: true
+    example: "Office Conference Room A"
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Activity tags, comma-separated"
+    example: "portfolio, review, Q4"
+    
+  # Follow-up
+  - name: follow_up_required
+    type: UInt8
+    nullable: false
+    description: "Whether follow-up is required (0=No, 1=Yes)"
+    example: 1
+    
+  - name: follow_up_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when follow-up is due"
+    example: "2026-01-15 00:00:00.000"
+    
+  # Notes
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes about the activity"
+    pii: true
+    example: "Client was very pleased with performance, no concerns raised"
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail"
+    example: "2025-11-28 14:00:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail"
+    example: "2025-11-28 16:20:00.000"
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.activity_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

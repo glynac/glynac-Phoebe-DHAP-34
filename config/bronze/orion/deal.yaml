@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: deal_raw
+
+source:
+  bucket: main-data
+  path: orion/deal
+  
+description: "Orion deal data"
+tags:
+  - bronze
+  - orion
+  - deal
+  - auto-schema

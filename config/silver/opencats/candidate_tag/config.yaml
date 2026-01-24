@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Candidate Tag (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS candidate_tag from Bronze to Silver"
+  tags: ["silver", "opencats", "candidate_tag", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: candidate_tag_raw
+
+target:
+  database: opencats_silver
+  table: candidate_tag
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [id DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

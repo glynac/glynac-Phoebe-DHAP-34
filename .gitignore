@@ -12,3 +12,9 @@ extraction/customer_care_emails/logs/
 # Bytecode/cache inside dags
 dags/__pycache__/
 
+# OS
+.DS_Store
+Thumbs.db
+
+BACKFILL_TESTING.md
+DAG_BACKFILL_SUPPORT.md

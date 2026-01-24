@@ -1,0 +1,272 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_payment
+
+
+metadata:
+  display_name: "Orion Finance Payments (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial payment data from Bronze layer.
+    Represents payment transactions with method details, clearance status,
+    and associations to invoices and customers.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_payment
+    - financial
+    - transactions
+    - payments
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - amount
+    - fees
+    - net_amount
+    - external_reference
+    - notes
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_payment_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - payment_id
+  primary_key:
+    - payment_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: payment_status_idx
+      expression: payment_status
+      type: set
+      granularity: 4
+    - name: payment_type_idx
+      expression: payment_type
+      type: set
+      granularity: 4
+    - name: method_idx
+      expression: method
+      type: set
+      granularity: 4
+    - name: customer_id_idx
+      expression: customer_id
+      type: minmax
+      granularity: 2
+    - name: invoice_id_idx
+      expression: invoice_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: payment_id
+    type: String
+    nullable: false
+    description: "Unique payment identifier (primary key)"
+    primary_key: true
+    example: "pay-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Payment classification
+  - name: payment_type
+    type: String
+    nullable: false
+    description: "Type of payment"
+    example: "invoice_payment"
+    
+  - name: payment_status
+    type: String
+    nullable: false
+    description: "Current payment status"
+    example: "completed"
+    
+  - name: method
+    type: String
+    nullable: false
+    description: "Payment method used"
+    example: "wire_transfer"
+    
+  # Reference and description
+  - name: reference
+    type: String
+    nullable: false
+    description: "Payment reference number"
+    example: "PAY-2025-001"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Payment description"
+    example: "Invoice payment for INV-2025-001"
+    
+  - name: external_reference
+    type: String
+    nullable: false
+    description: "External system reference"
+    pii: true
+    example: "TXN-BANK-ABC123"
+    
+  # Financial details
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Payment amount"
+    pii: true
+    example: 25000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: fees
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Processing fees"
+    pii: true
+    example: 25.00
+    
+  - name: net_amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Net amount after fees"
+    pii: true
+    example: 24975.00
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account"
+    example: "acc-def456"
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-ghi789"
+    
+  - name: finance_account_id
+    type: String
+    nullable: false
+    description: "Finance account identifier"
+    example: "fin-acc-jkl012"
+    
+  - name: customer_id
+    type: String
+    nullable: false
+    description: "Customer making payment"
+    example: "cust-mno345"
+    
+  - name: invoice_id
+    type: String
+    nullable: false
+    description: "Associated invoice"
+    example: "inv-pqr678"
+    
+  - name: created_by_id
+    type: String
+    nullable: false
+    description: "User who created the payment record"
+    example: "usr-stu901"
+    
+  - name: verified_by_id
+    type: String
+    nullable: false
+    description: "User who verified the payment"
+    example: "usr-vwx234"
+    
+  # Additional information
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes"
+    pii: true
+    example: "Partial payment - balance to follow"
+    
+  - name: meta_data
+    type: String
+    nullable: false
+    description: "Additional metadata"
+    example: '{"processor":"stripe","transaction_id":"txn_abc123"}'
+    
+  # Dates
+  - name: payment_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when payment was made"
+    example: "2025-01-15 00:00:00.000"
+    
+  - name: cleared_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when payment cleared"
+    example: "2025-01-17 00:00:00.000"
+    
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2025-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-17 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-17"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-17 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-17 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_payment_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-17 14:30:22.123"

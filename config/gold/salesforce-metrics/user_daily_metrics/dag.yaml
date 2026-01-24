@@ -1,0 +1,27 @@
+# Gold: Salesforce User Daily Metrics
+# Auto-detects dependency from query.sql: silver.salesforce_user
+
+dag_id: gold_salesforce_user_daily_metrics
+description: "Daily aggregated user metrics from Salesforce"
+
+schedule_interval: dataset  # Auto-detects from query.sql (silver.salesforce_user)
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - salesforce
+  - metrics
+  - daily
+  - auto-dependency
+
+task:
+  task_type: clickhouse_transformation
+
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
+
+execution_timeout: 1800

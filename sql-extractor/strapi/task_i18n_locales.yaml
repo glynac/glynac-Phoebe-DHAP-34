@@ -1,0 +1,10 @@
+# Strapi i18n Locales Table Extraction
+# Internationalization locale settings
+
+task_id: extract_i18n_locales
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "i18n_locales"
+  OUTPUT_PREFIX: "strapi/i18n_locales"
+  INCREMENTAL_MODE: "false"

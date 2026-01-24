@@ -1,0 +1,37 @@
+# Silver Layer - OpenCATS Access Level (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform OpenCATS access_level from Bronze to Silver"
+  tags: ["silver", "opencats", "access_level", "auto-mode", "single-tenant"]
+
+source:
+  database: opencats
+  table: access_level_raw
+
+target:
+  database: opencats_silver
+  table: access_level
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+dedupe:
+  partition_by: [access_level_id, partition]
+  order_by: [access_level_id DESC]
+
+filters:
+  - "access_level_id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

@@ -1,0 +1,308 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_INVESTMENT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(investment_id IS NULL) as null_investment_id,
+        countIf(investment_id = '') as empty_investment_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(investment_status IS NULL) as null_investment_status,
+        countIf(investment_status = '') as empty_investment_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_investment_id: 0
+      empty_investment_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_investment_status: 0
+      empty_investment_status: 0
+      null_processing_date: 0
+  
+  - name: investment_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "investment_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT investment_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY investment_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_investments_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver investments should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_investments
+      FROM orion_silver.investment s
+      LEFT JOIN orion.investment_raw b
+        ON s.investment_id = b.investment_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.investment_id IS NULL
+    expect:
+      orphaned_investments: 0
+  
+  - name: valid_is_tax_advantaged_values
+    type: accepted_values
+    description: "is_tax_advantaged must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_tax_advantaged NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: account_id_not_empty
+    type: assertion
+    description: "Account ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (account_id IS NULL OR account_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: portfolio_id_not_empty
+    type: assertion
+    description: "Portfolio ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (portfolio_id IS NULL OR portfolio_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: asset_id_not_empty
+    type: assertion
+    description: "Asset ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (asset_id IS NULL OR asset_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_positive
+    type: assertion
+    description: "Investment amount should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: quantity_positive
+    type: assertion
+    description: "Quantity should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND quantity <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: purchase_price_positive
+    type: assertion
+    description: "Purchase price should be positive"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND purchase_price <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: current_price_non_negative
+    type: assertion
+    description: "Current price should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND current_price < 0
+    expect:
+      invalid_count: 0
+  
+  - name: current_value_non_negative
+    type: assertion
+    description: "Current value should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND current_value < 0
+    expect:
+      invalid_count: 0
+  
+  - name: amount_calculation_reasonable
+    type: assertion
+    description: "Amount should equal quantity times purchase price"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND quantity > 0
+        AND purchase_price > 0
+        AND abs((quantity * purchase_price) - amount) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: current_value_calculation_reasonable
+    type: assertion
+    description: "Current value should equal quantity times current price"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND quantity > 0
+        AND current_price > 0
+        AND abs((quantity * current_price) - current_value) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: gain_loss_calculation_reasonable
+    type: assertion
+    description: "Gain/loss should equal current value minus amount"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND abs((current_value - amount) - gain_loss) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: gain_loss_percentage_calculation
+    type: assertion
+    description: "Gain/loss percentage should match calculation"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount > 0
+        AND abs(((gain_loss / amount) * 100) - gain_loss_percentage) > 0.10
+    expect:
+      invalid_count: 0
+  
+  - name: yield_rate_valid_range
+    type: assertion
+    description: "Yield rate should be between -100 and 100%"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND yield_rate != 0
+        AND (yield_rate < -100 OR yield_rate > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: purchase_date_not_future
+    type: assertion
+    description: "Purchase date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND purchase_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: maturity_after_purchase
+    type: assertion
+    description: "Maturity date should be after purchase date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND purchase_date IS NOT NULL
+        AND maturity_date IS NOT NULL
+        AND maturity_date <= purchase_date
+    expect:
+      invalid_count: 0
+  
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0
+  
+  - name: investment_type_not_empty
+    type: assertion
+    description: "Investment type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.investment
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (investment_type IS NULL OR investment_type = '')
+    expect:
+      invalid_count: 0

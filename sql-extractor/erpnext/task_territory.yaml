@@ -1,0 +1,10 @@
+# ERPNext Territory Table Extraction
+# Geographic territories
+
+task_id: extract_territory
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabTerritory"
+  OUTPUT_PREFIX: "erpnext/territory"
+  INCREMENTAL_MODE: "false"

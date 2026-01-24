@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: salesforce
-table: contact_raw
+view: contact_raw
 
 source:
   type: minio

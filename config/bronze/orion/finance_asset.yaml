@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: finance_asset_raw
+
+source:
+  bucket: main-data
+  path: orion/finance_asset
+  
+description: "Orion finance_asset data"
+tags:
+  - bronze
+  - orion
+  - finance_asset
+  - auto-schema

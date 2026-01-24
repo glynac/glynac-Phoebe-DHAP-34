@@ -1,0 +1,259 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_EXPENSE
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(expense_id IS NULL) as null_expense_id,
+        countIf(expense_id = '') as empty_expense_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(expense_status IS NULL) as null_expense_status,
+        countIf(expense_status = '') as empty_expense_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_expense_id: 0
+      empty_expense_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_expense_status: 0
+      empty_expense_status: 0
+      null_processing_date: 0
+  
+  - name: expense_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "expense_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT expense_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY expense_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_expenses_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver expenses should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_expenses
+      FROM orion_silver.expense s
+      LEFT JOIN orion.expense_raw b
+        ON s.expense_id = b.expense_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.expense_id IS NULL
+    expect:
+      orphaned_expenses: 0
+  
+  - name: valid_reimbursable_values
+    type: accepted_values
+    description: "reimbursable must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND reimbursable NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_reimbursed_values
+    type: accepted_values
+    description: "reimbursed must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND reimbursed NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_billable_values
+    type: accepted_values
+    description: "billable must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND billable NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_billed_values
+    type: accepted_values
+    description: "billed must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND billed NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: amount_non_negative
+    type: assertion
+    description: "Expense amount should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount < 0
+    expect:
+      invalid_count: 0
+  
+  - name: tax_non_negative
+    type: assertion
+    description: "Tax amount should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND tax < 0
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+  
+  - name: submitted_by_not_empty
+    type: assertion
+    description: "Submitted by ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (submitted_by_id IS NULL OR submitted_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: expense_date_not_future
+    type: assertion
+    description: "Expense date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND expense_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: submission_after_expense
+    type: assertion
+    description: "Submission date should be after or equal to expense date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND expense_date IS NOT NULL
+        AND submission_date IS NOT NULL
+        AND submission_date < expense_date
+    expect:
+      invalid_count: 0
+  
+  - name: approval_after_submission
+    type: assertion
+    description: "Approval date should be after or equal to submission date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND submission_date IS NOT NULL
+        AND approval_date IS NOT NULL
+        AND approval_date < submission_date
+    expect:
+      invalid_count: 0
+  
+  - name: approved_expenses_have_approver
+    type: assertion
+    description: "Approved expenses should have approver ID"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND expense_status IN ('approved', 'reimbursed')
+        AND (approved_by_id IS NULL OR approved_by_id = '')
+    expect:
+      invalid_count: 0
+  
+  - name: approved_expenses_have_approval_date
+    type: assertion
+    description: "Approved expenses should have approval date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND expense_status IN ('approved', 'reimbursed')
+        AND approval_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: reimbursed_must_be_reimbursable
+    type: assertion
+    description: "Reimbursed expenses must be reimbursable"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND reimbursed = 1
+        AND reimbursable = 0
+    expect:
+      invalid_count: 0
+  
+  - name: billed_must_be_billable
+    type: assertion
+    description: "Billed expenses must be billable"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND billed = 1
+        AND billable = 0
+    expect:
+      invalid_count: 0
+  
+  - name: billable_has_customer
+    type: assertion
+    description: "Billable expenses should have customer ID"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.expense
+      WHERE processing_date = toDate('{{ ds }}')
+        AND billable = 1
+        AND (customer_id IS NULL OR customer_id = '')
+    expect:
+      invalid_count: 0

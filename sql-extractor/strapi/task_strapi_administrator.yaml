@@ -1,0 +1,10 @@
+# Strapi Administrator Table Extraction
+# Strapi admin users
+
+task_id: extract_strapi_administrator
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "strapi_administrator"
+  OUTPUT_PREFIX: "strapi/strapi_administrator"
+  INCREMENTAL_MODE: "false"

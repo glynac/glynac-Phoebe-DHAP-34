@@ -22,3 +22,4 @@ tests:
       WHERE metric_date = toDate('{{ ds }}')
     expect:
       mismatch: 0
+      

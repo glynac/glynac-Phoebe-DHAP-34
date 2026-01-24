@@ -1,0 +1,12 @@
+# Mautic Reports Table Extraction
+# Report definitions and configurations
+
+task_id: extract_reports
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "reports"
+  OUTPUT_PREFIX: "mautic/reports"
+  PARTITION_COLUMN: "date_added"
+  PARTITION_FORMAT: "%Y-%m-%d"
+  INCREMENTAL_MODE: "false"

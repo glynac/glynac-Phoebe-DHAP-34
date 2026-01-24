@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: nexterp
+view: sales_partner_type_raw
+
+source:
+  bucket: raw-data
+  path: erpnext/sales_partner_type
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw ERPNext sales_partner_type data via sql-extractor"
+tags: [bronze, erpnext, sales_partner_type, sql-extractor, auto-schema]

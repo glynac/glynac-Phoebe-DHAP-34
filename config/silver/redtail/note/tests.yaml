@@ -1,0 +1,186 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_NOTE
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(note_id IS NULL) as null_note_id,
+        countIf(note_id = 0) as zero_note_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date,
+        countIf(contact_id = 0) as zero_contact_id,
+        countIf(created_by = 0) as zero_created_by
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_note_id: 0
+      zero_note_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+      zero_contact_id: 0
+      zero_created_by: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: note_id_unique_per_partition
+    type: uniqueness
+    description: "note_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT note_id, processing_date, count() as cnt
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY note_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_notes_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver notes should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_notes
+      FROM silver.redtail_note s
+      LEFT JOIN redtail.note_raw b
+        ON s.rec_id = b.note_rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.note_rec_id IS NULL
+    expect:
+      orphaned_notes: 0
+  
+  - name: title_or_content_present
+    type: assertion
+    description: "At least title or content should be present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND title = ''
+        AND content = ''
+    expect:
+      invalid_count: 0
+  
+  - name: content_present_for_notes
+    type: assertion
+    description: "Notes should typically have content"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND content = ''
+    expect:
+      invalid_count: 0
+  
+  - name: title_reasonable_length
+    type: assertion
+    description: "Title should have reasonable length (< 500 chars)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND length(title) > 500
+    expect:
+      invalid_count: 0
+  
+  - name: content_reasonable_length
+    type: assertion
+    description: "Content should have reasonable length (< 1MB)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND length(content) > 1000000
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_note_types
+    type: accepted_values
+    description: "Note type should be valid"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND note_type != ''
+        AND note_type NOT IN ('General', 'Meeting', 'Call', 'Contact', 'Task', 'Client', 'Internal', 'Follow-up', 'Research')
+    expect:
+      invalid_count: 0
+  
+  - name: pinned_notes_have_title
+    type: assertion
+    description: "Pinned notes should have a title"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_pinned = true
+        AND title = ''
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_not_future
+    type: assertion
+    description: "Record add date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add > now()
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_reasonable
+    type: assertion
+    description: "Record add date should be reasonable (within last 20 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_note
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_add < now() - INTERVAL 20 YEAR
+    expect:
+      invalid_count: 0

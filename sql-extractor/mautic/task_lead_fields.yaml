@@ -1,0 +1,10 @@
+# Mautic Lead Fields Table Extraction
+# Custom field definitions for leads
+
+task_id: extract_lead_fields
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "lead_fields"
+  OUTPUT_PREFIX: "mautic/lead_fields"
+  INCREMENTAL_MODE: "false"

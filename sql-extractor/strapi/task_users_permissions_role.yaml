@@ -1,0 +1,10 @@
+# Strapi Users-Permissions Role Table Extraction
+# Role definitions for users
+
+task_id: extract_users_permissions_role
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "users-permissions_role"
+  OUTPUT_PREFIX: "strapi/users_permissions_role"
+  INCREMENTAL_MODE: "false"

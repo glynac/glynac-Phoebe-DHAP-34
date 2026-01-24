@@ -1,0 +1,10 @@
+# OpenCATS Settings Table Extraction
+# System settings and configurations
+
+task_id: extract_settings
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "settings"
+  OUTPUT_PREFIX: "opencats/settings"
+  INCREMENTAL_MODE: "false"

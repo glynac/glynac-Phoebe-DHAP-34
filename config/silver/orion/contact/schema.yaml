@@ -1,0 +1,230 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: contact
+
+
+metadata:
+  display_name: "Orion Contacts (Cleaned)"
+  description: |
+    Cleaned and transformed Orion contact data from Bronze layer.
+    Represents individual contacts associated with customers in the Orion CRM,
+    including personal information, communication details, and relationship data.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - contact
+    - crm
+    - people
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - first_name
+    - last_name
+    - email
+    - phone
+    - mobile
+    - address
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.contact_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - contact_id
+  primary_key:
+    - contact_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: contact_status_idx
+      expression: contact_status
+      type: set
+      granularity: 4
+    - name: customer_id_idx
+      expression: customer_id
+      type: minmax
+      granularity: 2
+    - name: owner_id_idx
+      expression: owner_id
+      type: minmax
+      granularity: 2
+    - name: is_primary_contact_idx
+      expression: is_primary_contact
+      type: set
+      granularity: 4
+
+columns:
+  - name: contact_id
+    type: String
+    nullable: false
+    description: "Unique contact identifier (primary key)"
+    primary_key: true
+    example: "cnt-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Contact type
+  - name: contact_type
+    type: String
+    nullable: false
+    description: "Type/category of contact"
+    example: "lead"
+    
+  # Personal information (PII)
+  - name: first_name
+    type: String
+    nullable: false
+    description: "Contact's first name"
+    pii: true
+    example: "John"
+    
+  - name: last_name
+    type: String
+    nullable: false
+    description: "Contact's last name"
+    pii: true
+    example: "Doe"
+    
+  - name: email
+    type: String
+    nullable: false
+    description: "Contact's email address"
+    pii: true
+    example: "john.doe@example.com"
+    
+  - name: phone
+    type: String
+    nullable: false
+    description: "Primary phone number"
+    pii: true
+    example: "+1-555-0100"
+    
+  - name: mobile
+    type: String
+    nullable: false
+    description: "Mobile phone number"
+    pii: true
+    example: "+1-555-0101"
+    
+  # Professional information
+  - name: job_title
+    type: String
+    nullable: false
+    description: "Job title/position"
+    example: "Chief Technology Officer"
+    
+  - name: department
+    type: String
+    nullable: false
+    description: "Department name"
+    example: "Engineering"
+    
+  # Relationships
+  - name: customer_id
+    type: String
+    nullable: false
+    description: "Foreign key to customer/account"
+    example: "cust-xyz456"
+    
+  - name: owner_id
+    type: String
+    nullable: false
+    description: "ID of the user who owns this contact"
+    example: "usr-abc789"
+    
+  # Status and source
+  - name: contact_status
+    type: String
+    nullable: false
+    description: "Current contact status"
+    example: "active"
+    
+  - name: lead_source
+    type: String
+    nullable: false
+    description: "Source where this lead/contact originated"
+    example: "website"
+    
+  # Flags
+  - name: is_primary_contact
+    type: UInt8
+    nullable: false
+    description: "Whether this is the primary contact for the customer (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  # Address (PII)
+  - name: address
+    type: String
+    nullable: false
+    description: "Physical address"
+    pii: true
+    example: "123 Main St, San Francisco, CA 94105"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Contact creation date"
+    example: "2024-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-05 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-05"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-05 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-05 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.contact_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-05 14:30:22.123"

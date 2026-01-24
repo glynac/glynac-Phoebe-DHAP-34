@@ -1,0 +1,10 @@
+# OpenCATS Site Table Extraction
+# Site/tenant configurations
+
+task_id: extract_site
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "site"
+  OUTPUT_PREFIX: "opencats/site"
+  INCREMENTAL_MODE: "false"

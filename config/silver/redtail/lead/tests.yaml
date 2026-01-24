@@ -1,0 +1,265 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_LEAD
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(lead_id IS NULL) as null_lead_id,
+        countIf(lead_id = 0) as zero_lead_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date,
+        countIf(assigned_to = 0) as zero_assigned_to
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_lead_id: 0
+      zero_lead_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+      zero_assigned_to: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: lead_id_unique_per_partition
+    type: uniqueness
+    description: "lead_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT lead_id, processing_date, count() as cnt
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY lead_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_leads_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver leads should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_leads
+      FROM silver.redtail_lead s
+      LEFT JOIN redtail.lead_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_leads: 0
+  
+  - name: valid_status_normalized
+    type: accepted_values
+    description: "status_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized NOT IN ('new', 'contacted', 'qualified', 'unqualified', 'converted', 'closed')
+    expect:
+      invalid_count: 0
+  
+  - name: valid_rating_normalized
+    type: accepted_values
+    description: "rating_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rating_normalized NOT IN ('hot', 'warm', 'cold', 'unknown')
+    expect:
+      invalid_count: 0
+  
+  - name: name_fields_present
+    type: assertion
+    description: "At least one name field should be present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND first_name = ''
+        AND last_name = ''
+        AND full_name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: contact_info_present
+    type: assertion
+    description: "At least email or phone should be present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email = ''
+        AND phone_number = ''
+    expect:
+      invalid_count: 0
+  
+  - name: email_format_valid
+    type: assertion
+    description: "Email should contain @ symbol when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND email NOT LIKE '%@%'
+    expect:
+      invalid_count: 0
+  
+  - name: converted_date_when_converted
+    type: assertion
+    description: "When converted_to_prospect=true, should have converted_date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND converted_to_prospect = true
+        AND converted_date IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: converted_date_not_future
+    type: assertion
+    description: "Converted date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND converted_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: converted_date_after_rec_add
+    type: assertion
+    description: "Converted date should be after record creation"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND converted_date IS NOT NULL
+        AND converted_date < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: converted_status_consistency
+    type: assertion
+    description: "Converted leads should have status='converted'"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND converted_to_prospect = true
+        AND status_normalized != 'converted'
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_lead_sources
+    type: accepted_values
+    description: "Lead source should be valid"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND source != ''
+        AND source NOT IN ('Website', 'Referral', 'Event', 'Cold Call', 'Email Campaign', 'Social Media', 'Partner', 'Advertisement', 'Trade Show', 'Direct Mail')
+    expect:
+      invalid_count: 0
+  
+  - name: hot_leads_not_closed
+    type: assertion
+    description: "Hot leads should typically not be closed without conversion"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rating_normalized = 'hot'
+        AND status_normalized = 'closed'
+        AND converted_to_prospect = false
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_reasonable
+    type: assertion
+    description: "Record add date should be reasonable (within last 20 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_add < now() - INTERVAL 20 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_not_future
+    type: assertion
+    description: "Record add date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add > now()
+    expect:
+      invalid_count: 0
+  
+  - name: phone_number_format_valid
+    type: assertion
+    description: "Phone number should have reasonable length when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_lead
+      WHERE processing_date = toDate('{{ ds }}')
+        AND phone_number != ''
+        AND (length(phone_number) < 7 OR length(phone_number) > 20)
+    expect:
+      invalid_count: 0

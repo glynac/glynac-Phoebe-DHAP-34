@@ -1,0 +1,15 @@
+version: "1.0"
+layer: bronze
+database: orion
+view: organization_raw
+
+source:
+  bucket: main-data
+  path: orion/organization
+  
+description: "Orion organization data"
+tags:
+  - bronze
+  - orion
+  - organization
+  - auto-schema

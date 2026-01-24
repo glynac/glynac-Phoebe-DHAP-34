@@ -1,0 +1,10 @@
+# Strapi Users Roles Table Extraction
+# User-to-role assignments
+
+task_id: extract_strapi_users_roles
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "strapi_users_roles"
+  OUTPUT_PREFIX: "strapi/strapi_users_roles"
+  INCREMENTAL_MODE: "false"

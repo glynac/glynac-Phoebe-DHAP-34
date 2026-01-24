@@ -1,0 +1,43 @@
+# Silver Layer - Mautic Roles (AUTO MODE)
+version: "1.0"
+single_tenant: true
+
+dag:
+  description: "Transform Mautic roles from Bronze to Silver"
+  tags: ["silver", "mautic", "roles", "auto-mode", "single-tenant"]
+
+source:
+  database: mautic
+  table: roles_raw
+
+target:
+  database: mautic_silver
+  table: roles
+
+task:
+  incremental:
+    partition_column: partition
+
+clickhouse:
+  partition_by: toYYYYMM(partition)
+  ttl: "partition + INTERVAL 730 DAY"
+
+transforms:
+  name:
+    transform: clean_string
+  description:
+    transform: clean_string
+
+dedupe:
+  partition_by: [id, partition]
+  order_by: [id DESC]
+
+filters:
+  - "id IS NOT NULL"
+
+lookback_days: 90
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error

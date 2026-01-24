@@ -5,21 +5,19 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: account_raw
+view: account_raw
 
 source:
   type: minio
   bucket: main-data
   path: redtail/account
   format: orc
-  
   # Hive-style partitions from Flink
   partitions:
     - name: glynac_organization_id
       type: String
       required: true
       description: "Organization identifier for data isolation"
-      
     - name: processing_date
       type: Date
       required: true
@@ -81,6 +79,18 @@ schema:
       nullable: false
       description: "Type of message (typically 'batch_data')"
       source: orc
+
+    - name: glynac_organization_id
+      type: String
+      nullable: false
+      description: "Organization identifier for data isolation"
+      source: partition
+      
+    - name: processing_date
+      type: Date
+      nullable: false
+      description: "Date when data was processed"
+      source: partition
 
     - name: rec_id
       type: Int32

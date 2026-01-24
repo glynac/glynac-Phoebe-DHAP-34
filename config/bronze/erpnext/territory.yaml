@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: nexterp
+view: territory_raw
+
+source:
+  bucket: raw-data
+  path: erpnext/territory
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw ERPNext territory data via sql-extractor"
+tags: [bronze, erpnext, territory, sql-extractor, auto-schema]

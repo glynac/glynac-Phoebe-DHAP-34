@@ -1,0 +1,198 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_TRANSACTION
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(account_id IS NULL) as null_account_id,
+        countIf(account_id = 0) as zero_account_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(transaction_number = '') as empty_transaction_number,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_account_id: 0
+      zero_account_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      empty_transaction_number: 0
+      null_processing_date: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: transaction_number_unique_per_partition
+    type: uniqueness
+    description: "transaction_number should be unique per processing_date"
+    severity: error
+    query: |
+      SELECT transaction_number, processing_date, count() as cnt
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_number != ''
+      GROUP BY transaction_number, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_transactions_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver transactions should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_transactions
+      FROM silver.redtail_transaction s
+      LEFT JOIN redtail.transaction_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_transactions: 0
+  
+  - name: valid_is_active_values
+    type: accepted_values
+    description: "is_active must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_active NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_status_normalized
+    type: accepted_values
+    description: "status_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized NOT IN ('completed', 'pending', 'failed', 'cancelled')
+    expect:
+      invalid_count: 0
+  
+  - name: amount_non_zero
+    type: assertion
+    description: "Transaction amount should not be zero"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND amount = 0
+    expect:
+      invalid_count: 0
+  
+  - name: fees_non_negative
+    type: assertion
+    description: "Fees should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND fees < 0
+    expect:
+      invalid_count: 0
+  
+  - name: quantity_positive_for_trades
+    type: assertion
+    description: "Quantity should be positive for buy/sell transactions"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_type IN ('Buy', 'Sell')
+        AND quantity <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: price_per_unit_positive_for_trades
+    type: assertion
+    description: "Price per unit should be positive for buy/sell transactions"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_type IN ('Buy', 'Sell')
+        AND price_per_unit <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: settlement_date_after_transaction_date
+    type: assertion
+    description: "Settlement date should be on or after transaction date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_date IS NOT NULL
+        AND settlement_date IS NOT NULL
+        AND settlement_date < transaction_date
+    expect:
+      invalid_count: 0
+  
+  - name: transaction_date_not_future
+    type: assertion
+    description: "Transaction date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND transaction_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_currency_codes
+    type: accepted_values
+    description: "Currency codes should be valid 3-letter codes"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_transaction
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0

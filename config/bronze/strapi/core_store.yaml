@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: strapi
+view: core_store_raw
+
+source:
+  bucket: raw-data
+  path: strapi/core_store
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw Strapi core_store data via sql-extractor"
+tags: [bronze, strapi, core_store, sql-extractor, auto-schema]

@@ -1,0 +1,283 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_revenue
+
+
+metadata:
+  display_name: "Orion Finance Revenue (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial revenue data from Bronze layer.
+    Represents revenue recognition with margin analysis, cost tracking,
+    and associations to invoices, payments, and deals.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_revenue
+    - financial
+    - accounting
+    - revenue_recognition
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - amount
+    - tax
+    - cost_of_sales
+    - margin
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_revenue_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - revenue_id
+  primary_key:
+    - revenue_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: revenue_status_idx
+      expression: revenue_status
+      type: set
+      granularity: 4
+    - name: revenue_type_idx
+      expression: revenue_type
+      type: set
+      granularity: 4
+    - name: category_idx
+      expression: category
+      type: set
+      granularity: 4
+    - name: customer_id_idx
+      expression: customer_id
+      type: minmax
+      granularity: 2
+    - name: invoice_id_idx
+      expression: invoice_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: revenue_id
+    type: String
+    nullable: false
+    description: "Unique revenue identifier (primary key)"
+    primary_key: true
+    example: "rev-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+    
+  # Revenue classification
+  - name: revenue_type
+    type: String
+    nullable: false
+    description: "Type of revenue"
+    example: "product_sales"
+    
+  - name: category
+    type: String
+    nullable: false
+    description: "Revenue category"
+    example: "software_licenses"
+    
+  - name: revenue_status
+    type: String
+    nullable: false
+    description: "Current revenue status"
+    example: "recognized"
+    
+  # Reference and description
+  - name: reference
+    type: String
+    nullable: false
+    description: "Revenue reference number"
+    example: "REV-2025-001"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Revenue description"
+    example: "Q1 2025 software license revenue"
+    
+  # Financial details
+  - name: amount
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Revenue amount"
+    pii: true
+    example: 50000.00
+    
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+    
+  - name: tax
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Tax amount"
+    pii: true
+    example: 4000.00
+    
+  - name: cost_of_sales
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Cost of sales"
+    pii: true
+    example: 15000.00
+    
+  - name: margin
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Profit margin"
+    pii: true
+    example: 35000.00
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account/GL code"
+    example: "acc-def456"
+    
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier"
+    example: "org-ghi789"
+    
+  - name: finance_account_id
+    type: String
+    nullable: false
+    description: "Finance account identifier"
+    example: "fin-acc-jkl012"
+    
+  - name: customer_id
+    type: String
+    nullable: false
+    description: "Customer associated with revenue"
+    example: "cust-mno345"
+    
+  - name: invoice_id
+    type: String
+    nullable: false
+    description: "Associated invoice"
+    example: "inv-pqr678"
+    
+  - name: payment_id
+    type: String
+    nullable: false
+    description: "Associated payment"
+    example: "pay-stu901"
+    
+  - name: deal_id
+    type: String
+    nullable: false
+    description: "Associated deal"
+    example: "deal-vwx234"
+    
+  - name: created_by_id
+    type: String
+    nullable: false
+    description: "User who created the record"
+    example: "usr-yza567"
+    
+  - name: approved_by_id
+    type: String
+    nullable: false
+    description: "User who approved the revenue"
+    example: "usr-bcd890"
+    
+  # Recognition details
+  - name: recognition_model
+    type: String
+    nullable: false
+    description: "Revenue recognition model"
+    example: "point_in_time"
+    
+  - name: recognition_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when revenue was recognized"
+    example: "2025-01-15 00:00:00.000"
+    
+  # Additional information
+  - name: notes
+    type: String
+    nullable: false
+    description: "Additional notes"
+    example: "Deferred revenue from multi-year contract"
+    
+  - name: tags
+    type: String
+    nullable: false
+    description: "Classification tags"
+    example: "recurring,subscription"
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2025-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-20 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-20"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-20 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-20 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_revenue_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-20 14:30:22.123"

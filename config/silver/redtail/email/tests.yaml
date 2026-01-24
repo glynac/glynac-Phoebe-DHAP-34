@@ -1,0 +1,340 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_EMAIL
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(email_id IS NULL) as null_email_id,
+        countIf(email_id = 0) as zero_email_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date,
+        countIf(contact_id = 0) as zero_contact_id,
+        countIf(sent_by = 0) as zero_sent_by
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_email_id: 0
+      zero_email_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+      zero_contact_id: 0
+      zero_sent_by: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: email_id_unique_per_partition
+    type: uniqueness
+    description: "email_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT email_id, processing_date, count() as cnt
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY email_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_emails_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver emails should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_emails
+      FROM silver.redtail_email s
+      LEFT JOIN redtail.email_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_emails: 0
+  
+  - name: valid_status_normalized
+    type: accepted_values
+    description: "status_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized NOT IN ('sent', 'delivered', 'bounced', 'failed', 'draft', 'queued', 'unknown')
+    expect:
+      invalid_count: 0
+  
+  - name: from_address_format_valid
+    type: assertion
+    description: "From address should contain @ symbol when present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND from_address != ''
+        AND from_address NOT LIKE '%@%'
+    expect:
+      invalid_count: 0
+  
+  - name: to_addresses_format_valid
+    type: assertion
+    description: "To addresses should contain @ symbol when present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND to_addresses != ''
+        AND to_addresses NOT LIKE '%@%'
+    expect:
+      invalid_count: 0
+  
+  - name: sent_date_not_future
+    type: assertion
+    description: "Sent date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND sent_date > now()
+    expect:
+      invalid_count: 0
+  
+  - name: sent_date_reasonable
+    type: assertion
+    description: "Sent date should be reasonable (within last 20 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND sent_date IS NOT NULL
+        AND sent_date < now() - INTERVAL 20 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: delivered_date_after_sent
+    type: assertion
+    description: "Delivered date should be after sent date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND sent_date IS NOT NULL
+        AND delivered_date IS NOT NULL
+        AND delivered_date < sent_date
+    expect:
+      invalid_count: 0
+  
+  - name: read_date_after_delivered
+    type: assertion
+    description: "Read date should be after delivered date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND delivered_date IS NOT NULL
+        AND read_date IS NOT NULL
+        AND read_date < delivered_date
+    expect:
+      invalid_count: 0
+  
+  - name: read_date_requires_is_read
+    type: assertion
+    description: "When read_date exists, is_read should be true"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND read_date IS NOT NULL
+        AND is_read = false
+    expect:
+      invalid_count: 0
+  
+  - name: open_count_non_negative
+    type: assertion
+    description: "Open count should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND open_count < 0
+    expect:
+      invalid_count: 0
+  
+  - name: click_count_non_negative
+    type: assertion
+    description: "Click count should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND click_count < 0
+    expect:
+      invalid_count: 0
+  
+  - name: open_count_reasonable
+    type: assertion
+    description: "Open count should be reasonable (< 1000)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND open_count > 1000
+    expect:
+      invalid_count: 0
+  
+  - name: click_count_reasonable
+    type: assertion
+    description: "Click count should be reasonable (< 500)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND click_count > 500
+    expect:
+      invalid_count: 0
+  
+  - name: clicks_require_opens
+    type: assertion
+    description: "Click count should not exceed open count"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND click_count > open_count
+    expect:
+      invalid_count: 0
+  
+  - name: attachments_count_non_negative
+    type: assertion
+    description: "Attachments count should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND attachments_count < 0
+    expect:
+      invalid_count: 0
+  
+  - name: has_attachments_consistency
+    type: assertion
+    description: "has_attachments should be true when attachments_count > 0"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND attachments_count > 0
+        AND has_attachments = false
+    expect:
+      invalid_count: 0
+  
+  - name: attachments_count_reasonable
+    type: assertion
+    description: "Attachments count should be reasonable (< 50)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND attachments_count > 50
+    expect:
+      invalid_count: 0
+  
+  - name: subject_present_for_sent
+    type: assertion
+    description: "Sent emails should have a subject"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized IN ('sent', 'delivered')
+        AND subject = ''
+    expect:
+      invalid_count: 0
+  
+  - name: body_present_for_sent
+    type: assertion
+    description: "Sent emails should have body content (text or HTML)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized IN ('sent', 'delivered')
+        AND body_text = ''
+        AND body_html = ''
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: bounced_emails_not_read
+    type: assertion
+    description: "Bounced emails should not be marked as read"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'bounced'
+        AND is_read = true
+    expect:
+      invalid_count: 0
+  
+  - name: draft_emails_not_sent
+    type: assertion
+    description: "Draft emails should not have sent_date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'draft'
+        AND sent_date IS NOT NULL
+    expect:
+      invalid_count: 0

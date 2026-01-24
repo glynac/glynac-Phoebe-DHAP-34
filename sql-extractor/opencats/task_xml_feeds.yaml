@@ -1,0 +1,10 @@
+# OpenCATS XML Feeds Table Extraction
+# XML feed configurations
+
+task_id: extract_xml_feeds
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "xml_feeds"
+  OUTPUT_PREFIX: "opencats/xml_feeds"
+  INCREMENTAL_MODE: "false"

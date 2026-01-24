@@ -1,0 +1,10 @@
+# ERPNext Customer Group Table Extraction
+# Customer segmentation
+
+task_id: extract_customer_group
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "tabCustomer Group"
+  OUTPUT_PREFIX: "erpnext/customer_group"
+  INCREMENTAL_MODE: "false"

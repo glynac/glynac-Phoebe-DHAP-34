@@ -1,0 +1,283 @@
+version: "1.0"
+layer: silver
+database: redtail_silver
+table: email
+
+
+metadata:
+  display_name: "Redtail Emails (Cleaned)"
+  description: |
+    Cleaned and transformed Redtail email data from Bronze layer.
+    Represents all email communications including sender/recipient addresses,
+    subject, body content (text/HTML), status, engagement metrics, and attachments.
+  
+  owner: ai-team
+  domain: redtail
+  tags:
+    - redtail
+    - emails
+    - communications
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - from_address
+    - to_addresses
+    - cc_addresses
+    - bcc_addresses
+    - subject
+    - body_text
+    - body_html
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - redtail.email_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - rec_id
+  primary_key:
+    - rec_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: email_status_idx
+      expression: email_status
+      type: set
+      granularity: 4
+    - name: contact_id_idx
+      expression: contact_id
+      type: bloom_filter
+      granularity: 1
+    - name: sent_by_idx
+      expression: sent_by
+      type: bloom_filter
+      granularity: 1
+    - name: from_address_idx
+      expression: from_address
+      type: bloom_filter
+      granularity: 1
+    - name: subject_idx
+      expression: subject
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: rec_id
+    type: Int32
+    nullable: false
+    description: "Redtail internal record ID (primary key)"
+    primary_key: true
+    example: 12345
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  # Email identifiers
+  - name: email_id
+    type: Int32
+    nullable: false
+    description: "Unique email identifier"
+    example: 98765
+    
+  # Email addresses
+  - name: from_address
+    type: String
+    nullable: false
+    description: "Sender email address"
+    pii: true
+    example: "advisor@example.com"
+    
+  - name: to_addresses
+    type: String
+    nullable: false
+    description: "Recipient email addresses, comma-separated"
+    pii: true
+    example: "client1@example.com, client2@example.com"
+    
+  - name: cc_addresses
+    type: String
+    nullable: false
+    description: "CC email addresses, comma-separated"
+    pii: true
+    example: "colleague@example.com"
+    
+  - name: bcc_addresses
+    type: String
+    nullable: false
+    description: "BCC email addresses, comma-separated"
+    pii: true
+    example: "manager@example.com"
+    
+  # Email content
+  - name: subject
+    type: String
+    nullable: false
+    description: "Email subject line"
+    pii: true
+    example: "Your Q4 2025 Portfolio Performance Report"
+    
+  - name: body_text
+    type: String
+    nullable: false
+    description: "Email body in plain text format"
+    pii: true
+    example: "Dear Client, Please find attached your quarterly report..."
+    
+  - name: body_html
+    type: String
+    nullable: false
+    description: "Email body in HTML format"
+    pii: true
+    example: "<html><body><p>Dear Client...</p></body></html>"
+    
+  # Relationships
+  - name: contact_id
+    type: Int32
+    nullable: false
+    description: "Foreign key to contact record (primary recipient)"
+    example: 42
+    
+  - name: sent_by
+    type: Int32
+    nullable: false
+    description: "User ID who sent the email"
+    example: 7
+    
+  # Status
+  - name: email_status
+    type: String
+    nullable: false
+    description: "Email delivery status (Sent, Delivered, Bounced, Failed, Draft, Queued)"
+    example: "Delivered"
+    
+  - name: status_normalized
+    type: LowCardinality(String)
+    nullable: false
+    description: "Normalized status (sent/delivered/bounced/failed/draft/queued/unknown)"
+    allowed_values: [sent, delivered, bounced, failed, draft, queued, unknown]
+    example: "delivered"
+    
+  - name: is_read
+    type: Bool
+    nullable: false
+    description: "Whether email has been read by recipient"
+    example: true
+    
+  # Email timing
+  - name: sent_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date and time when email was sent"
+    example: "2025-11-28 14:30:00.000"
+    
+  - name: read_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date and time when email was first read"
+    example: "2025-11-28 15:45:00.000"
+    
+  - name: delivered_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date and time when email was delivered"
+    example: "2025-11-28 14:30:15.000"
+    
+  # Engagement metrics
+  - name: open_count
+    type: Int32
+    nullable: false
+    description: "Number of times email was opened"
+    example: 3
+    
+  - name: click_count
+    type: Int32
+    nullable: false
+    description: "Number of times links in email were clicked"
+    example: 1
+    
+  # Attachments
+  - name: has_attachments
+    type: Bool
+    nullable: false
+    description: "Whether email has attachments"
+    example: true
+    
+  - name: attachments_count
+    type: Int32
+    nullable: false
+    description: "Number of attachments included"
+    example: 2
+    
+  # Audit fields
+  - name: rec_add
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was added in Redtail"
+    example: "2025-11-28 14:30:00.000"
+    
+  - name: rec_edit
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when record was last edited in Redtail"
+    example: "2025-11-28 15:20:00.000"
+    
+  # Batch metadata
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Unique identifier for the batch run"
+    example: "scan_20251128_143022"
+    
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Sequential batch number in the scan"
+    example: 1
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-28"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when Flink processed this record"
+    example: "2025-11-28 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-28 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "redtail.email_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-11-28 14:30:22.123"

@@ -1,0 +1,236 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.REDTAIL_HOUSEHOLD
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(rec_id IS NULL) as null_rec_id,
+        countIf(rec_id = 0) as zero_rec_id,
+        countIf(household_id IS NULL) as null_household_id,
+        countIf(household_id = 0) as zero_household_id,
+        countIf(primary_contact_id = 0) as zero_primary_contact_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_rec_id: 0
+      zero_rec_id: 0
+      null_household_id: 0
+      zero_household_id: 0
+      zero_primary_contact_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: rec_id_unique_per_partition
+    type: uniqueness
+    description: "rec_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT rec_id, processing_date, count() as cnt
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY rec_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: household_id_unique_per_partition
+    type: uniqueness
+    description: "household_id should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT household_id, processing_date, count() as cnt
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY household_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_households_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver households should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_households
+      FROM silver.redtail_household s
+      LEFT JOIN redtail.household_raw b
+        ON s.rec_id = b.rec_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.rec_id IS NULL
+    expect:
+      orphaned_households: 0
+  
+  - name: valid_status_normalized
+    type: accepted_values
+    description: "status_normalized must be in allowed list"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized NOT IN ('active', 'inactive', 'archived')
+    expect:
+      invalid_count: 0
+  
+  - name: total_net_worth_non_negative
+    type: assertion
+    description: "Total net worth should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND total_net_worth < 0
+    expect:
+      invalid_count: 0
+  
+  - name: total_income_non_negative
+    type: assertion
+    description: "Total income should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND total_income < 0
+    expect:
+      invalid_count: 0
+  
+  - name: total_net_worth_reasonable_range
+    type: assertion
+    description: "Total net worth should be in reasonable range (< $100 billion per household)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND total_net_worth > 100000000000
+    expect:
+      invalid_count: 0
+  
+  - name: total_income_reasonable_range
+    type: assertion
+    description: "Total income should be in reasonable range (< $100 million per year)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND total_income > 100000000
+    expect:
+      invalid_count: 0
+  
+  - name: household_name_present
+    type: assertion
+    description: "Household name should be present for active households"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'active'
+        AND household_name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: zip_code_format_valid
+    type: assertion
+    description: "US ZIP codes should be 5 or 9 digits when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND country = 'USA'
+        AND zip_code != ''
+        AND length(replaceAll(zip_code, '-', '')) NOT IN (5, 9)
+    expect:
+      invalid_count: 0
+  
+  - name: address_line1_present
+    type: assertion
+    description: "Address line 1 should be present for active households with other address info"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'active'
+        AND address_line1 = ''
+        AND (city != '' OR state != '' OR zip_code != '')
+    expect:
+      invalid_count: 0
+  
+  - name: rec_edit_after_rec_add
+    type: assertion
+    description: "Edit timestamp should be after or equal to add timestamp"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_edit IS NOT NULL
+        AND rec_edit < rec_add
+    expect:
+      invalid_count: 0
+  
+  - name: valid_household_types
+    type: accepted_values
+    description: "Household type should be valid"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND household_type != ''
+        AND household_type NOT IN ('Single', 'Married', 'Family', 'Multi-generational', 'Couple', 'Partnership', 'Extended Family')
+    expect:
+      invalid_count: 0
+  
+  - name: active_households_have_net_worth
+    type: assertion
+    description: "Active households should typically have total_net_worth > 0"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'active'
+        AND total_net_worth = 0
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_reasonable
+    type: assertion
+    description: "Record add date should be reasonable (within last 50 years)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add IS NOT NULL
+        AND rec_add < now() - INTERVAL 50 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: rec_add_not_future
+    type: assertion
+    description: "Record add date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_household
+      WHERE processing_date = toDate('{{ ds }}')
+        AND rec_add > now()
+    expect:
+      invalid_count: 0

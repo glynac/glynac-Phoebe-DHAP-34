@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: family_account_raw
+view: family_account_raw
 
 metadata:
   description: "Raw Redtail family account data from MinIO"

@@ -1,0 +1,10 @@
+# OpenCATS User Table Extraction
+# System users
+
+task_id: extract_user
+job_name: sql-extractor
+
+environment:
+  TABLE_NAME: "user"
+  OUTPUT_PREFIX: "opencats/user"
+  INCREMENTAL_MODE: "false"

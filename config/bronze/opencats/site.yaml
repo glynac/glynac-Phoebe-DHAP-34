@@ -1,0 +1,21 @@
+version: "1.0"
+layer: bronze
+database: opencats
+view: site_raw
+
+source:
+  bucket: raw-data
+  path: opencats/site
+  format: orc
+  file_pattern: "data.orc"
+  partitions:
+    - name: partition
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+description: "Raw OpenCATS site data via sql-extractor"
+tags: [bronze, opencats, site, sql-extractor, auto-schema]

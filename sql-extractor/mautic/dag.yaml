@@ -1,0 +1,27 @@
+# Mautic Database Extraction - DAG Configuration
+# Tasks are defined in separate task_*.yaml files
+
+dag_id: DOCKER__sql_extractor__mautic
+description: "Extract Mautic database tables to MinIO (ORC format)"
+schedule_interval: "0 2 * * *"
+owner: data-platform
+catchup: false
+retries: 2
+retry_delay_minutes: 10
+tags:
+  - sql-extractor
+  - mautic
+  - production
+
+# Default values shared across all tasks
+defaults:
+  connection_id: mariadb_mautic
+  environment:
+    MINIO_ENDPOINT: "{{ var.value.MINIO_ENDPOINT }}"
+    MINIO_ACCESS_KEY: "{{ var.value.MINIO_ACCESS_KEY }}"
+    MINIO_SECRET_KEY: "{{ var.value.MINIO_SECRET_KEY }}"
+    MINIO_BUCKET: "raw-data"
+    MINIO_SECURE: "false"
+    DB_TYPE: "mysql"
+    BATCH_SIZE: "10000"
+    ORC_COMPRESSION: "snappy"

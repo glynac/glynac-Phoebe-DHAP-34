@@ -1,0 +1,29 @@
+# Gold: Mautic Page Hits Daily
+# Auto-detects dependency from query.sql: mautic.page_hits_raw
+
+dag_id: gold_mautic_page_hits_daily
+description: "Daily aggregated page hit statistics from Mautic"
+
+schedule_interval: dataset  # Auto-detects from query.sql (mautic.page_hits_raw)
+
+catchup: false
+max_active_runs: 1
+
+tags:
+  - gold
+  - mautic
+  - page_hits
+  - engagement
+  - auto-dependency
+
+task:
+  task_type: materialized_view
+  source_table: mautic.page_hits_raw
+  refresh_mode: incremental
+
+default_args:
+  owner: data-engineering
+  retries: 2
+  retry_delay_minutes: 5
+
+execution_timeout: 1800

@@ -1,0 +1,226 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: organization
+
+
+metadata:
+  display_name: "Orion Organizations (Cleaned)"
+  description: |
+    Cleaned and transformed Orion organization data from Bronze layer.
+    Represents organizational units with hierarchy, membership,
+    and budget information.
+  
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - organization
+    - structure
+    - hierarchy
+    - crm
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - name
+    - email
+    - budget
+    - location
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years
+  upstream_dependencies:
+    - orion.organization_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - organization_id
+  primary_key:
+    - organization_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: org_status_idx
+      expression: org_status
+      type: set
+      granularity: 4
+    - name: org_type_idx
+      expression: org_type
+      type: set
+      granularity: 4
+    - name: organization_type_idx
+      expression: organization_type
+      type: set
+      granularity: 4
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: organization_id
+    type: String
+    nullable: false
+    description: "Unique organization identifier (primary key)"
+    primary_key: true
+    example: "org-abc123"
+    
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Glynac organization identifier for data isolation (primary key)"
+    example: "org-xyz789"
+    
+  # Organization classification
+  - name: organization_type
+    type: String
+    nullable: false
+    description: "Organization type classification"
+    example: "department"
+    
+  - name: org_type
+    type: String
+    nullable: false
+    description: "Organizational unit type"
+    example: "business_unit"
+    
+  - name: org_status
+    type: String
+    nullable: false
+    description: "Current organization status"
+    example: "active"
+    
+  # Organization details
+  - name: name
+    type: String
+    nullable: false
+    description: "Organization name"
+    pii: true
+    example: "Engineering Department"
+    
+  - name: display_name
+    type: String
+    nullable: false
+    description: "Display name for organization"
+    example: "Engineering"
+    
+  - name: description
+    type: String
+    nullable: false
+    description: "Organization description"
+    example: "Product engineering and development"
+    
+  # Relationships
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Associated account identifier"
+    example: "acc-def456"
+    
+  # Membership and capacity
+  - name: member_count
+    type: Int32
+    nullable: false
+    description: "Current number of members"
+    example: 45
+    
+  - name: max_members
+    type: Int32
+    nullable: false
+    description: "Maximum allowed members"
+    example: 50
+    
+  # Financial details
+  - name: budget
+    type: Int64
+    nullable: false
+    description: "Organization budget"
+    pii: true
+    example: 5000000
+    
+  - name: cost_center
+    type: String
+    nullable: false
+    description: "Cost center code"
+    example: "CC-ENG-001"
+    
+  # Location and contact
+  - name: location
+    type: String
+    nullable: false
+    description: "Organization location"
+    pii: true
+    example: "San Francisco, CA"
+    
+  - name: email
+    type: String
+    nullable: false
+    description: "Organization contact email"
+    pii: true
+    example: "engineering@company.com"
+    
+  # Settings
+  - name: settings
+    type: String
+    nullable: false
+    description: "Organization settings"
+    example: '{"notifications":true,"visibility":"internal"}'
+    
+  # Dates
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Organization creation date"
+    example: "2024-01-15 10:30:00.000"
+    
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-13 14:20:00.000"
+    
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-13"
+    
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-13 14:30:22.123"
+    
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-13 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.organization_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-13 14:30:22.123"

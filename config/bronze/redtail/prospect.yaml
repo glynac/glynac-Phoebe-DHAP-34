@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
 database: redtail
-table: prospect_raw
+view: prospect_raw
 
 metadata:
   description: "Raw Redtail prospect data from MinIO"
