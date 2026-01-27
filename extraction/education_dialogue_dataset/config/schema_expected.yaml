@@ -1,0 +1,29 @@
+table: public.education_dialogue
+
+# No natural primary key exists in the source CSV
+primary_key: []
+
+columns:
+  - name: topic
+    type: text
+    nullable: false
+
+  - name: student_prefrences
+    type: text
+    nullable: false
+
+  - name: teacher_prefrences
+    type: text
+    nullable: false
+
+  - name: student_reactions
+    type: text
+    nullable: false
+
+  - name: teacher_reactions
+    type: text
+    nullable: false
+
+  - name: conversation
+    type: jsonb
+    nullable: false
