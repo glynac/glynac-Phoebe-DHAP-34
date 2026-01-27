@@ -1,0 +1,23 @@
+version: "1.0"
+layer: silver
+database: silver
+table: org_123_timeline
+
+dag:
+  dag_id: "silver__org_123_timeline"
+  description: "Canonical Event Timeline - Base table for org_123 unified events"
+  schedule_interval: "@once"  # Run once to create table
+  catchup: false
+  tags:
+    - silver
+    - timeline
+    - org_123
+    - canonical_events
+
+task:
+  task_type: timeline_base_table
+  org_id: 123
+
+  # This is a special task type that creates the timeline table
+  # instead of running a transformation
+  create_table_only: true

@@ -1,0 +1,28 @@
+version: "1.0"
+layer: silver
+database: silver
+table: mv_redtail_contact_to_timeline
+
+dag:
+  dag_id: "silver__mv_redtail_contact_to_timeline"
+  description: "Materialized View: Redtail Contact → Timeline Events"
+  schedule_interval: "dataset"  # Triggers when redtail_contact updates
+  catchup: false
+  tags:
+    - silver
+    - timeline
+    - materialized_view
+    - redtail
+    - contact
+
+task:
+  task_type: materialized_view
+  org_id: 123
+
+  # Source configuration
+  source_table: silver.redtail_contact
+  target_table: silver.org_123_timeline
+
+  # Event mapping
+  event_type: contact_created
+  entity_type: contact
