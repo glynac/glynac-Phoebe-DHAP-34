@@ -3,7 +3,6 @@
 **Org ID:** 123
 **Status:** ✅ Pilot - Active Testing
 **Timeline Table:** `silver.org_123_timeline`
-**Last Updated:** January 27, 2026
 
 ---
 
