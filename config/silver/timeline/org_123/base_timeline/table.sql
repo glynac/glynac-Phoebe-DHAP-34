@@ -1,7 +1,7 @@
 -- ============================================================
 -- Canonical Event Timeline - Base Table DDL
 -- ============================================================
-CREATE TABLE IF NOT EXISTS silver.org_123_timeline
+CREATE TABLE IF NOT EXISTS redtail_silver.org_123_timeline
 (
     -- Core event fields
     event_id UUID,
@@ -35,15 +35,15 @@ PRIMARY KEY (org_id, entity_type, entity_id)
 SETTINGS index_granularity = 8192;
 
 -- Add indexes
-ALTER TABLE silver.org_123_timeline
+ALTER TABLE redtail_silver.org_123_timeline
 ADD INDEX IF NOT EXISTS event_type_idx event_type TYPE set GRANULARITY 4;
 
-ALTER TABLE silver.org_123_timeline
+ALTER TABLE redtail_silver.org_123_timeline
 ADD INDEX IF NOT EXISTS source_system_idx source_system TYPE set GRANULARITY 4;
 
-ALTER TABLE silver.org_123_timeline
+ALTER TABLE redtail_silver.org_123_timeline
 ADD INDEX IF NOT EXISTS timestamp_idx timestamp TYPE minmax GRANULARITY 1;
 
 -- Add TTL (7 years retention)
-ALTER TABLE silver.org_123_timeline
+ALTER TABLE redtail_silver.org_123_timeline
 MODIFY TTL processing_date + INTERVAL 2555 DAY;
