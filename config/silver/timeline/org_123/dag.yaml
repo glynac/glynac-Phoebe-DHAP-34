@@ -226,26 +226,3 @@ monitoring:
         SELECT max(dateDiff('second', processing_timestamp, now())) as lag_seconds
         FROM redtail_silver.org_123_timeline
       alert_if_above: 300  # Alert if lag > 5 minutes
-
-# ============================================================
-# Future Expansion
-# ============================================================
-# Add more MVs here as you expand to other Redtail tables:
-#
-# - name: mv_redtail_contact
-#   type: materialized_view
-#   source_table: "redtail_silver.contact"
-#   event_type: "contact_created"
-#   ... (enable when contact table has data)
-#
-# - name: mv_redtail_email
-#   type: materialized_view
-#   source_table: "redtail_silver.email"
-#   event_type: "email_sent"
-#   ... (enable when email table has data)
-#
-# - name: mv_redtail_household
-#   type: materialized_view
-#   source_table: "redtail_silver.household"
-#   event_type: "household_created"
-#   ...
