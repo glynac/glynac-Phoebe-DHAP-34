@@ -1,11 +1,14 @@
 -- ============================================================
 -- Canonical Event Timeline - Base Table DDL
 -- ============================================================
+-- Organization: 29a436a3-b5de-4afd-9c7a-059246c5a681
+-- Note: org_id is String (UUID) to match glynac_organization_id format
+-- ============================================================
 CREATE TABLE IF NOT EXISTS redtail_silver.org_123_timeline
 (
     -- Core event fields
     event_id UUID,
-    org_id Int32,
+    org_id String,  -- UUID string format (e.g., '29a436a3-b5de-4afd-9c7a-059246c5a681')
     event_type LowCardinality(String),
     timestamp DateTime64(3),
     entity_type LowCardinality(String),
@@ -29,7 +32,7 @@ CREATE TABLE IF NOT EXISTS redtail_silver.org_123_timeline
     _version Int32 DEFAULT 1
 )
 ENGINE = ReplacingMergeTree(_version)
-PARTITION BY (org_id, toYYYYMM(processing_date))
+PARTITION BY toYYYYMM(processing_date)
 ORDER BY (org_id, entity_type, entity_id, timestamp, event_type)
 PRIMARY KEY (org_id, entity_type, entity_id)
 SETTINGS index_granularity = 8192;

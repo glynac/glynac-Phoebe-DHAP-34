@@ -1,0 +1,203 @@
+version: "1.0"
+layer: silver
+pipeline_type: timeline
+
+# ============================================================
+# Timeline DAG Configuration
+# ============================================================
+# This creates ONE DAG with multiple TaskGroups (like bronze layer)
+# Each TaskGroup handles one component (base table + materialized views)
+
+dag:
+  dag_id: "silver__timeline_org_123"
+  description: "Canonical Event Timeline for Organization 123 - Unified DAG with TaskGroups"
+  schedule_interval: "@once"  # Run once to create infrastructure
+  start_date: "2026-01-01"
+  catchup: false
+  max_active_runs: 1
+  concurrency: 2  # Run up to 2 TaskGroups in parallel
+
+  tags:
+    - silver
+    - timeline
+    - org_123
+    - redtail
+    - canonical-events
+    - taskgroup
+
+  default_args:
+    owner: ai-team
+    retries: 2
+    retry_delay_minutes: 3
+    execution_timeout_minutes: 30
+    email_on_failure: false
+    email_on_retry: false
+
+# ============================================================
+# Organization Configuration
+# ============================================================
+organization:
+  org_id: "29a436a3-b5de-4afd-9c7a-059246c5a681"  # UUID string from glynac_organization_id
+  org_name: "Organization 123"
+  database: "redtail_silver"  # ClickHouse database for this org
+
+# ============================================================
+# Timeline Components
+# ============================================================
+# Each component becomes a TaskGroup in the DAG
+# Order matters: base_timeline must run first, then MVs
+components:
+  # Component 1: Base Timeline Table
+  - name: base_timeline
+    type: timeline_base_table
+    description: "Create base timeline table (org_123_timeline)"
+    table_name: "org_123_timeline"
+    database: "redtail_silver"
+    table_path: "silver/timeline/org_123/base_timeline"
+
+    # Task configuration
+    task:
+      create_table_only: true
+      validate_after_creation: true
+
+    # Dependencies (none for base table)
+    dependencies: []
+
+  # Component 2: Contact Materialized View
+  - name: mv_redtail_contact
+    type: materialized_view
+    description: "Transform redtail_silver.contact → timeline events"
+    mv_name: "mv_redtail_contact_to_timeline"
+    target_table: "org_123_timeline"
+    source_table: "redtail_silver.contact"
+    database: "redtail_silver"
+    table_path: "silver/timeline/org_123/mv_redtail_contact"
+    event_type: "contact_created"
+
+    # Task configuration
+    task:
+      backfill_on_creation: true  # ClickHouse auto-backfills when MV created
+      validate_after_creation: true
+      expected_min_events: 100  # Fail if fewer events (data quality check)
+
+    # Dependencies: Must wait for base_timeline to be created
+    dependencies:
+      - base_timeline
+
+  # Component 3: Call Materialized View
+  - name: mv_redtail_call
+    type: materialized_view
+    description: "Transform redtail_silver.call → timeline events"
+    mv_name: "mv_redtail_call_to_timeline"
+    target_table: "org_123_timeline"
+    source_table: "redtail_silver.call"
+    database: "redtail_silver"
+    table_path: "silver/timeline/org_123/mv_redtail_call"
+    event_type: "call_made"
+
+    # Task configuration
+    task:
+      backfill_on_creation: true
+      validate_after_creation: true
+      expected_min_events: 10
+
+    # Dependencies: Must wait for base_timeline
+    dependencies:
+      - base_timeline
+
+  # Component 4: Email Materialized View
+  - name: mv_redtail_email
+    type: materialized_view
+    description: "Transform redtail_silver.email → timeline events"
+    mv_name: "mv_redtail_email_to_timeline"
+    target_table: "org_123_timeline"
+    source_table: "redtail_silver.email"
+    database: "redtail_silver"
+    table_path: "silver/timeline/org_123/mv_redtail_email"
+    event_type: "email_sent"
+
+    # Task configuration
+    task:
+      backfill_on_creation: true
+      validate_after_creation: true
+      expected_min_events: 10
+
+    # Dependencies: Must wait for base_timeline
+    dependencies:
+      - base_timeline
+
+# ============================================================
+# Validation Configuration
+# ============================================================
+validation:
+  enabled: true
+
+  # Timeline-specific checks
+  checks:
+    - type: table_exists
+      description: "Verify timeline table was created"
+      table: "org_123_timeline"
+      fail_on_missing: true
+
+    - type: mv_exists
+      description: "Verify all MVs were created"
+      fail_on_missing: true
+
+    - type: has_data
+      description: "Verify timeline has events"
+      table: "org_123_timeline"
+      min_rows: 100  # At least 100 events expected
+      fail_on_empty: false  # Warn only if empty
+
+    - type: data_quality
+      description: "Check for NULL values in required fields"
+      checks:
+        - field: event_id
+          rule: not_null
+        - field: org_id
+          rule: not_null
+        - field: event_type
+          rule: not_null
+        - field: timestamp
+          rule: not_null
+
+# ============================================================
+# Monitoring & Alerts
+# ============================================================
+monitoring:
+  enabled: true
+
+  # SLA for entire pipeline
+  sla:
+    enabled: true
+    duration_minutes: 30  # All components should complete in 30min
+
+  # Metrics to track
+  metrics:
+    - name: timeline_event_count
+      query: "SELECT count() FROM redtail_silver.org_123_timeline"
+      alert_if_below: 100
+
+    - name: mv_backfill_lag
+      description: "Time difference between source and timeline"
+      query: |
+        SELECT max(dateDiff('second', processing_timestamp, now())) as lag_seconds
+        FROM redtail_silver.org_123_timeline
+      alert_if_above: 300  # Alert if lag > 5 minutes
+
+# ============================================================
+# Future Expansion
+# ============================================================
+# Add more MVs here as you expand to other Redtail tables:
+#
+# - name: mv_redtail_account
+#   type: materialized_view
+#   source_table: "redtail_silver.account"
+#   event_type: "account_created"
+#   ...
+#
+# - name: mv_redtail_household
+#   type: materialized_view
+#   source_table: "redtail_silver.household"
+#   event_type: "household_created"
+#   ...

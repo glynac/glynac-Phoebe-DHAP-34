@@ -1,6 +1,10 @@
 -- ============================================================
 -- Materialized View: Redtail Contact → Timeline
 -- ============================================================
+-- Organization: 29a436a3-b5de-4afd-9c7a-059246c5a681
+-- Source: redtail_silver.contact
+-- Target: redtail_silver.org_123_timeline
+-- ============================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS redtail_silver.mv_redtail_contact_to_timeline
 TO redtail_silver.org_123_timeline
 AS
@@ -32,4 +36,5 @@ SELECT
     now() AS _loaded_at,
     1 AS _version
 FROM redtail_silver.contact
-WHERE rec_id IS NOT NULL;
+WHERE rec_id IS NOT NULL
+  AND glynac_organization_id = '29a436a3-b5de-4afd-9c7a-059246c5a681';
