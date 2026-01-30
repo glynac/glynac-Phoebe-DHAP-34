@@ -16,8 +16,8 @@ SELECT
     'contact' AS entity_type,
     concat('contact_', toString(rec_id)) AS entity_id,
     concat(
-        COALESCE(first_name_hash, ''), ' ',
-        COALESCE(last_name_hash, ''), ' - ',
+        COALESCE(first_name, ''), ' ',
+        COALESCE(last_name, ''), ' - ',
         COALESCE(contact_type, 'Contact'), ' created'
     ) AS description,
     'redtail' AS source_system,
@@ -29,8 +29,8 @@ SELECT
         'status', COALESCE(status, ''),
         'status_normalized', COALESCE(status_normalized, ''),
         'owner_id', toString(COALESCE(owner_id, 0)),
-        'email', COALESCE(email_hash, ''),
-        'phone', COALESCE(phone_hash, '')
+        'email', COALESCE(email, ''),
+        'phone', COALESCE(phone, '')
     )) AS metadata,
     processing_date,
     now() AS _loaded_at,
