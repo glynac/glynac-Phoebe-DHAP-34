@@ -24,7 +24,7 @@ SELECT
     'redtail' AS source_system,
     'redtail_silver.call' AS source_table,
     toString(rec_id) AS source_id,
-    NULL AS minio_path,
+    CAST(NULL AS Nullable(String)) AS minio_path,
     toJSONString(map(
         'call_type', COALESCE(call_type, ''),
         'call_status', COALESCE(call_status, ''),
