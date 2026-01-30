@@ -37,12 +37,12 @@ ORDER BY (org_id, entity_type, entity_id, timestamp, event_type)
 PRIMARY KEY (org_id, entity_type, entity_id)
 SETTINGS index_granularity = 8192;
 
--- Add indexes
+-- Add indexes (set(0) means unlimited unique values)
 ALTER TABLE redtail_silver.org_123_timeline
-ADD INDEX IF NOT EXISTS event_type_idx event_type TYPE set GRANULARITY 4;
+ADD INDEX IF NOT EXISTS event_type_idx event_type TYPE set(0) GRANULARITY 4;
 
 ALTER TABLE redtail_silver.org_123_timeline
-ADD INDEX IF NOT EXISTS source_system_idx source_system TYPE set GRANULARITY 4;
+ADD INDEX IF NOT EXISTS source_system_idx source_system TYPE set(0) GRANULARITY 4;
 
 ALTER TABLE redtail_silver.org_123_timeline
 ADD INDEX IF NOT EXISTS timestamp_idx timestamp TYPE minmax GRANULARITY 1;
