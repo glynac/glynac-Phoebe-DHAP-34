@@ -88,13 +88,6 @@ columns:
     description: "Organization identifier for data isolation"
     example: "org-abc123"
     
-  # Identifiers
-  - name: record_id
-    type: Int32
-    nullable: false
-    description: "Unique net worth statement record identifier"
-    example: 98765
-    
   - name: contact_id
     type: Int32
     nullable: false

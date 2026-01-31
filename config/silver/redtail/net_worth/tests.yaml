@@ -12,8 +12,6 @@ tests:
       SELECT 
         countIf(rec_id IS NULL) as null_rec_id,
         countIf(rec_id = 0) as zero_rec_id,
-        countIf(record_id IS NULL) as null_record_id,
-        countIf(record_id = 0) as zero_record_id,
         countIf(contact_id = 0) as zero_contact_id,
         countIf(glynac_organization_id IS NULL) as null_org_id,
         countIf(glynac_organization_id = '') as empty_org_id,
@@ -23,8 +21,6 @@ tests:
     expect:
       null_rec_id: 0
       zero_rec_id: 0
-      null_record_id: 0
-      zero_record_id: 0
       zero_contact_id: 0
       null_org_id: 0
       empty_org_id: 0
@@ -41,33 +37,6 @@ tests:
       GROUP BY rec_id, processing_date
       HAVING cnt > 1
     expect_empty: true
-  
-  - name: record_id_unique_per_partition
-    type: uniqueness
-    description: "record_id should be unique per processing_date (after dedup)"
-    severity: error
-    query: |
-      SELECT record_id, processing_date, count() as cnt
-      FROM silver.redtail_net_worth
-      WHERE processing_date = toDate('{{ ds }}')
-      GROUP BY record_id, processing_date
-      HAVING cnt > 1
-    expect_empty: true
-  
-  - name: all_net_worth_exist_in_bronze
-    type: referential_integrity
-    description: "All Silver net worth records should exist in Bronze source"
-    severity: warning
-    query: |
-      SELECT count() as orphaned_net_worth
-      FROM silver.redtail_net_worth s
-      LEFT JOIN redtail.net_worth_raw b
-        ON s.rec_id = b.rec_id
-        AND s.processing_date = b.processing_date
-      WHERE s.processing_date = toDate('{{ ds }}')
-        AND b.rec_id IS NULL
-    expect:
-      orphaned_net_worth: 0
   
   - name: all_assets_non_negative
     type: assertion

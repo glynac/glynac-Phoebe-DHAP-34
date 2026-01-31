@@ -3,7 +3,6 @@ SELECT
     glynac_organization_id,
     
     -- Identifiers
-    record_id,
     contact_id,
     
     -- As of date
