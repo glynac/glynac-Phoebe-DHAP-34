@@ -5,11 +5,10 @@ SELECT
     -- Client identifiers
     client_id,
     contact_id,
-    trimBoth(COALESCE(client_number, '')) as client_number,
+    trim(COALESCE(client_number, '')) as client_number,
     
     -- Client classification
-    trimBoth(COALESCE(client_type, '')) as client_type,
-    trimBoth(COALESCE(client_status, '')) as client_status,
+    trim(COALESCE(client_status, '')) as client_status,
     
     -- Status normalization
     multiIf(
@@ -17,23 +16,28 @@ SELECT
         client_status ILIKE '%inactive%', 'inactive',
         client_status ILIKE '%archived%', 'archived',
         client_status ILIKE '%prospect%', 'prospect',
-        client_status != '', toLower(trimBoth(client_status)),
+        client_status != '', lower(trim(client_status)),
         'active'
     ) as status_normalized,
     
     -- Service details
-    trimBoth(COALESCE(service_level, '')) as service_level,
-    trimBoth(COALESCE(risk_profile, '')) as risk_profile,
+    trim(COALESCE(service_level, '')) as service_level,
+    trim(COALESCE(risk_tolerance, '')) as risk_tolerance,
+    trim(COALESCE(investment_objective, '')) as investment_objective,
     
-    -- Financial data
-    toDecimal64OrZero(replaceAll(replaceAll(assets_under_management, ',', ''), '$', ''), 2) as assets_under_management,
+    -- Financial data (already Float64 in Bronze)
+    COALESCE(aum, 0.0) as aum,
+    COALESCE(annual_revenue, 0.0) as annual_revenue,
     
     -- Important dates
-    parseDateTime64BestEffortOrNull(toString(onboarding_date)) as onboarding_date,
-    parseDateTime64BestEffortOrNull(toString(review_date)) as review_date,
+    parseDateTime64BestEffortOrNull(toString(client_since)) as client_since,
+    parseDateTime64BestEffortOrNull(toString(next_review_date)) as next_review_date,
     
     -- Notes
-    trimBoth(COALESCE(notes, '')) as notes,
+    trim(COALESCE(notes, '')) as notes,
+    
+    -- Status flag
+    COALESCE(is_active, true) as is_active,
     
     -- Audit fields
     parseDateTime64BestEffortOrNull(toString(rec_add)) as rec_add,
@@ -42,7 +46,7 @@ SELECT
     rec_edit_user,
     
     -- Batch metadata
-    trimBoth(COALESCE(scan_id, '')) as scan_id,
+    trim(COALESCE(scan_id, '')) as scan_id,
     batch_number,
     processing_date,
     parseDateTime64BestEffortOrNull(toString(processing_timestamp)) as processing_timestamp,

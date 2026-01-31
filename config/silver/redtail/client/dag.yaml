@@ -1,6 +1,7 @@
 version: "1.0"
 
 dag:
+  # dag_id derived from folder path: silver_redtail_client
   description: "Transform and clean Redtail client data from Bronze to Silver layer"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"
@@ -15,7 +16,7 @@ dag:
     - financial
     - dataset-aware
   default_args:
-    owner: ai-team
+    owner: ai
     retries: 3
     retry_delay_minutes: 5
     execution_timeout_minutes: 30
