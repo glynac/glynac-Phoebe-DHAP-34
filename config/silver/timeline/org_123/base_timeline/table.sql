@@ -2,9 +2,15 @@
 -- Canonical Event Timeline - Base Table DDL
 -- ============================================================
 -- Organization: 29a436a3-b5de-4afd-9c7a-059246c5a681
--- Note: org_id is String (UUID) to match glynac_organization_id format
+-- Database: org_123 (dedicated per-organization database)
+-- Table: timeline
 -- ============================================================
-CREATE TABLE IF NOT EXISTS redtail_silver.org_123_timeline
+
+-- Create dedicated database for this organization
+CREATE DATABASE IF NOT EXISTS org_123;
+
+-- Create the timeline table
+CREATE TABLE IF NOT EXISTS org_123.timeline
 (
     -- Core event fields
     event_id UUID,
@@ -20,6 +26,10 @@ CREATE TABLE IF NOT EXISTS redtail_silver.org_123_timeline
     source_table String,
     source_id String,
     minio_path Nullable(String),
+
+    -- Audit timestamps from source records
+    rec_add Nullable(DateTime64(3)),  -- When record was created in source system
+    rec_edit Nullable(DateTime64(3)), -- When record was last edited in source system
 
     -- Flexible metadata
     metadata Nullable(String),
@@ -37,16 +47,19 @@ ORDER BY (org_id, entity_type, entity_id, timestamp, event_type)
 PRIMARY KEY (org_id, entity_type, entity_id)
 SETTINGS index_granularity = 8192;
 
--- Add indexes (set(0) means unlimited unique values)
-ALTER TABLE redtail_silver.org_123_timeline
+-- Add indexes
+ALTER TABLE org_123.timeline
 ADD INDEX IF NOT EXISTS event_type_idx event_type TYPE set(0) GRANULARITY 4;
 
-ALTER TABLE redtail_silver.org_123_timeline
+ALTER TABLE org_123.timeline
 ADD INDEX IF NOT EXISTS source_system_idx source_system TYPE set(0) GRANULARITY 4;
 
-ALTER TABLE redtail_silver.org_123_timeline
+ALTER TABLE org_123.timeline
 ADD INDEX IF NOT EXISTS timestamp_idx timestamp TYPE minmax GRANULARITY 1;
 
+ALTER TABLE org_123.timeline
+ADD INDEX IF NOT EXISTS rec_add_idx rec_add TYPE minmax GRANULARITY 1;
+
 -- Add TTL (7 years retention)
-ALTER TABLE redtail_silver.org_123_timeline
+ALTER TABLE org_123.timeline
 MODIFY TTL processing_date + INTERVAL 2555 DAY;

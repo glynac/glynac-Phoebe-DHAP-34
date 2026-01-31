@@ -3,12 +3,10 @@
 -- ============================================================
 -- Organization: 29a436a3-b5de-4afd-9c7a-059246c5a681
 -- Source: redtail_silver.call
--- Target: redtail_silver.org_123_timeline
--- Transforms call records from redtail_silver.call into timeline events
--- Automatically inserts new events whenever calls are added to source table
+-- Target: org_123.timeline
 -- ============================================================
-CREATE MATERIALIZED VIEW IF NOT EXISTS redtail_silver.mv_redtail_call_to_timeline
-TO redtail_silver.org_123_timeline
+CREATE MATERIALIZED VIEW IF NOT EXISTS org_123.mv_redtail_call_to_timeline
+TO org_123.timeline
 AS
 SELECT
     generateUUIDv4() AS event_id,
@@ -25,6 +23,8 @@ SELECT
     'redtail_silver.call' AS source_table,
     toString(rec_id) AS source_id,
     CAST(NULL AS Nullable(String)) AS minio_path,
+    rec_add,
+    rec_edit,
     toJSONString(map(
         'call_type', COALESCE(call_type, ''),
         'call_status', COALESCE(call_status, ''),

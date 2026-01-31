@@ -7,6 +7,7 @@ pipeline_type: timeline
 # ============================================================
 # This creates ONE DAG with multiple TaskGroups (like bronze layer)
 # Each TaskGroup handles one component (base table + materialized views)
+# Database: org_123 (dedicated per-organization database)
 
 dag:
   dag_id: "silver__timeline_org_123"
@@ -39,7 +40,7 @@ dag:
 organization:
   org_id: "29a436a3-b5de-4afd-9c7a-059246c5a681"  # UUID string from glynac_organization_id
   org_name: "Organization 123"
-  database: "redtail_silver"  # ClickHouse database for this org
+  database: "org_123"  # Dedicated ClickHouse database for this org
 
 # ============================================================
 # Timeline Components
@@ -50,9 +51,9 @@ components:
   # Component 1: Base Timeline Table
   - name: base_timeline
     type: timeline_base_table
-    description: "Create base timeline table (org_123_timeline)"
-    table_name: "org_123_timeline"
-    database: "redtail_silver"
+    description: "Create org_123 database and timeline table"
+    table_name: "timeline"
+    database: "org_123"
     table_path: "silver/timeline/org_123/base_timeline"
 
     # Task configuration
@@ -68,9 +69,9 @@ components:
     type: materialized_view
     description: "Transform redtail_silver.account → timeline events"
     mv_name: "mv_redtail_account_to_timeline"
-    target_table: "org_123_timeline"
+    target_table: "timeline"
     source_table: "redtail_silver.account"
-    database: "redtail_silver"
+    database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_account"
     event_type: "account_created"
 
@@ -89,9 +90,9 @@ components:
     type: materialized_view
     description: "Transform redtail_silver.activity → timeline events"
     mv_name: "mv_redtail_activity_to_timeline"
-    target_table: "org_123_timeline"
+    target_table: "timeline"
     source_table: "redtail_silver.activity"
-    database: "redtail_silver"
+    database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_activity"
     event_type: "activity_logged"
 
@@ -110,9 +111,9 @@ components:
     type: materialized_view
     description: "Transform redtail_silver.call → timeline events"
     mv_name: "mv_redtail_call_to_timeline"
-    target_table: "org_123_timeline"
+    target_table: "timeline"
     source_table: "redtail_silver.call"
-    database: "redtail_silver"
+    database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_call"
     event_type: "call_made"
 
@@ -131,9 +132,9 @@ components:
     type: materialized_view
     description: "Transform redtail_silver.client → timeline events"
     mv_name: "mv_redtail_client_to_timeline"
-    target_table: "org_123_timeline"
+    target_table: "timeline"
     source_table: "redtail_silver.client"
-    database: "redtail_silver"
+    database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_client"
     event_type: "client_created"
 
@@ -152,9 +153,9 @@ components:
     type: materialized_view
     description: "Transform redtail_silver.communication → timeline events"
     mv_name: "mv_redtail_communication_to_timeline"
-    target_table: "org_123_timeline"
+    target_table: "timeline"
     source_table: "redtail_silver.communication"
-    database: "redtail_silver"
+    database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_communication"
     event_type: "communication_logged"
 
@@ -178,7 +179,7 @@ validation:
   checks:
     - type: table_exists
       description: "Verify timeline table was created"
-      table: "org_123_timeline"
+      table: "timeline"
       fail_on_missing: true
 
     - type: mv_exists
@@ -187,7 +188,7 @@ validation:
 
     - type: has_data
       description: "Verify timeline has events"
-      table: "org_123_timeline"
+      table: "timeline"
       min_rows: 1  # At least 1 event expected
       fail_on_empty: false  # Warn only if empty
 
@@ -217,12 +218,29 @@ monitoring:
   # Metrics to track
   metrics:
     - name: timeline_event_count
-      query: "SELECT count() FROM redtail_silver.org_123_timeline"
+      query: "SELECT count() FROM org_123.timeline"
       alert_if_below: 1
 
     - name: mv_backfill_lag
       description: "Time difference between source and timeline"
       query: |
         SELECT max(dateDiff('second', processing_timestamp, now())) as lag_seconds
-        FROM redtail_silver.org_123_timeline
+        FROM org_123.timeline
       alert_if_above: 300  # Alert if lag > 5 minutes
+
+# ============================================================
+# Future Expansion
+# ============================================================
+# Add more MVs here as you expand to other Redtail tables:
+#
+# - name: mv_redtail_contact
+#   type: materialized_view
+#   source_table: "redtail_silver.contact"
+#   event_type: "contact_created"
+#   ... (enable when contact table has data)
+#
+# - name: mv_redtail_email
+#   type: materialized_view
+#   source_table: "redtail_silver.email"
+#   event_type: "email_sent"
+#   ... (enable when email table has data)
