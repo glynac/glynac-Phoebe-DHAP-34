@@ -169,6 +169,27 @@ components:
     dependencies:
       - base_timeline
 
+  # Component 7: Email Materialized View
+  - name: mv_redtail_email
+    type: materialized_view
+    description: "Transform redtail_silver.email → timeline events"
+    mv_name: "mv_redtail_email_to_timeline"
+    target_table: "timeline"
+    source_table: "redtail_silver.email"
+    database: "org_123"
+    table_path: "silver/timeline/org_123/mv_redtail_email"
+    event_type: "email_sent"
+
+    # Task configuration
+    task:
+      backfill_on_creation: true
+      validate_after_creation: true
+      expected_min_events: 1
+
+    # Dependencies: Must wait for base_timeline
+    dependencies:
+      - base_timeline
+
 # ============================================================
 # Validation Configuration
 # ============================================================
@@ -238,9 +259,3 @@ monitoring:
 #   source_table: "redtail_silver.contact"
 #   event_type: "contact_created"
 #   ... (enable when contact table has data)
-#
-# - name: mv_redtail_email
-#   type: materialized_view
-#   source_table: "redtail_silver.email"
-#   event_type: "email_sent"
-#   ... (enable when email table has data)
