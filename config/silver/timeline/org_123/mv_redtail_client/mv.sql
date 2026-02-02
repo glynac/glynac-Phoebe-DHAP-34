@@ -12,7 +12,12 @@ SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
     'client_created' AS event_type,
-    COALESCE(onboarding_date, rec_add, processing_timestamp, now()) AS timestamp,
+    COALESCE(
+        parseDateTimeBestEffortOrNull(toString(onboarding_date)),
+        parseDateTimeBestEffortOrNull(toString(rec_add)),
+        parseDateTimeBestEffortOrNull(toString(processing_timestamp)),
+        now()
+    ) AS timestamp,
     'client' AS entity_type,
     concat('client_', toString(rec_id)) AS entity_id,
     concat(
@@ -24,8 +29,8 @@ SELECT
     'redtail_silver.client' AS source_table,
     toString(rec_id) AS source_id,
     CAST(NULL AS Nullable(String)) AS minio_path,
-    rec_add,
-    rec_edit,
+    parseDateTimeBestEffortOrNull(toString(rec_add)) AS rec_add,
+    parseDateTimeBestEffortOrNull(toString(rec_edit)) AS rec_edit,
     toJSONString(map(
         'client_type', COALESCE(client_type, ''),
         'client_status', COALESCE(client_status, ''),

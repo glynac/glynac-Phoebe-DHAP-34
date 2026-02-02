@@ -12,7 +12,12 @@ SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
     'communication_logged' AS event_type,
-    COALESCE(communication_date, rec_add, processing_timestamp, now()) AS timestamp,
+    COALESCE(
+        parseDateTimeBestEffortOrNull(toString(communication_date)),
+        parseDateTimeBestEffortOrNull(toString(rec_add)),
+        parseDateTimeBestEffortOrNull(toString(processing_timestamp)),
+        now()
+    ) AS timestamp,
     'communication' AS entity_type,
     concat('communication_', toString(rec_id)) AS entity_id,
     concat(
@@ -24,8 +29,8 @@ SELECT
     'redtail_silver.communication' AS source_table,
     toString(rec_id) AS source_id,
     CAST(NULL AS Nullable(String)) AS minio_path,
-    rec_add,
-    rec_edit,
+    parseDateTimeBestEffortOrNull(toString(rec_add)) AS rec_add,
+    parseDateTimeBestEffortOrNull(toString(rec_edit)) AS rec_edit,
     toJSONString(map(
         'communication_type', COALESCE(communication_type, ''),
         'direction', COALESCE(direction, ''),
