@@ -34,13 +34,9 @@ SELECT
         'activity_type', COALESCE(activity_type, ''),
         'category', COALESCE(category, ''),
         'subcategory', COALESCE(subcategory, ''),
-        'activity_status', COALESCE(activity_status, ''),
-        'status_normalized', COALESCE(status_normalized, ''),
-        'priority', COALESCE(priority, ''),
         'contact_id', toString(COALESCE(contact_id, 0)),
         'owner_id', toString(COALESCE(owner_id, 0)),
-        'duration_minutes', toString(COALESCE(duration_minutes, 0)),
-        'follow_up_required', toString(COALESCE(follow_up_required, 0))
+        'activity_id', toString(COALESCE(activity_id, 0))
     )) AS metadata,
     processing_date,
     now() AS _loaded_at,
