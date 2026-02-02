@@ -1,278 +1,305 @@
-# Canonical Event Timeline - Organization-Based Structure
+# Canonical Event Timeline
 
-**Version:** 1.0
+**Version:** 2.0
 
 ---
 
 ## Overview
 
-Timeline configurations are **organized by organization ID** for multi-tenancy and scalability. Each organization has its own:
-- Timeline base table (`org_{id}_timeline`)
-- Materialized views specific to that organization
-- Independent data isolation
+The Canonical Event Timeline provides a **unified activity feed** that combines events from multiple source tables into a single, chronologically-ordered timeline per organization.
 
-**DAG Generation:**
-- Each `base_timeline/` creates DAG: `silver__org_{id}_base_timeline`
-- Each `mv_*/` creates DAG: `silver__org_{id}_mv_{source}_to_timeline`
-- All timeline DAGs tagged with: `['silver', 'timeline', 'org_{id}']`
+### Key Architecture
 
----
+| Feature | Implementation |
+|---------|----------------|
+| **Database** | Dedicated database per org (e.g., `org_123`) |
+| **Table** | Single `timeline` table per org |
+| **MVs** | Materialized Views auto-insert from source tables |
+| **Real-time** | MVs trigger on INSERT - no scheduled jobs needed |
+| **Multi-tenant** | Complete data isolation per organization |
 
-## Task 1: Canonical Event Schema Design
+### DAG Pattern
 
-### Schema Architecture
+**ONE DAG with TaskGroups** (like bronze layer pattern):
 
-The timeline table uses **ReplacingMergeTree** engine for automatic deduplication:
-
-```sql
-ENGINE = ReplacingMergeTree(_version)
-PARTITION BY (org_id, toYYYYMM(processing_date))
-ORDER BY (org_id, entity_type, entity_id, timestamp, event_type)
-PRIMARY KEY (org_id, entity_type, entity_id)
+```
+silver__timeline_org_123
+├── base_timeline (TaskGroup)
+│   ├── create_database
+│   ├── create_table
+│   └── validate_table
+├── mv_redtail_account (TaskGroup)
+│   ├── create_mv
+│   ├── backfill_data
+│   └── validate_mv
+├── mv_redtail_activity (TaskGroup)
+├── mv_redtail_call (TaskGroup)
+├── mv_redtail_client (TaskGroup)
+└── mv_redtail_communication (TaskGroup)
 ```
 
-**Key Design Decisions:**
+---
 
-| Component | Design Choice | Rationale |
-|-----------|---------------|-----------|
-| **Table Engine** | ReplacingMergeTree(_version) | Automatic deduplication based on primary key + version |
-| **Partitioning** | (org_id, toYYYYMM(processing_date)) | Multi-tenant isolation + time-based data lifecycle |
-| **Primary Key** | (org_id, entity_type, entity_id) | Optimized for entity-centric queries |
-| **Sorting Key** | (org_id, entity_type, entity_id, timestamp, event_type) | Chronological ordering within entity |
+## How It Works
 
-### Field Design
+### Data Flow
 
-| Field | Type | Purpose | Example |
-|-------|------|---------|---------|
-| `event_id` | UUID | Unique event identifier | `550e8400-e29b-41d4-a716-446655440000` |
-| `org_id` | Int32 | Organization identifier (multi-tenancy) | `123` |
-| `event_type` | LowCardinality(String) | Event type from taxonomy | `contact_created` |
-| `timestamp` | DateTime64(3) | **Business event time** (when event occurred) | `2026-01-27 14:30:00.123` |
-| `entity_type` | LowCardinality(String) | Entity type | `contact`, `account`, `portfolio` |
-| `entity_id` | String | Entity identifier | `contact_12345` |
-| `description` | String | Human-readable event description | `John Doe created` |
-| `source_system` | LowCardinality(String) | Source CRM system | `redtail`, `orion`, `wealthbox` |
-| `source_table` | String | Source Silver table | `silver.redtail_contact` |
-| `source_id` | String | Original record ID for lineage | `rec_id_12345` |
-| `minio_path` | Nullable(String) | MinIO parquet path for evidence | `s3://bucket/path/file.parquet` |
-| `metadata` | Nullable(String) | JSON metadata (flexible fields) | `{"category": "A", "status": "active"}` |
-| `processing_date` | Date | **Processing date** (for partitioning) | `2026-01-27` |
-| `_loaded_at` | DateTime | **Ingestion time** (when loaded to timeline) | `2026-01-27 14:31:00` |
-| `_version` | Int32 | Version for deduplication | `1` |
+```
+1. SOURCE DATA                    2. MV TRIGGERS                 3. TIMELINE
+   (Silver tables)                   (Automatic)                    (Unified)
 
-### Time Column Strategy: 3-Timestamp Pattern
+┌─────────────────────┐          ┌──────────────────┐          ┌─────────────────┐
+│ redtail_silver.     │          │ org_123.mv_      │          │ org_123.        │
+│ account             │──INSERT──│ redtail_account  │──AUTO────│ timeline        │
+│ activity            │          │ _to_timeline     │  INSERT  │                 │
+│ call                │          │                  │          │ (all events     │
+│ client              │          │                  │          │  combined)      │
+│ communication       │          │                  │          │                 │
+└─────────────────────┘          └──────────────────┘          └─────────────────┘
+```
 
-The schema uses **3 temporal columns** for different purposes:
+### One-Time Setup vs Daily Operations
 
-1. **`timestamp`** (Business Event Time)
-   - **Purpose**: When the business event actually occurred
-   - **Source**: From source table (e.g., `rec_add`, `call_date`, `email_sent_at`)
-   - **Use Case**: Chronological timeline queries, "Show me all events in January"
-   - **Example**: `2026-01-15 09:30:00` (when customer called)
-
-2. **`processing_date`** (Processing Date)
-   - **Purpose**: Partitioning key for data lifecycle management
-   - **Source**: When Flink/Airflow processed the record
-   - **Use Case**: Data retention, partition pruning, cost optimization
-   - **Example**: `2026-01-27` (when processed by pipeline)
-
-3. **`_loaded_at`** (Ingestion Time)
-   - **Purpose**: Technical audit trail
-   - **Source**: `now()` when inserted into timeline
-   - **Use Case**: Debugging, latency monitoring, data freshness checks
-   - **Example**: `2026-01-27 14:31:00` (when written to timeline table)
-
-**Why 3 timestamps?**
-- Separates business semantics (`timestamp`) from technical operations (`processing_date`, `_loaded_at`)
-- Enables late-arriving events without breaking partitioning
-- Industry standard pattern (Snowflake, Databricks, dbt all use similar approach)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Airflow DAG runs ONCE                                          │
+│  ─────────────────────────────────────────────────              │
+│  • Creates org_123 database                                     │
+│  • Creates timeline table                                       │
+│  • Creates all MVs                                              │
+│  • Backfills existing data                                      │
+│  • Done! DAG's job is finished.                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ClickHouse handles EVERYTHING after that (forever)             │
+│  ─────────────────────────────────────────────────              │
+│                                                                 │
+│  Day 1:  New accounts inserted → MV auto-inserts to timeline    │
+│  Day 2:  New clients inserted  → MV auto-inserts to timeline    │
+│  Day 3:  New communications    → MV auto-inserts to timeline    │
+│  ...                                                            │
+│  Forever: No Airflow needed - ClickHouse MVs work 24/7          │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Task 3: Event Type Taxonomy
+## Schema Design
 
-### Event Categories (40+ Types)
+### Timeline Table Schema
 
-The taxonomy organizes events into 5 major categories:
+```sql
+CREATE TABLE org_123.timeline
+(
+    -- Core event fields
+    event_id UUID,                              -- Unique event ID
+    org_id String,                              -- UUID (e.g., '29a436a3-...')
+    event_type LowCardinality(String),          -- 'account_created', 'call_made', etc.
+    timestamp DateTime64(3),                    -- When event occurred
+    entity_type LowCardinality(String),         -- 'account', 'call', 'client', etc.
+    entity_id String,                           -- 'account_1', 'call_5', etc.
+    description String,                         -- Human-readable description
 
-#### 1. Entity Lifecycle Events
-Creation, modification, deletion of core entities.
+    -- Source tracking
+    source_system LowCardinality(String),       -- 'redtail'
+    source_table String,                        -- 'redtail_silver.account'
+    source_id String,                           -- Original rec_id
+    minio_path Nullable(String),                -- For future document links
 
-**Event Types:**
-- `contact_created`, `contact_updated`, `contact_deleted`
-- `account_created`, `account_updated`, `account_closed`
-- `household_created`, `household_updated`
-- `portfolio_created`, `portfolio_rebalanced`
-- `position_opened`, `position_closed`
+    -- Audit timestamps from source
+    rec_add Nullable(DateTime64(3)),            -- When created in source system
+    rec_edit Nullable(DateTime64(3)),           -- When last edited in source
 
-#### 2. Communication Events
-Interactions between advisors and clients.
+    -- Flexible metadata
+    metadata Nullable(String),                  -- JSON with source-specific fields
 
-**Event Types:**
-- `call_made`, `call_received`, `call_missed`
-- `email_sent`, `email_received`, `email_opened`
-- `meeting_scheduled`, `meeting_completed`, `meeting_canceled`
-- `note_added`, `task_created`, `task_completed`
+    -- Partitioning & system
+    processing_date Date,
+    _loaded_at DateTime DEFAULT now(),
+    _version Int32 DEFAULT 1
+)
+ENGINE = ReplacingMergeTree(_version)
+PARTITION BY toYYYYMM(processing_date)
+ORDER BY (org_id, entity_type, entity_id, timestamp, event_type)
+```
 
-#### 3. Financial Events
-Transactions, trades, and financial activities.
+### Column Mapping (Unified Schema)
 
-**Event Types:**
-- `trade_executed`, `trade_settled`, `trade_canceled`
-- `dividend_received`, `interest_accrued`
-- `fee_charged`, `commission_earned`
-- `deposit_received`, `withdrawal_processed`
+All source tables map to the same schema:
 
-#### 4. Relationship Events
-Changes in relationships between entities.
+```
+Source: account                    Source: communication
+─────────────────                  ─────────────────────
+rec_id ──────────────┐             rec_id ──────────────┐
+account_name ────────┤             subject ─────────────┤
+account_type ────────┤             communication_type ──┤
+open_date ───────────┤             communication_date ──┤
+rec_add ─────────────┤             rec_add ─────────────┤
+rec_edit ────────────┤             rec_edit ────────────┤
+                     │                                  │
+                     ▼                                  ▼
+              ┌──────────────────────────────────────────────┐
+              │         org_123.timeline (unified)           │
+              ├──────────────────────────────────────────────┤
+              │  event_id      ← generateUUIDv4()            │
+              │  org_id        ← glynac_organization_id      │
+              │  event_type    ← 'account_created' / 'communication_logged' │
+              │  timestamp     ← open_date / communication_date │
+              │  entity_type   ← 'account' / 'communication' │
+              │  entity_id     ← 'account_1' / 'communication_1' │
+              │  description   ← transformed text            │
+              │  rec_add       ← rec_add (from source)       │
+              │  rec_edit      ← rec_edit (from source)      │
+              │  metadata      ← JSON with source-specific fields │
+              └──────────────────────────────────────────────┘
+```
 
-**Event Types:**
-- `contact_linked_to_account`
-- `account_linked_to_household`
-- `advisor_assigned`, `advisor_changed`
-- `beneficiary_added`, `beneficiary_removed`
+### Time Column Strategy: 4-Timestamp Pattern
 
-#### 5. Workflow Events
-Process and compliance activities.
+| Column | Purpose | Source | Use Case |
+|--------|---------|--------|----------|
+| `timestamp` | Business event time | `open_date`, `call_date`, etc. | Timeline queries |
+| `rec_add` | Source record creation | From source table | Audit trail |
+| `rec_edit` | Source record edit | From source table | Change tracking |
+| `_loaded_at` | Timeline ingestion | `now()` at insert | Technical debugging |
 
-**Event Types:**
-- `document_uploaded`, `document_signed`
-- `compliance_review_started`, `compliance_review_completed`
-- `risk_assessment_updated`
-- `onboarding_started`, `onboarding_completed`
+---
+
+## Event Type Taxonomy
+
+### Current Event Types (Week 1)
+
+| Source Table | Event Type | Entity Type |
+|--------------|------------|-------------|
+| `redtail_silver.account` | `account_created` | `account` |
+| `redtail_silver.activity` | `activity_logged` | `activity` |
+| `redtail_silver.call` | `call_made` | `call` |
+| `redtail_silver.client` | `client_created` | `client` |
+| `redtail_silver.communication` | `communication_logged` | `communication` |
+
+### Future Event Types
+
+| Source Table | Event Type | Entity Type |
+|--------------|------------|-------------|
+| `redtail_silver.contact` | `contact_created` | `contact` |
+| `redtail_silver.email` | `email_sent` | `email` |
+| `redtail_silver.household` | `household_created` | `household` |
+| `redtail_silver.note` | `note_added` | `note` |
+| `redtail_silver.portfolio` | `portfolio_created` | `portfolio` |
 
 ### Naming Conventions
 
 **Format**: `{entity}_{action}`
 
-| Pattern | Example | Description |
-|---------|---------|-------------|
-| `{entity}_created` | `contact_created` | New entity created |
-| `{entity}_updated` | `account_updated` | Entity modified |
-| `{entity}_deleted` | `contact_deleted` | Entity soft/hard deleted |
-| `{entity}_{action}` | `call_made` | Specific action performed |
-| `{entity}_{status}` | `trade_settled` | Status change event |
-
-**Best Practices:**
 - Use lowercase with underscores (snake_case)
-- Use past tense for completed actions (`created`, `updated`, not `create`, `update`)
+- Use past tense for completed actions (`created`, `logged`, not `create`, `log`)
 - Keep entity name singular (`contact`, not `contacts`)
-- Be specific for financial events (`trade_executed` vs generic `transaction_created`)
 
-### Redtail Source Mappings (Week 1 - 3 Tables)
-
-| Source Table | Event Type | Entity Type | Mapping Logic |
-|--------------|------------|-------------|---------------|
-| **redtail_contact** | `contact_created` | `contact` | `rec_add` → `timestamp` |
-| **redtail_call** | `call_made` | `call` | `call_date` → `timestamp` |
-| **redtail_email** | `email_sent` | `email` | `sent_date` → `timestamp` |
-
-**Expansion (15+ Redtail Tables)**:
-- `redtail_account` → `account_created`, `account_updated`
-- `redtail_household` → `household_created`, `household_updated`
-- `redtail_portfolio` → `portfolio_created`, `portfolio_rebalanced`
-- `redtail_trade` → `trade_executed`, `trade_settled`
-- `redtail_note` → `note_added`
-- ... (12 more tables)
-
+---
 
 ## Directory Structure
 
 ```
 config/silver/timeline/
 ├── README.md                           ← You are here
-├── org_123/                            ← Organization 123 (pilot)
-│   ├── README.md                       ← Org-specific guide
-│   ├── base_timeline/                  ← Base timeline table
-│   │   ├── dag.yaml
-│   │   └── table.sql
-│   ├── mv_redtail_contact/             ← Contact → Timeline MV
-│   │   ├── dag.yaml
-│   │   └── mv.sql
-│   ├── mv_redtail_call/                ← Call → Timeline MV
-│   │   ├── dag.yaml
-│   │   └── mv.sql
-│   └── mv_redtail_email/               ← Email → Timeline MV
-│       ├── dag.yaml
-│       └── mv.sql
-│
-├── org_456/                            ← others: Organization 456
-│   └── base_timeline/
-│       ├── dag.yaml
-│       └── table.sql
-│
-└── _template/                          ← Template for new orgs
+└── org_123/                            ← Organization 123 (pilot)
+    ├── README.md                       ← Org-specific guide
+    ├── dag.yaml                        ← ONE DAG config (TaskGroups)
     ├── base_timeline/
-    │   ├── dag.yaml.template
-    │   └── table.sql.template
-    └── mv_redtail_contact/
-        ├── dag.yaml.template
-        └── mv.sql.template
+    │   └── table.sql                   ← CREATE DATABASE + TABLE
+    ├── mv_redtail_account/
+    │   └── mv.sql                      ← MV: account → timeline
+    ├── mv_redtail_activity/
+    │   └── mv.sql                      ← MV: activity → timeline
+    ├── mv_redtail_call/
+    │   └── mv.sql                      ← MV: call → timeline
+    ├── mv_redtail_client/
+    │   └── mv.sql                      ← MV: client → timeline
+    └── mv_redtail_communication/
+        └── mv.sql                      ← MV: communication → timeline
 ```
-
-## Adding a New Organization
-
-### Quick Start
-
-```bash
-# Step 1: Copy template
-cd config/silver/timeline
-cp -r _template org_456
-
-# Step 2: Update org_id in all files
-find org_456 -type f -name "*.yaml" -exec sed -i '' 's/org_id: 123/org_id: 456/g' {} \;
-find org_456 -type f -name "*.sql" -exec sed -i '' 's/org_123/org_456/g' {} \;
-find org_456 -type f -name "*.sql" -exec sed -i '' 's/123 AS org_id/456 AS org_id/g' {} \;
-
-# Step 3: Update DAG IDs
-find org_456 -type f -name "dag.yaml" -exec sed -i '' 's/__org_123_/__org_456_/g' {} \;
-
-# Step 4: Sync to MinIO
-mc mirror --overwrite config/ myminio/airflow-configs/config/
-
-# Step 5: Trigger DAGs in Airflow
-airflow dags trigger silver__org_456_timeline
-airflow dags trigger silver__org_456_mv_redtail_contact_to_timeline
-# ... etc
-```
-
-### Detailed Steps
-
-See **[Adding New Organization Guide](org_123/README.md#adding-new-organization)** for complete instructions.
 
 ---
 
-## Testing Org 123 (Pilot)
+## Adding a New Organization
 
-See **[Org 123 README](org_123/README.md)** for detailed testing instructions.
+### Step 1: Copy org_123 folder
 
-
-## File Naming Conventions
-
-### DAG IDs
-
-```
-silver__org_{org_id}_timeline                      # Base table
-silver__org_{org_id}_mv_redtail_contact_to_timeline   # Contact MV
-silver__org_{org_id}_mv_redtail_call_to_timeline      # Call MV
+```bash
+cp -r config/silver/timeline/org_123 config/silver/timeline/org_456
 ```
 
-### Table Names
+### Step 2: Update all files
 
-```
-silver.org_{org_id}_timeline                       # Timeline table
-silver.mv_{source}_{entity}_to_timeline_org_{id}   # MV name (alternative)
+Replace in all files:
+- `org_123` → `org_456`
+- `29a436a3-b5de-4afd-9c7a-059246c5a681` → new org UUID
+
+### Step 3: Sync to MinIO
+
+```bash
+mc mirror --overwrite config/ myminio/airflow-configs/config/
 ```
 
-### Config Paths
+### Step 4: Run DAG
 
+```bash
+airflow dags trigger silver__timeline_org_456
 ```
-config/silver/timeline/org_{org_id}/base_timeline/
-config/silver/timeline/org_{org_id}/mv_{source}_{entity}/
+
+---
+
+## Query Examples
+
+### Get full timeline
+
+```sql
+SELECT timestamp, event_type, description, rec_add, rec_edit
+FROM org_123.timeline
+ORDER BY timestamp DESC
+LIMIT 50;
+```
+
+### Filter by event type
+
+```sql
+SELECT * FROM org_123.timeline
+WHERE event_type = 'communication_logged'
+ORDER BY timestamp DESC;
+```
+
+### Count events by type
+
+```sql
+SELECT
+    event_type,
+    count() as cnt,
+    min(timestamp) as earliest,
+    max(timestamp) as latest
+FROM org_123.timeline
+GROUP BY event_type
+ORDER BY cnt DESC;
+```
+
+### Track record changes
+
+```sql
+SELECT
+    entity_id,
+    description,
+    rec_add as created,
+    rec_edit as last_modified,
+    dateDiff('day', rec_add, rec_edit) as days_since_creation
+FROM org_123.timeline
+WHERE rec_edit IS NOT NULL
+ORDER BY rec_edit DESC;
 ```
 
 ---
 
 ## Support
 
-**Questions?** Reach Data Engineer team.
+**Questions?** Contact Data Engineering team.
