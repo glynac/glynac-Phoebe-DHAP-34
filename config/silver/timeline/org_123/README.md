@@ -4,22 +4,26 @@
 **Database:** `org_123`
 **Timeline Table:** `org_123.timeline`
 **Status:** Active
+**Last Updated:** 2026-02-04
 
 ---
 
 ## Overview
 
-Organization 123 is the pilot implementation of the Canonical Event Timeline. It combines events from 5 Redtail source tables into a single unified timeline.
+Organization 123 is the pilot implementation of the Canonical Event Timeline. It combines events from 6 Redtail source tables into a single unified timeline using the **two-phase strategy** (backfill + ongoing).
 
 ### Current Event Sources
 
-| Source Table | Event Type | Status |
-|--------------|------------|--------|
-| `redtail_silver.account` | `account_created` | Active |
-| `redtail_silver.activity` | `activity_logged` | Active |
-| `redtail_silver.call` | `call_made` | Active |
-| `redtail_silver.client` | `client_created` | Active |
-| `redtail_silver.communication` | `communication_logged` | Active |
+| Source Table | Event Types | Events/Record | Status |
+|--------------|-------------|---------------|--------|
+| `redtail_silver.account` | `account_created`, `account_opened`, `account_updated` | 3 | Active |
+| `redtail_silver.activity` | `activity_created`, `activity_logged`, `activity_updated` | 3 | Active |
+| `redtail_silver.call` | `call_created`, `call_made`, `call_updated` | 3 | Active |
+| `redtail_silver.client` | `client_created`, `client_updated` | 2 | Active* |
+| `redtail_silver.communication` | `communication_created`, `communication_logged`, `communication_updated` | 3 | Active |
+| `redtail_silver.email` | `email_created`, `email_sent`, `email_updated` | 3 | Active |
+
+*Note: `client_onboarded` event skipped due to missing `client_since` column in actual table (schema drift).
 
 ---
 
@@ -28,19 +32,21 @@ Organization 123 is the pilot implementation of the Canonical Event Timeline. It
 ```
 org_123/
 ├── README.md                      ← You are here
-├── dag.yaml                       ← ONE DAG config with TaskGroups
+├── dag.yaml                       ← DAG configuration (7 components)
 ├── base_timeline/
-│   └── table.sql                  ← CREATE DATABASE org_123 + CREATE TABLE timeline
+│   └── table.sql                  ← CREATE DATABASE + TABLE + INDEXES
 ├── mv_redtail_account/
-│   └── mv.sql                     ← MV: account → timeline
+│   └── mv.sql                     ← 3 events per record
 ├── mv_redtail_activity/
-│   └── mv.sql                     ← MV: activity → timeline
+│   └── mv.sql                     ← 3 events per record
 ├── mv_redtail_call/
-│   └── mv.sql                     ← MV: call → timeline
+│   └── mv.sql                     ← 3 events per record
 ├── mv_redtail_client/
-│   └── mv.sql                     ← MV: client → timeline
-└── mv_redtail_communication/
-    └── mv.sql                     ← MV: communication → timeline
+│   └── mv.sql                     ← 2 events (client_since missing)
+├── mv_redtail_communication/
+│   └── mv.sql                     ← 3 events per record
+└── mv_redtail_email/
+    └── mv.sql                     ← 3 events per record
 ```
 
 ---
@@ -59,28 +65,16 @@ silver__timeline_org_123
 │
 ├── mv_redtail_account (TaskGroup)
 │   ├── create_mv        → Creates MV + backfills existing data
-│   └── validate_mv      → Verifies events inserted
+│   └── validate_mv      → Verifies events >= 1
 │
 ├── mv_redtail_activity (TaskGroup)
-│   ├── create_mv
-│   └── validate_mv
-│
 ├── mv_redtail_call (TaskGroup)
-│   ├── create_mv
-│   └── validate_mv
-│
 ├── mv_redtail_client (TaskGroup)
-│   ├── create_mv
-│   └── validate_mv
-│
-└── mv_redtail_communication (TaskGroup)
-    ├── create_mv
-    └── validate_mv
-```
+├── mv_redtail_communication (TaskGroup)
+└── mv_redtail_email (TaskGroup)
 
-**Dependencies:**
-- All MV TaskGroups depend on `base_timeline` completing first
-- MV TaskGroups can run in parallel after base_timeline
+Dependencies: All MV TaskGroups depend on base_timeline
+```
 
 ---
 
@@ -91,15 +85,16 @@ silver__timeline_org_123
 | Column | Type | Description |
 |--------|------|-------------|
 | `event_id` | UUID | Unique event identifier |
-| `org_id` | String | Organization UUID (`29a436a3-b5de-4afd-9c7a-059246c5a681`) |
-| `event_type` | LowCardinality(String) | Event type (e.g., `account_created`) |
+| `org_id` | String | Organization UUID |
+| `event_type` | LowCardinality(String) | e.g., `account_created`, `call_made` |
 | `timestamp` | DateTime64(3) | When event occurred |
-| `entity_type` | LowCardinality(String) | Entity type (e.g., `account`) |
-| `entity_id` | String | Entity identifier (e.g., `account_1`) |
+| `event_timestamp_source` | LowCardinality(String) | Source field: `rec_add`, `open_date`, etc. |
+| `entity_type` | LowCardinality(String) | e.g., `account`, `call` |
+| `entity_id` | String | e.g., `account_1`, `call_5` |
 | `description` | String | Human-readable description |
-| `source_system` | LowCardinality(String) | Source system (`redtail`) |
-| `source_table` | String | Source table name |
-| `source_id` | String | Original record ID |
+| `source_system` | LowCardinality(String) | `redtail` |
+| `source_table` | String | e.g., `redtail_silver.account` |
+| `source_id` | String | Original `rec_id` |
 | `minio_path` | Nullable(String) | Document path (future use) |
 | `rec_add` | Nullable(DateTime64(3)) | When created in source |
 | `rec_edit` | Nullable(DateTime64(3)) | When last edited in source |
@@ -110,19 +105,67 @@ silver__timeline_org_123
 
 ---
 
+## Event Types Detail
+
+### Account Events
+| Event Type | Timestamp Source | Description |
+|------------|------------------|-------------|
+| `account_created` | `rec_add` | Record created in Redtail |
+| `account_opened` | `open_date` | Account opening date (business event) |
+| `account_updated` | `rec_edit` | Record modified |
+
+### Activity Events
+| Event Type | Timestamp Source | Description |
+|------------|------------------|-------------|
+| `activity_created` | `rec_add` | Activity record created |
+| `activity_logged` | `activity_date` | When activity occurred (business event) |
+| `activity_updated` | `rec_edit` | Activity record modified |
+
+### Call Events
+| Event Type | Timestamp Source | Description |
+|------------|------------------|-------------|
+| `call_created` | `rec_add` | Call record created |
+| `call_made` | `call_date` | When call occurred (business event) |
+| `call_updated` | `rec_edit` | Call record modified |
+
+### Client Events
+| Event Type | Timestamp Source | Description |
+|------------|------------------|-------------|
+| `client_created` | `rec_add` | Client record created |
+| `client_updated` | `rec_edit` | Client record modified |
+
+*`client_onboarded` event not available due to schema drift.
+
+### Communication Events
+| Event Type | Timestamp Source | Description |
+|------------|------------------|-------------|
+| `communication_created` | `rec_add` | Communication record created |
+| `communication_logged` | `communication_date` | When communication occurred (business event) |
+| `communication_updated` | `rec_edit` | Communication record modified |
+
+### Email Events
+| Event Type | Timestamp Source | Description |
+|------------|------------------|-------------|
+| `email_created` | `rec_add` | Email record created |
+| `email_sent` | `sent_date` | When email was sent (business event) |
+| `email_updated` | `rec_edit` | Email record modified |
+
+---
+
 ## Validation Queries
 
-### 1. Event Count by Type
+### 1. Event Count by Type and Source
 
 ```sql
 SELECT
     event_type,
+    event_timestamp_source,
     count() as event_count,
     min(timestamp) as earliest,
     max(timestamp) as latest
 FROM org_123.timeline
-GROUP BY event_type
-ORDER BY event_count DESC;
+GROUP BY event_type, event_timestamp_source
+ORDER BY event_type;
 ```
 
 ### 2. Full Timeline (Recent)
@@ -131,25 +174,24 @@ ORDER BY event_count DESC;
 SELECT
     timestamp,
     event_type,
+    event_timestamp_source,
     entity_id,
-    description,
-    rec_add,
-    rec_edit
+    description
 FROM org_123.timeline
 ORDER BY timestamp DESC
 LIMIT 50;
 ```
 
-### 3. Check Source Distribution
+### 3. Source Distribution
 
 ```sql
 SELECT
     source_table,
-    event_type,
-    count() as cnt
+    count() as cnt,
+    count(DISTINCT entity_id) as unique_entities
 FROM org_123.timeline
-GROUP BY source_table, event_type
-ORDER BY source_table;
+GROUP BY source_table
+ORDER BY cnt DESC;
 ```
 
 ### 4. Verify Audit Timestamps
@@ -164,54 +206,41 @@ FROM org_123.timeline
 GROUP BY event_type;
 ```
 
-### 5. Recent Changes (by rec_edit)
+### 5. Entity Lifecycle
 
 ```sql
 SELECT
     entity_id,
-    event_type,
-    description,
-    rec_add as created,
-    rec_edit as last_modified
+    groupArray(event_type) as events,
+    groupArray(event_timestamp_source) as sources,
+    groupArray(timestamp) as timestamps
 FROM org_123.timeline
-WHERE rec_edit IS NOT NULL
-ORDER BY rec_edit DESC
-LIMIT 20;
+WHERE entity_type = 'account'
+GROUP BY entity_id
+LIMIT 10;
 ```
 
 ---
 
 ## Materialized Views
 
-### How MVs Work
-
-Each MV watches a source table and automatically inserts into the timeline:
-
-```sql
--- Example: mv_redtail_account_to_timeline
-CREATE MATERIALIZED VIEW org_123.mv_redtail_account_to_timeline
-TO org_123.timeline    ← Target table
-AS
-SELECT
-    generateUUIDv4() AS event_id,
-    glynac_organization_id AS org_id,
-    'account_created' AS event_type,
-    ...
-    rec_add,           ← Audit timestamp: when created
-    rec_edit,          ← Audit timestamp: when edited
-    ...
-FROM redtail_silver.account    ← Source table
-WHERE glynac_organization_id = '29a436a3-b5de-4afd-9c7a-059246c5a681';
-```
-
 ### List All MVs
 
 ```sql
-SELECT name, engine, as_select
+SELECT name, engine
 FROM system.tables
 WHERE database = 'org_123'
   AND engine = 'MaterializedView';
 ```
+
+### Expected MVs
+
+- `mv_redtail_account_to_timeline`
+- `mv_redtail_activity_to_timeline`
+- `mv_redtail_call_to_timeline`
+- `mv_redtail_client_to_timeline`
+- `mv_redtail_communication_to_timeline`
+- `mv_redtail_email_to_timeline`
 
 ---
 
@@ -226,6 +255,7 @@ DROP VIEW IF EXISTS org_123.mv_redtail_activity_to_timeline;
 DROP VIEW IF EXISTS org_123.mv_redtail_call_to_timeline;
 DROP VIEW IF EXISTS org_123.mv_redtail_client_to_timeline;
 DROP VIEW IF EXISTS org_123.mv_redtail_communication_to_timeline;
+DROP VIEW IF EXISTS org_123.mv_redtail_email_to_timeline;
 
 -- Drop timeline table
 DROP TABLE IF EXISTS org_123.timeline;
@@ -234,62 +264,19 @@ DROP TABLE IF EXISTS org_123.timeline;
 DROP DATABASE IF EXISTS org_123;
 ```
 
-Then re-run the DAG: `airflow dags trigger silver__timeline_org_123`
+Then re-run: `airflow dags trigger silver__timeline_org_123`
 
 ---
 
-## Adding More Event Sources
+## Known Issues
 
-To add a new source table (e.g., `redtail_silver.note`):
+### Schema Drift (redtail_silver.client)
 
-### 1. Create MV folder
+The actual `redtail_silver.client` table is missing columns defined in schema.yaml:
+- `risk_tolerance` - removed from MV metadata
+- `client_since` - removed entire `client_onboarded` event
 
-```bash
-mkdir mv_redtail_note
-```
-
-### 2. Create mv.sql
-
-```sql
-CREATE MATERIALIZED VIEW IF NOT EXISTS org_123.mv_redtail_note_to_timeline
-TO org_123.timeline
-AS
-SELECT
-    generateUUIDv4() AS event_id,
-    glynac_organization_id AS org_id,
-    'note_added' AS event_type,
-    COALESCE(note_date, rec_add, processing_timestamp, now()) AS timestamp,
-    'note' AS entity_type,
-    concat('note_', toString(rec_id)) AS entity_id,
-    concat('Note: ', COALESCE(subject, 'No subject')) AS description,
-    'redtail' AS source_system,
-    'redtail_silver.note' AS source_table,
-    toString(rec_id) AS source_id,
-    CAST(NULL AS Nullable(String)) AS minio_path,
-    rec_add,
-    rec_edit,
-    toJSONString(map(...)) AS metadata,
-    processing_date,
-    now() AS _loaded_at,
-    1 AS _version
-FROM redtail_silver.note
-WHERE rec_id IS NOT NULL
-  AND glynac_organization_id = '29a436a3-b5de-4afd-9c7a-059246c5a681';
-```
-
-### 3. Add to dag.yaml
-
-Add new component in the `components` section.
-
-### 4. Sync and run
-
-```bash
-# Sync to MinIO
-mc mirror --overwrite config/ myminio/airflow-configs/config/
-
-# Re-run DAG
-airflow dags trigger silver__timeline_org_123
-```
+**Resolution:** Either update the silver table schema or keep the MV simplified.
 
 ---
 

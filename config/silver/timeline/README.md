@@ -1,6 +1,7 @@
 # Canonical Event Timeline
 
-**Version:** 2.0
+**Version:** 3.0
+**Last Updated:** 2026-02-04
 
 ---
 
@@ -8,113 +9,164 @@
 
 The Canonical Event Timeline provides a **unified activity feed** that combines events from multiple source tables into a single, chronologically-ordered timeline per organization.
 
-### Key Architecture
+### Key Features
 
-| Feature | Implementation |
-|---------|----------------|
-| **Database** | Dedicated database per org (e.g., `org_123`) |
-| **Table** | Single `timeline` table per org |
-| **MVs** | Materialized Views auto-insert from source tables |
-| **Real-time** | MVs trigger on INSERT - no scheduled jobs needed |
-| **Multi-tenant** | Complete data isolation per organization |
-
-### DAG Pattern
-
-**ONE DAG with TaskGroups** (like bronze layer pattern):
-
-```
-silver__timeline_org_123
-├── base_timeline (TaskGroup)
-│   ├── create_database
-│   ├── create_table
-│   └── validate_table
-├── mv_redtail_account (TaskGroup)
-│   ├── create_mv
-│   ├── backfill_data
-│   └── validate_mv
-├── mv_redtail_activity (TaskGroup)
-├── mv_redtail_call (TaskGroup)
-├── mv_redtail_client (TaskGroup)
-└── mv_redtail_communication (TaskGroup)
-```
+| Feature | Description |
+|---------|-------------|
+| **Per-org Database** | Dedicated database per org (e.g., `org_123`) for complete data isolation |
+| **Multi-event per Record** | Each source record generates 2-3 events (created, business event, updated) |
+| **Event Timestamp Source** | Tracks which field was used for event timestamp (`rec_add`, `open_date`, etc.) |
+| **Real-time Capture** | MVs trigger on INSERT - no scheduled jobs needed after setup |
+| **Automatic Backfill** | Existing data is backfilled during MV creation |
 
 ---
 
-## How It Works
+## Two-Phase Timeline Strategy
+
+### Phase 1: Backfill (Historical Data)
+
+When the DAG runs, it creates MVs and backfills existing data. Each source record generates **2-3 events**:
+
+```
+Source Record (account)
+├── Event 1: account_created   [timestamp: rec_add]     - Always created
+├── Event 2: account_opened    [timestamp: open_date]   - Business event (if exists and != rec_add)
+└── Event 3: account_updated   [timestamp: rec_edit]    - If rec_edit != rec_add
+```
+
+### Phase 2: Ongoing (Real-time)
+
+After backfill, MVs automatically capture new inserts. Each new record inserted into source tables triggers the MV to insert events into the timeline.
+
+### Event Timestamp Source Column
+
+The `event_timestamp_source` column tracks which field was used for the event's timestamp:
+
+| event_type | event_timestamp_source | Description |
+|------------|------------------------|-------------|
+| `account_created` | `rec_add` | When record was created in source |
+| `account_opened` | `open_date` | Business event - when account opened |
+| `account_updated` | `rec_edit` | When record was last modified |
+| `call_made` | `call_date` | Business event - when call occurred |
+| `email_sent` | `sent_date` | Business event - when email was sent |
+
+---
+
+## Architecture
 
 ### Data Flow
 
 ```
-1. SOURCE DATA                    2. MV TRIGGERS                 3. TIMELINE
-   (Silver tables)                   (Automatic)                    (Unified)
-
-┌─────────────────────┐          ┌──────────────────┐          ┌─────────────────┐
-│ redtail_silver.     │          │ org_123.mv_      │          │ org_123.        │
-│ account             │──INSERT──│ redtail_account  │──AUTO────│ timeline        │
-│ activity            │          │ _to_timeline     │  INSERT  │                 │
-│ call                │          │                  │          │ (all events     │
-│ client              │          │                  │          │  combined)      │
-│ communication       │          │                  │          │                 │
-└─────────────────────┘          └──────────────────┘          └─────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           SOURCE TABLES (Silver)                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  redtail_silver.account      redtail_silver.activity                        │
+│  redtail_silver.call         redtail_silver.client                          │
+│  redtail_silver.communication  redtail_silver.email                         │
+└───────────────────────────────────┬─────────────────────────────────────────┘
+                                    │
+                                    │ INSERT triggers MV
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      MATERIALIZED VIEWS (per org)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  org_123.mv_redtail_account_to_timeline                                     │
+│  org_123.mv_redtail_activity_to_timeline                                    │
+│  org_123.mv_redtail_call_to_timeline                                        │
+│  org_123.mv_redtail_client_to_timeline                                      │
+│  org_123.mv_redtail_communication_to_timeline                               │
+│  org_123.mv_redtail_email_to_timeline                                       │
+└───────────────────────────────────┬─────────────────────────────────────────┘
+                                    │
+                                    │ UNION ALL (2-3 events per record)
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          TIMELINE TABLE (unified)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  org_123.timeline                                                           │
+│  - All events combined and chronologically ordered                          │
+│  - Partitioned by processing_date                                           │
+│  - ReplacingMergeTree for deduplication                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### One-Time Setup vs Daily Operations
+### DAG Structure
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Airflow DAG runs ONCE                                          │
-│  ─────────────────────────────────────────────────              │
-│  • Creates org_123 database                                     │
-│  • Creates timeline table                                       │
-│  • Creates all MVs                                              │
-│  • Backfills existing data                                      │
-│  • Done! DAG's job is finished.                                 │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  ClickHouse handles EVERYTHING after that (forever)             │
-│  ─────────────────────────────────────────────────              │
-│                                                                 │
-│  Day 1:  New accounts inserted → MV auto-inserts to timeline    │
-│  Day 2:  New clients inserted  → MV auto-inserts to timeline    │
-│  Day 3:  New communications    → MV auto-inserts to timeline    │
-│  ...                                                            │
-│  Forever: No Airflow needed - ClickHouse MVs work 24/7          │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+silver__timeline_org_123
+│
+├── base_timeline (TaskGroup)
+│   ├── create_table      → Creates org_123 database + timeline table
+│   └── validate_table    → Verifies table exists
+│
+├── mv_redtail_account (TaskGroup)
+│   ├── create_mv         → Creates MV + backfills existing data
+│   └── validate_mv       → Verifies events inserted (>= 1)
+│
+├── mv_redtail_activity (TaskGroup)
+├── mv_redtail_call (TaskGroup)
+├── mv_redtail_client (TaskGroup)
+├── mv_redtail_communication (TaskGroup)
+└── mv_redtail_email (TaskGroup)
+
+Dependencies: All MV TaskGroups depend on base_timeline
 ```
 
 ---
 
-## Schema Design
+## Directory Structure
 
-### Timeline Table Schema
+```
+config/silver/timeline/
+├── README.md                              ← You are here (deployment guide)
+└── org_123/                               ← Organization folder
+    ├── README.md                          ← Org-specific documentation
+    ├── dag.yaml                           ← DAG configuration
+    ├── base_timeline/
+    │   └── table.sql                      ← CREATE DATABASE + TABLE + INDEXES
+    ├── mv_redtail_account/
+    │   └── mv.sql                         ← MV with UNION ALL (3 events)
+    ├── mv_redtail_activity/
+    │   └── mv.sql
+    ├── mv_redtail_call/
+    │   └── mv.sql
+    ├── mv_redtail_client/
+    │   └── mv.sql                         ← Note: 2 events (client_since missing)
+    ├── mv_redtail_communication/
+    │   └── mv.sql
+    └── mv_redtail_email/
+        └── mv.sql
+```
+
+---
+
+## Timeline Table Schema
 
 ```sql
 CREATE TABLE org_123.timeline
 (
     -- Core event fields
-    event_id UUID,                              -- Unique event ID
-    org_id String,                              -- UUID (e.g., '29a436a3-...')
-    event_type LowCardinality(String),          -- 'account_created', 'call_made', etc.
-    timestamp DateTime64(3),                    -- When event occurred
-    entity_type LowCardinality(String),         -- 'account', 'call', 'client', etc.
-    entity_id String,                           -- 'account_1', 'call_5', etc.
-    description String,                         -- Human-readable description
+    event_id UUID,
+    org_id String,
+    event_type LowCardinality(String),
+    timestamp DateTime64(3),
+    event_timestamp_source LowCardinality(String),  -- NEW: tracks timestamp origin
+    entity_type LowCardinality(String),
+    entity_id String,
+    description String,
 
     -- Source tracking
-    source_system LowCardinality(String),       -- 'redtail'
-    source_table String,                        -- 'redtail_silver.account'
-    source_id String,                           -- Original rec_id
-    minio_path Nullable(String),                -- For future document links
+    source_system LowCardinality(String),
+    source_table String,
+    source_id String,
+    minio_path Nullable(String),
 
     -- Audit timestamps from source
-    rec_add Nullable(DateTime64(3)),            -- When created in source system
-    rec_edit Nullable(DateTime64(3)),           -- When last edited in source
+    rec_add Nullable(DateTime64(3)),
+    rec_edit Nullable(DateTime64(3)),
 
-    -- Flexible metadata
-    metadata Nullable(String),                  -- JSON with source-specific fields
+    -- Flexible metadata (JSON)
+    metadata Nullable(String),
 
     -- Partitioning & system
     processing_date Date,
@@ -126,177 +178,336 @@ PARTITION BY toYYYYMM(processing_date)
 ORDER BY (org_id, entity_type, entity_id, timestamp, event_type)
 ```
 
-### Column Mapping (Unified Schema)
+---
 
-All source tables map to the same schema:
+## Current Event Types (org_123)
 
-```
-Source: account                    Source: communication
-─────────────────                  ─────────────────────
-rec_id ──────────────┐             rec_id ──────────────┐
-account_name ────────┤             subject ─────────────┤
-account_type ────────┤             communication_type ──┤
-open_date ───────────┤             communication_date ──┤
-rec_add ─────────────┤             rec_add ─────────────┤
-rec_edit ────────────┤             rec_edit ────────────┤
-                     │                                  │
-                     ▼                                  ▼
-              ┌──────────────────────────────────────────────┐
-              │         org_123.timeline (unified)           │
-              ├──────────────────────────────────────────────┤
-              │  event_id      ← generateUUIDv4()            │
-              │  org_id        ← glynac_organization_id      │
-              │  event_type    ← 'account_created' / 'communication_logged' │
-              │  timestamp     ← open_date / communication_date │
-              │  entity_type   ← 'account' / 'communication' │
-              │  entity_id     ← 'account_1' / 'communication_1' │
-              │  description   ← transformed text            │
-              │  rec_add       ← rec_add (from source)       │
-              │  rec_edit      ← rec_edit (from source)      │
-              │  metadata      ← JSON with source-specific fields │
-              └──────────────────────────────────────────────┘
-```
+| Source Table | Event Types | Events per Record |
+|--------------|-------------|-------------------|
+| `redtail_silver.account` | `account_created`, `account_opened`, `account_updated` | 3 |
+| `redtail_silver.activity` | `activity_created`, `activity_logged`, `activity_updated` | 3 |
+| `redtail_silver.call` | `call_created`, `call_made`, `call_updated` | 3 |
+| `redtail_silver.client` | `client_created`, `client_updated` | 2* |
+| `redtail_silver.communication` | `communication_created`, `communication_logged`, `communication_updated` | 3 |
+| `redtail_silver.email` | `email_created`, `email_sent`, `email_updated` | 3 |
 
-### Time Column Strategy: 4-Timestamp Pattern
-
-| Column | Purpose | Source | Use Case |
-|--------|---------|--------|----------|
-| `timestamp` | Business event time | `open_date`, `call_date`, etc. | Timeline queries |
-| `rec_add` | Source record creation | From source table | Audit trail |
-| `rec_edit` | Source record edit | From source table | Change tracking |
-| `_loaded_at` | Timeline ingestion | `now()` at insert | Technical debugging |
+*`client_onboarded` event skipped due to `client_since` column missing in actual table.
 
 ---
 
-## Event Type Taxonomy
+## Deploying to a New Organization
 
-### Current Event Types (Week 1)
+### Prerequisites
 
-| Source Table | Event Type | Entity Type |
-|--------------|------------|-------------|
-| `redtail_silver.account` | `account_created` | `account` |
-| `redtail_silver.activity` | `activity_logged` | `activity` |
-| `redtail_silver.call` | `call_made` | `call` |
-| `redtail_silver.client` | `client_created` | `client` |
-| `redtail_silver.communication` | `communication_logged` | `communication` |
+1. Source silver tables exist (e.g., `redtail_silver.account`, `redtail_silver.activity`, etc.)
+2. Source tables have data for the target organization (`glynac_organization_id`)
+3. Access to ClickHouse and MinIO
 
-### Future Event Types
-
-| Source Table | Event Type | Entity Type |
-|--------------|------------|-------------|
-| `redtail_silver.contact` | `contact_created` | `contact` |
-| `redtail_silver.email` | `email_sent` | `email` |
-| `redtail_silver.household` | `household_created` | `household` |
-| `redtail_silver.note` | `note_added` | `note` |
-| `redtail_silver.portfolio` | `portfolio_created` | `portfolio` |
-
-### Naming Conventions
-
-**Format**: `{entity}_{action}`
-
-- Use lowercase with underscores (snake_case)
-- Use past tense for completed actions (`created`, `logged`, not `create`, `log`)
-- Keep entity name singular (`contact`, not `contacts`)
-
----
-
-## Directory Structure
-
-```
-config/silver/timeline/
-├── README.md                           ← You are here
-└── org_123/                            ← Organization 123 (pilot)
-    ├── README.md                       ← Org-specific guide
-    ├── dag.yaml                        ← ONE DAG config (TaskGroups)
-    ├── base_timeline/
-    │   └── table.sql                   ← CREATE DATABASE + TABLE
-    ├── mv_redtail_account/
-    │   └── mv.sql                      ← MV: account → timeline
-    ├── mv_redtail_activity/
-    │   └── mv.sql                      ← MV: activity → timeline
-    ├── mv_redtail_call/
-    │   └── mv.sql                      ← MV: call → timeline
-    ├── mv_redtail_client/
-    │   └── mv.sql                      ← MV: client → timeline
-    └── mv_redtail_communication/
-        └── mv.sql                      ← MV: communication → timeline
-```
-
----
-
-## Adding a New Organization
-
-### Step 1: Copy org_123 folder
+### Step 1: Copy org_123 Folder
 
 ```bash
+# Create new org folder
 cp -r config/silver/timeline/org_123 config/silver/timeline/org_456
 ```
 
-### Step 2: Update all files
+### Step 2: Update Organization Details
 
-Replace in all files:
-- `org_123` → `org_456`
-- `29a436a3-b5de-4afd-9c7a-059246c5a681` → new org UUID
+**Files to update:**
 
-### Step 3: Sync to MinIO
+| File | Changes Required |
+|------|-----------------|
+| `dag.yaml` | Update `dag_id`, `org_id`, `database`, `table_path` |
+| `base_timeline/table.sql` | Replace `org_123` with `org_456` |
+| `mv_redtail_*/mv.sql` | Replace `org_123` and org UUID |
+| `README.md` | Update org-specific details |
 
+**Search and replace:**
 ```bash
-mc mirror --overwrite config/ myminio/airflow-configs/config/
+# In all files under org_456/
+# Replace:
+#   org_123 → org_456
+#   29a436a3-b5de-4afd-9c7a-059246c5a681 → NEW_ORG_UUID
 ```
 
-### Step 4: Run DAG
+### Step 3: Verify Source Table Columns
+
+**IMPORTANT:** Check that the actual silver tables have the columns referenced in MVs.
+
+```sql
+-- Check what columns exist in actual table
+SELECT name FROM system.columns
+WHERE database = 'redtail_silver' AND table = 'account';
+```
+
+If columns are missing (schema drift), remove them from the MV's metadata map and/or remove entire event types that depend on missing columns.
+
+### Step 4: Sync to MinIO
 
 ```bash
+mc mirror --overwrite config/ myminio/airflow-configs/
+```
+
+### Step 5: Trigger DAG
+
+```bash
+# Trigger the DAG
 airflow dags trigger silver__timeline_org_456
+
+# Monitor progress
+airflow tasks list silver__timeline_org_456
 ```
+
+### Step 6: Verify Deployment
+
+```sql
+-- Check timeline has events
+SELECT
+    event_type,
+    event_timestamp_source,
+    count() as cnt
+FROM org_456.timeline
+GROUP BY event_type, event_timestamp_source
+ORDER BY event_type;
+
+-- Check MVs exist
+SELECT name FROM system.tables
+WHERE database = 'org_456' AND engine = 'MaterializedView';
+```
+
+---
+
+## MV SQL Template (UNION ALL Pattern)
+
+Each MV generates multiple events per source record:
+
+```sql
+CREATE MATERIALIZED VIEW IF NOT EXISTS org_123.mv_redtail_account_to_timeline
+TO org_123.timeline
+AS
+-- Event 1: account_created [timestamp: rec_add]
+SELECT
+    generateUUIDv4() AS event_id,
+    glynac_organization_id AS org_id,
+    'account_created' AS event_type,
+    rec_add AS timestamp,
+    'rec_add' AS event_timestamp_source,  -- Track timestamp source
+    'account' AS entity_type,
+    concat('account_', toString(rec_id)) AS entity_id,
+    concat('Account created: ', COALESCE(account_name, 'Unnamed')) AS description,
+    'redtail' AS source_system,
+    'redtail_silver.account' AS source_table,
+    toString(rec_id) AS source_id,
+    CAST(NULL AS Nullable(String)) AS minio_path,
+    rec_add AS rec_add,
+    rec_edit AS rec_edit,
+    toJSONString(map(
+        'account_type', COALESCE(account_type, ''),
+        'backfill', 'true'
+    )) AS metadata,
+    processing_date,
+    now() AS _loaded_at,
+    1 AS _version
+FROM redtail_silver.account
+WHERE rec_id IS NOT NULL
+  AND rec_add IS NOT NULL
+  AND glynac_organization_id = '29a436a3-b5de-4afd-9c7a-059246c5a681'
+
+UNION ALL
+
+-- Event 2: account_opened [timestamp: open_date] - business event
+SELECT
+    ...
+    'account_opened' AS event_type,
+    open_date AS timestamp,
+    'open_date' AS event_timestamp_source,
+    ...
+WHERE open_date IS NOT NULL
+  AND (rec_add IS NULL OR open_date != rec_add)  -- Avoid duplicate if same as rec_add
+
+UNION ALL
+
+-- Event 3: account_updated [timestamp: rec_edit]
+SELECT
+    ...
+    'account_updated' AS event_type,
+    rec_edit AS timestamp,
+    'rec_edit' AS event_timestamp_source,
+    ...
+WHERE rec_edit IS NOT NULL
+  AND rec_add IS NOT NULL
+  AND rec_edit != rec_add;  -- Only if actually updated
+```
+
+---
+
+## Troubleshooting
+
+### Error: "Unknown expression identifier" (Column doesn't exist)
+
+**Cause:** MV references a column that doesn't exist in the actual silver table (schema drift).
+
+**Solution:**
+1. Check actual table columns: `SELECT name FROM system.columns WHERE database = 'redtail_silver' AND table = 'TABLE_NAME';`
+2. Remove missing column from MV's metadata map
+3. If column is used for business event timestamp, remove that entire UNION ALL block
+
+**Example fix for missing `risk_tolerance`:**
+```sql
+-- Remove this line from metadata map:
+'risk_tolerance', COALESCE(risk_tolerance, ''),
+```
+
+### Error: "Timeline has 0 events"
+
+**Possible causes:**
+1. **Regex failed to extract SELECT:** Fixed in timeline_handler.py (handles comments between AS and SELECT)
+2. **No data for org_id:** Check source table has data for the specific `glynac_organization_id`
+3. **All records filtered out:** Check WHERE conditions (e.g., `rec_add IS NOT NULL`)
+
+**Debug:**
+```sql
+-- Check source has data for this org
+SELECT count() FROM redtail_silver.account
+WHERE glynac_organization_id = 'YOUR_ORG_UUID';
+
+-- Check if rec_add is NULL for all records
+SELECT count(), countIf(rec_add IS NULL) as null_count
+FROM redtail_silver.account
+WHERE glynac_organization_id = 'YOUR_ORG_UUID';
+```
+
+### Cleanup and Re-deploy
+
+```sql
+-- Drop all MVs first (order doesn't matter)
+DROP VIEW IF EXISTS org_123.mv_redtail_account_to_timeline;
+DROP VIEW IF EXISTS org_123.mv_redtail_activity_to_timeline;
+DROP VIEW IF EXISTS org_123.mv_redtail_call_to_timeline;
+DROP VIEW IF EXISTS org_123.mv_redtail_client_to_timeline;
+DROP VIEW IF EXISTS org_123.mv_redtail_communication_to_timeline;
+DROP VIEW IF EXISTS org_123.mv_redtail_email_to_timeline;
+
+-- Drop timeline table
+DROP TABLE IF EXISTS org_123.timeline;
+
+-- Optionally drop entire database
+DROP DATABASE IF EXISTS org_123;
+```
+
+Then re-trigger the DAG.
+
+---
+
+## Handler Configuration
+
+The timeline handler (`airflow-generated-dags/dags/utils/timeline_handler.py`) provides:
+
+| Function | Description |
+|----------|-------------|
+| `create_timeline_table` | Creates database + table + indexes |
+| `create_materialized_view` | Creates MV + runs backfill INSERT |
+| `validate_timeline` | Validates data quality (non-null, event counts) |
+
+### Key Handler Features
+
+- **Backfill logic:** Extracts SELECT from MV DDL and runs `INSERT INTO timeline SELECT ...`
+- **Regex for comment handling:** Handles SQL comments between `AS` and `SELECT`
+- **Source verification:** Checks source table exists and has data before creating MV
 
 ---
 
 ## Query Examples
 
-### Get full timeline
+### Full Timeline (Recent)
 
 ```sql
-SELECT timestamp, event_type, description, rec_add, rec_edit
+SELECT
+    timestamp,
+    event_type,
+    event_timestamp_source,
+    description
 FROM org_123.timeline
 ORDER BY timestamp DESC
 LIMIT 50;
 ```
 
-### Filter by event type
-
-```sql
-SELECT * FROM org_123.timeline
-WHERE event_type = 'communication_logged'
-ORDER BY timestamp DESC;
-```
-
-### Count events by type
+### Events by Type and Timestamp Source
 
 ```sql
 SELECT
     event_type,
+    event_timestamp_source,
     count() as cnt,
     min(timestamp) as earliest,
     max(timestamp) as latest
 FROM org_123.timeline
-GROUP BY event_type
-ORDER BY cnt DESC;
+GROUP BY event_type, event_timestamp_source
+ORDER BY event_type, event_timestamp_source;
 ```
 
-### Track record changes
+### Track Record Lifecycle
 
 ```sql
 SELECT
     entity_id,
-    description,
-    rec_add as created,
-    rec_edit as last_modified,
-    dateDiff('day', rec_add, rec_edit) as days_since_creation
+    groupArray(event_type) as events,
+    groupArray(timestamp) as timestamps,
+    groupArray(event_timestamp_source) as sources
 FROM org_123.timeline
-WHERE rec_edit IS NOT NULL
-ORDER BY rec_edit DESC;
+WHERE entity_type = 'account'
+GROUP BY entity_id
+ORDER BY entity_id
+LIMIT 10;
 ```
+
+### Find Records with Updates
+
+```sql
+SELECT
+    entity_id,
+    countIf(event_type LIKE '%_created') as created_events,
+    countIf(event_type LIKE '%_updated') as updated_events
+FROM org_123.timeline
+GROUP BY entity_id
+HAVING updated_events > 0
+ORDER BY updated_events DESC;
+```
+
+---
+
+## Adding New Event Sources
+
+### 1. Create MV Folder
+
+```bash
+mkdir config/silver/timeline/org_123/mv_redtail_note
+```
+
+### 2. Create mv.sql
+
+Follow the UNION ALL pattern with 2-3 events per record. Always include:
+- `event_timestamp_source` column
+- `backfill: 'true'` in metadata
+- Appropriate WHERE clauses to filter org_id
+
+### 3. Update dag.yaml
+
+Add new component to the `components` section.
+
+### 4. Sync and Run
+
+```bash
+mc mirror --overwrite config/ myminio/airflow-configs/
+airflow dags trigger silver__timeline_org_123
+```
+
+---
+
+## Known Limitations
+
+1. **Schema Drift:** If silver tables are missing columns defined in schema.yaml, MVs need manual adjustment
+2. **One-time Backfill:** Backfill runs once during MV creation; historical data changes after creation won't be reflected
+3. **No CDC:** Timeline captures INSERT events only, not UPDATE/DELETE on source records
 
 ---
 
