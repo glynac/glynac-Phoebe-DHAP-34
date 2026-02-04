@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS org_123.timeline
     org_id String,  -- UUID string format (e.g., '29a436a3-b5de-4afd-9c7a-059246c5a681')
     event_type LowCardinality(String),
     timestamp DateTime64(3),
+    event_timestamp_source LowCardinality(String),  -- Source field: 'rec_add', 'rec_edit', 'open_date', 'call_date', etc.
     entity_type LowCardinality(String),
     entity_id String,
     description String,
