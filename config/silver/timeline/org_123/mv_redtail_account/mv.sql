@@ -79,7 +79,7 @@ WHERE rec_id IS NOT NULL
   AND glynac_organization_id = '29a436a3-b5de-4afd-9c7a-059246c5a681'
 
 UNION ALL
-
+ 
 -- Event 3: account_updated [timestamp: rec_edit] - when rec_edit != rec_add
 SELECT
     generateUUIDv4() AS event_id,
