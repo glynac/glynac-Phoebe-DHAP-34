@@ -32,7 +32,6 @@ SELECT
     toJSONString(map(
         'client_status', COALESCE(client_status, ''),
         'service_level', COALESCE(service_level, ''),
-        'risk_tolerance', COALESCE(risk_tolerance, ''),
         'client_id', toString(COALESCE(client_id, 0)),
         'contact_id', toString(COALESCE(contact_id, 0)),
         'backfill', 'true'
@@ -66,7 +65,6 @@ SELECT
     toJSONString(map(
         'client_status', COALESCE(client_status, ''),
         'service_level', COALESCE(service_level, ''),
-        'risk_tolerance', COALESCE(risk_tolerance, ''),
         'client_id', toString(COALESCE(client_id, 0)),
         'contact_id', toString(COALESCE(contact_id, 0)),
         'backfill', 'true'
@@ -101,7 +99,6 @@ SELECT
     toJSONString(map(
         'client_status', COALESCE(client_status, ''),
         'service_level', COALESCE(service_level, ''),
-        'risk_tolerance', COALESCE(risk_tolerance, ''),
         'client_id', toString(COALESCE(client_id, 0)),
         'contact_id', toString(COALESCE(contact_id, 0)),
         'backfill', 'true',
