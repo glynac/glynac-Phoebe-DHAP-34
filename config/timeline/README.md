@@ -7,10 +7,10 @@ This directory contains configuration for the Canonical Event Timeline system.
 ```
 config/timeline/
 ├── README.md                 # This file
+├── _templates/               # Shared Jinja templates
+│   └── table.sql.j2          # Timeline table DDL template (used by ALL orgs)
 └── org_{id}/                 # Per-organization timeline config
     ├── dag.yaml              # DAG configuration
-    ├── base_timeline/
-    │   └── table.sql         # Timeline table DDL
     └── sources/              # YAML configs for each source table
         ├── redtail_account.yaml
         ├── redtail_activity.yaml
@@ -21,6 +21,17 @@ config/timeline/
         ├── redtail_email.yaml
         └── redtail_transaction.yaml
 ```
+
+## Jinja Template Variables
+
+The `_templates/table.sql.j2` template uses these variables:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{ database }}` | Organization database name | `org_123` |
+| `{{ org_id }}` | Organization UUID | `29a436a3-b5de-...` |
+| `{{ ttl_days }}` | Data retention in days | `2555` (~7 years) |
+| `{{ index_granularity }}` | ClickHouse index granularity | `8192` |
 
 ## How It Works
 
@@ -89,11 +100,12 @@ No scheduled jobs needed for ongoing data - it's real-time!
 
 1. Create folder: `config/timeline/org_{new_id}/`
 2. Copy `dag.yaml` from existing org and update:
-   - `dag.dag_id`
-   - `organization.org_id` (UUID)
-   - `organization.database`
-3. Copy `base_timeline/table.sql` and update database references
-4. Copy `sources/` folder and update org references
+   - `dag.dag_id` → `timeline__org_{new_id}`
+   - `organization.org_id` → New organization UUID
+   - `organization.database` → `org_{new_id}`
+   - `timeline_table.database` → `org_{new_id}`
+3. Copy `sources/` folder (no changes needed - they reference silver tables)
+4. That's it! The Jinja template handles the database creation automatically
 
 ## Adding a New Source
 
@@ -141,6 +153,6 @@ Then re-trigger the DAG in Airflow.
 |------|---------|
 | `timeline_dag_generator.py` | Generates Airflow DAGs from this config |
 | `timeline_handler.py` | Creates tables, MVs, runs backfill, validates |
-| `dag.yaml` | DAG settings, sources list, validation config |
-| `base_timeline/table.sql` | Timeline table DDL (ClickHouse ReplacingMergeTree) |
-| `sources/*.yaml` | Event definitions for each source table |
+| `_templates/table.sql.j2` | Jinja template for timeline table DDL (shared by ALL orgs) |
+| `org_{id}/dag.yaml` | DAG settings, sources list, validation config |
+| `org_{id}/sources/*.yaml` | Event definitions for each source table |

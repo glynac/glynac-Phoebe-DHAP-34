@@ -47,12 +47,20 @@ organization:
 # ============================================================
 # Timeline Table Configuration
 # ============================================================
+# Uses shared Jinja template: timeline/_templates/table.sql.j2
+# Template variables: {{ database }}, {{ org_id }}, {{ ttl_days }}
+
 timeline_table:
   name: timeline
   database: org_123
-  table_sql_path: "timeline/org_123/base_timeline/table.sql"
 
-  # Table engine settings
+  # Jinja template (shared across all orgs - no org-specific SQL needed)
+  template_path: "timeline/_templates/table.sql.j2"
+
+  # TTL
+  ttl_days: 2555  # ~7 years
+
+  # Table engine settings (documented for reference)
   engine: ReplacingMergeTree
   version_column: _version
   partition_by: "toYYYYMM(processing_date)"
@@ -66,28 +74,6 @@ timeline_table:
     - org_id
     - entity_type
     - entity_id
-
-  # Indexes
-  indexes:
-    - name: event_type_idx
-      expression: event_type
-      type: set
-      granularity: 4
-    - name: source_system_idx
-      expression: source_system
-      type: set
-      granularity: 4
-    - name: timestamp_idx
-      expression: timestamp
-      type: minmax
-      granularity: 1
-    - name: rec_add_idx
-      expression: rec_add
-      type: minmax
-      granularity: 1
-
-  # TTL
-  ttl_days: 2555  # ~7 years
 
 # ============================================================
 # Source Configurations
