@@ -1,0 +1,203 @@
+version: "1.0"
+pipeline_type: timeline
+
+# ============================================================
+# Timeline DAG Configuration - Organization 123
+# ============================================================
+# This creates a DAG that:
+#   1. Creates the timeline database and table
+#   2. Creates MVs from source YAML configs
+#   3. Backfills existing data
+#   4. Validates the timeline
+#
+# The MVs automatically capture new data from silver tables (no scheduled jobs needed)
+
+dag:
+  dag_id: "timeline__org_123"
+  description: "Canonical Event Timeline for Organization 123"
+  schedule_interval: "@once"  # Run once to create infrastructure
+  start_date: "2026-01-01"
+  catchup: false
+  max_active_runs: 1
+  concurrency: 3  # Run up to 3 source MVs in parallel
+
+  tags:
+    - timeline
+    - org_123
+    - redtail
+    - canonical-events
+    - phase1
+
+  default_args:
+    owner: ai-team
+    retries: 2
+    retry_delay_minutes: 3
+    execution_timeout_minutes: 30
+    email_on_failure: false
+    email_on_retry: false
+
+# ============================================================
+# Organization Configuration
+# ============================================================
+organization:
+  org_id: "29a436a3-b5de-4afd-9c7a-059246c5a681"
+  org_name: "Organization 123"
+  database: "org_123"
+
+# ============================================================
+# Timeline Table Configuration
+# ============================================================
+timeline_table:
+  name: timeline
+  database: org_123
+  table_sql_path: "timeline/org_123/base_timeline/table.sql"
+
+  # Table engine settings
+  engine: ReplacingMergeTree
+  version_column: _version
+  partition_by: "toYYYYMM(processing_date)"
+  order_by:
+    - org_id
+    - entity_type
+    - entity_id
+    - timestamp
+    - event_type
+  primary_key:
+    - org_id
+    - entity_type
+    - entity_id
+
+  # Indexes
+  indexes:
+    - name: event_type_idx
+      expression: event_type
+      type: set
+      granularity: 4
+    - name: source_system_idx
+      expression: source_system
+      type: set
+      granularity: 4
+    - name: timestamp_idx
+      expression: timestamp
+      type: minmax
+      granularity: 1
+    - name: rec_add_idx
+      expression: rec_add
+      type: minmax
+      granularity: 1
+
+  # TTL
+  ttl_days: 2555  # ~7 years
+
+# ============================================================
+# Source Configurations
+# ============================================================
+# Each source file defines events to extract from a silver table
+# The generator reads these YAML files and creates MVs automatically
+
+sources:
+  # Phase 1 sources (Core - 15 events)
+  - name: redtail_account
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_account.yaml"
+    expected_min_events: 1
+
+  - name: redtail_activity
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_activity.yaml"
+    expected_min_events: 1
+
+  - name: redtail_call
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_call.yaml"
+    expected_min_events: 1
+
+  - name: redtail_client
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_client.yaml"
+    expected_min_events: 1
+
+  - name: redtail_communication
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_communication.yaml"
+    expected_min_events: 1
+
+  - name: redtail_contact
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_contact.yaml"
+    expected_min_events: 1
+
+  - name: redtail_email
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_email.yaml"
+    expected_min_events: 1
+
+  - name: redtail_transaction
+    enabled: true
+    config_path: "timeline/org_123/sources/redtail_transaction.yaml"
+    expected_min_events: 1
+
+  # Phase 2 sources (Future - disabled by default)
+  # - name: redtail_asset
+  #   enabled: false
+  #   config_path: "timeline/org_123/sources/redtail_asset.yaml"
+  #
+  # - name: redtail_household
+  #   enabled: false
+  #   config_path: "timeline/org_123/sources/redtail_household.yaml"
+
+# ============================================================
+# Validation Configuration
+# ============================================================
+validation:
+  enabled: true
+
+  checks:
+    - type: table_exists
+      description: "Verify timeline table was created"
+      table: timeline
+      fail_on_missing: true
+
+    - type: mv_exists
+      description: "Verify all MVs were created"
+      fail_on_missing: true
+
+    - type: has_data
+      description: "Verify timeline has events"
+      table: timeline
+      min_rows: 1
+      fail_on_empty: false  # Warn only
+
+    - type: data_quality
+      description: "Check for NULL values in required fields"
+      checks:
+        - field: event_id
+          rule: not_null
+        - field: org_id
+          rule: not_null
+        - field: event_type
+          rule: not_null
+        - field: timestamp
+          rule: not_null
+
+# ============================================================
+# Monitoring Configuration
+# ============================================================
+monitoring:
+  enabled: true
+
+  sla:
+    enabled: true
+    duration_minutes: 30
+
+  metrics:
+    - name: timeline_event_count
+      query: "SELECT count() FROM org_123.timeline"
+      alert_if_below: 1
+
+    - name: events_by_type
+      query: |
+        SELECT event_type, count() as cnt
+        FROM org_123.timeline
+        GROUP BY event_type
+        ORDER BY cnt DESC

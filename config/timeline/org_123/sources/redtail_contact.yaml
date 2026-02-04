@@ -1,0 +1,43 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Contact
+# ============================================================
+# Generates timeline events from redtail_silver.contact table
+# Events: contact_created, contact_updated
+
+source:
+  database: redtail_silver
+  table: contact
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: contact
+  mv_name: mv_redtail_contact_to_timeline
+
+  events:
+    # Event 1: contact_created [timestamp: rec_add]
+    - type: contact_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "Contact '{full_name_hash}' created - {contact_type}"
+      metadata:
+        contact_type: "COALESCE(contact_type, '')"
+        status: "COALESCE(status_normalized, '')"
+        company: "COALESCE(company, '')"
+        job_title: "COALESCE(job_title, '')"
+        owner_id: "toString(COALESCE(owner_id, 0))"
+
+    # Event 2: contact_updated [timestamp: rec_edit]
+    - type: contact_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "Contact '{full_name_hash}' information updated"
+      metadata:
+        contact_type: "COALESCE(contact_type, '')"
+        status: "COALESCE(status_normalized, '')"
+        company: "COALESCE(company, '')"
+        job_title: "COALESCE(job_title, '')"
+        represents: "'final_state'"

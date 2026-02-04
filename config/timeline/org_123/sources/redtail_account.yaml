@@ -1,0 +1,61 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Account
+# ============================================================
+# Generates timeline events from redtail_silver.account table
+# Events: account_created, account_opened, account_updated
+
+source:
+  database: redtail_silver
+  table: account
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: account
+  mv_name: mv_redtail_account_to_timeline
+
+  # Event definitions - each becomes a SELECT in UNION ALL
+  events:
+    # Event 1: account_created [timestamp: rec_add]
+    - type: account_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "Account '{account_name}' ({account_number}) created"
+      metadata:
+        account_type: "COALESCE(account_type, '')"
+        account_status: "COALESCE(status_normalized, '')"
+        institution_name: "COALESCE(institution_name, '')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        portfolio_id: "toString(COALESCE(portfolio_id, 0))"
+
+    # Event 2: account_opened [timestamp: open_date] - business event
+    - type: account_opened
+      timestamp_field: open_date
+      timestamp_source: open_date
+      condition: "open_date IS NOT NULL AND (rec_add IS NULL OR open_date != rec_add)"
+      description_template: "Account '{account_name}' ({account_type}) officially opened at {institution_name}"
+      metadata:
+        account_number: "COALESCE(account_number, '')"
+        account_status: "COALESCE(status_normalized, '')"
+        current_balance: "toString(COALESCE(current_balance, 0))"
+        available_balance: "toString(COALESCE(available_balance, 0))"
+        currency: "COALESCE(currency, 'USD')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        portfolio_id: "toString(COALESCE(portfolio_id, 0))"
+
+    # Event 3: account_updated [timestamp: rec_edit]
+    - type: account_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "Account '{account_name}' information updated"
+      metadata:
+        account_type: "COALESCE(account_type, '')"
+        account_status: "COALESCE(status_normalized, '')"
+        current_balance: "toString(COALESCE(current_balance, 0))"
+        available_balance: "toString(COALESCE(available_balance, 0))"
+        institution_name: "COALESCE(institution_name, '')"
+        updated_by: "toString(COALESCE(rec_edit_user, 0))"
+        represents: "'final_state'"

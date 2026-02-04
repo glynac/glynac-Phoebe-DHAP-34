@@ -1,0 +1,63 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Client
+# ============================================================
+# Generates timeline events from redtail_silver.client table
+# Events: client_created, client_updated
+# Note: client_onboarded skipped due to client_since column missing (schema drift)
+
+source:
+  database: redtail_silver
+  table: client
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: client
+  mv_name: mv_redtail_client_to_timeline
+
+  events:
+    # Event 1: client_created [timestamp: rec_add]
+    - type: client_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "Client record created ({client_number})"
+      metadata:
+        client_id: "toString(COALESCE(client_id, 0))"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        client_number: "COALESCE(client_number, '')"
+        client_status: "COALESCE(status_normalized, '')"
+        service_level: "COALESCE(service_level, '')"
+
+    # Event 2: client_onboarded [timestamp: client_since] - SKIPPED (schema drift)
+    # Uncomment when client_since column exists in actual table
+    # - type: client_onboarded
+    #   timestamp_field: client_since
+    #   timestamp_source: client_since
+    #   condition: "client_since IS NOT NULL AND (rec_add IS NULL OR client_since != rec_add)"
+    #   description_template: "Client officially onboarded - {service_level} service level"
+    #   metadata:
+    #     client_id: "toString(COALESCE(client_id, 0))"
+    #     contact_id: "toString(COALESCE(contact_id, 0))"
+    #     client_number: "COALESCE(client_number, '')"
+    #     client_status: "COALESCE(status_normalized, '')"
+    #     service_level: "COALESCE(service_level, '')"
+    #     risk_tolerance: "COALESCE(risk_tolerance, '')"
+    #     investment_objective: "COALESCE(investment_objective, '')"
+    #     aum: "toString(COALESCE(aum, 0))"
+
+    # Event 3: client_updated [timestamp: rec_edit]
+    - type: client_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "Client information updated"
+      metadata:
+        client_id: "toString(COALESCE(client_id, 0))"
+        client_status: "COALESCE(status_normalized, '')"
+        service_level: "COALESCE(service_level, '')"
+        aum: "toString(COALESCE(aum, 0))"
+        annual_revenue: "toString(COALESCE(annual_revenue, 0))"
+        updated_by: "toString(COALESCE(rec_edit_user, 0))"
+        represents: "'final_state'"

@@ -1,0 +1,56 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Email
+# ============================================================
+# Generates timeline events from redtail_silver.email table
+# Events: email_created, email_sent, email_updated
+
+source:
+  database: redtail_silver
+  table: email
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: email
+  mv_name: mv_redtail_email_to_timeline
+
+  events:
+    # Event 1: email_created [timestamp: rec_add]
+    - type: email_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "Email drafted: {subject}"
+      metadata:
+        email_id: "toString(COALESCE(email_id, 0))"
+        from_address: "COALESCE(from_address, '')"
+        to_addresses: "COALESCE(to_addresses, '')"
+        email_status: "COALESCE(status_normalized, '')"
+
+    # Event 2: email_sent [timestamp: sent_date] - business event
+    - type: email_sent
+      timestamp_field: sent_date
+      timestamp_source: sent_date
+      condition: "sent_date IS NOT NULL AND (rec_add IS NULL OR sent_date != rec_add)"
+      description_template: "Email sent: {subject}"
+      metadata:
+        email_id: "toString(COALESCE(email_id, 0))"
+        from_address: "COALESCE(from_address, '')"
+        to_addresses: "COALESCE(to_addresses, '')"
+        email_status: "COALESCE(status_normalized, '')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        sent_by: "toString(COALESCE(sent_by, 0))"
+        has_attachments: "toString(COALESCE(has_attachments, 0))"
+        attachments_count: "toString(COALESCE(attachments_count, 0))"
+
+    # Event 3: email_updated [timestamp: rec_edit]
+    - type: email_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "Email record updated: {subject}"
+      metadata:
+        email_id: "toString(COALESCE(email_id, 0))"
+        email_status: "COALESCE(status_normalized, '')"
+        represents: "'final_state'"
