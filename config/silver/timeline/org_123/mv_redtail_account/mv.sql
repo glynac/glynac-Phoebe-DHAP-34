@@ -13,7 +13,7 @@
 CREATE MATERIALIZED VIEW IF NOT EXISTS org_123.mv_redtail_account_to_timeline
 TO org_123.timeline
 AS
--- Event 1: account_created (from rec_add)
+-- Event 1: account_created [timestamp: rec_add]
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
@@ -46,7 +46,7 @@ WHERE rec_id IS NOT NULL
 
 UNION ALL
 
--- Event 2: account_opened (from open_date) - business event
+-- Event 2: account_opened [timestamp: open_date] - business event
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
@@ -80,7 +80,7 @@ WHERE rec_id IS NOT NULL
 
 UNION ALL
 
--- Event 3: account_updated (from rec_edit) - when different from rec_add
+-- Event 3: account_updated [timestamp: rec_edit] - when rec_edit != rec_add
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,

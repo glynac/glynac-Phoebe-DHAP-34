@@ -13,7 +13,7 @@
 CREATE MATERIALIZED VIEW IF NOT EXISTS org_123.mv_redtail_communication_to_timeline
 TO org_123.timeline
 AS
--- Event 1: communication_created (from rec_add)
+-- Event 1: communication_created [timestamp: rec_add]
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
@@ -47,7 +47,7 @@ WHERE rec_id IS NOT NULL
 
 UNION ALL
 
--- Event 2: communication_logged (from communication_date) - business event
+-- Event 2: communication_logged [timestamp: communication_date] - business event
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
@@ -82,7 +82,7 @@ WHERE rec_id IS NOT NULL
 
 UNION ALL
 
--- Event 3: communication_updated (from rec_edit) - when different from rec_add
+-- Event 3: communication_updated [timestamp: rec_edit] - when rec_edit != rec_add
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
