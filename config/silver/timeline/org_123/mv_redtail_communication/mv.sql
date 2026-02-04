@@ -7,7 +7,7 @@
 --
 -- Events generated per record (backfill strategy):
 --   1. communication_created (rec_add) - always
---   2. communication_logged (communication_date) - business event, when exists and != rec_add
+--   2. communication_sent (communication_date) - business event, when exists and != rec_add
 --   3. communication_updated (rec_edit) - when exists and != rec_add
 -- ============================================================
 CREATE MATERIALIZED VIEW IF NOT EXISTS org_123.mv_redtail_communication_to_timeline
@@ -22,7 +22,7 @@ SELECT
     'rec_add' AS event_timestamp_source,
     'communication' AS entity_type,
     concat('communication_', toString(rec_id)) AS entity_id,
-    concat('Communication created: ', COALESCE(communication_type, 'Communication'), ' - ', COALESCE(subject, 'No subject')) AS description,
+    concat(COALESCE(communication_type, 'Communication'), ' created: ', COALESCE(subject, 'No subject')) AS description,
     'redtail' AS source_system,
     'redtail_silver.communication' AS source_table,
     toString(rec_id) AS source_id,
@@ -30,11 +30,10 @@ SELECT
     rec_add AS rec_add,
     rec_edit AS rec_edit,
     toJSONString(map(
+        'communication_id', toString(COALESCE(communication_id, 0)),
         'communication_type', COALESCE(communication_type, ''),
         'direction', COALESCE(direction, ''),
-        'comm_status', COALESCE(comm_status, ''),
         'contact_id', toString(COALESCE(contact_id, 0)),
-        'from_user_id', toString(COALESCE(from_user_id, 0)),
         'backfill', 'true'
     )) AS metadata,
     processing_date,
@@ -47,11 +46,11 @@ WHERE rec_id IS NOT NULL
 
 UNION ALL
 
--- Event 2: communication_logged [timestamp: communication_date] - business event
+-- Event 2: communication_sent [timestamp: communication_date] - business event
 SELECT
     generateUUIDv4() AS event_id,
     glynac_organization_id AS org_id,
-    'communication_logged' AS event_type,
+    'communication_sent' AS event_type,
     communication_date AS timestamp,
     'communication_date' AS event_timestamp_source,
     'communication' AS entity_type,
@@ -64,11 +63,14 @@ SELECT
     rec_add AS rec_add,
     rec_edit AS rec_edit,
     toJSONString(map(
+        'communication_id', toString(COALESCE(communication_id, 0)),
         'communication_type', COALESCE(communication_type, ''),
         'direction', COALESCE(direction, ''),
-        'comm_status', COALESCE(comm_status, ''),
+        'comm_status', COALESCE(status_normalized, ''),
         'contact_id', toString(COALESCE(contact_id, 0)),
         'from_user_id', toString(COALESCE(from_user_id, 0)),
+        'to_contact_id', toString(COALESCE(to_contact_id, 0)),
+        'attachments_count', toString(COALESCE(attachments_count, 0)),
         'backfill', 'true'
     )) AS metadata,
     processing_date,
@@ -91,7 +93,7 @@ SELECT
     'rec_edit' AS event_timestamp_source,
     'communication' AS entity_type,
     concat('communication_', toString(rec_id)) AS entity_id,
-    concat('Communication updated: ', COALESCE(communication_type, 'Communication'), ' (current state)') AS description,
+    concat(COALESCE(communication_type, 'Communication'), ' updated: ', COALESCE(subject, 'No subject')) AS description,
     'redtail' AS source_system,
     'redtail_silver.communication' AS source_table,
     toString(rec_id) AS source_id,
@@ -99,11 +101,9 @@ SELECT
     rec_add AS rec_add,
     rec_edit AS rec_edit,
     toJSONString(map(
-        'communication_type', COALESCE(communication_type, ''),
-        'direction', COALESCE(direction, ''),
-        'comm_status', COALESCE(comm_status, ''),
-        'contact_id', toString(COALESCE(contact_id, 0)),
-        'from_user_id', toString(COALESCE(from_user_id, 0)),
+        'communication_id', toString(COALESCE(communication_id, 0)),
+        'comm_status', COALESCE(status_normalized, ''),
+        'read_status', toString(COALESCE(read_status, false)),
         'backfill', 'true',
         'represents', 'final_state'
     )) AS metadata,

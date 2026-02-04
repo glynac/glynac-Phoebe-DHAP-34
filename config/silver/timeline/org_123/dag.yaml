@@ -94,7 +94,7 @@ components:
     source_table: "redtail_silver.activity"
     database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_activity"
-    event_type: "activity_logged"
+    event_type: "activity_scheduled"
 
     # Task configuration
     task:
@@ -157,7 +157,7 @@ components:
     source_table: "redtail_silver.communication"
     database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_communication"
-    event_type: "communication_logged"
+    event_type: "communication_sent"
 
     # Task configuration
     task:
@@ -179,6 +179,48 @@ components:
     database: "org_123"
     table_path: "silver/timeline/org_123/mv_redtail_email"
     event_type: "email_sent"
+
+    # Task configuration
+    task:
+      backfill_on_creation: true
+      validate_after_creation: true
+      expected_min_events: 1
+
+    # Dependencies: Must wait for base_timeline
+    dependencies:
+      - base_timeline
+
+  # Component 8: Contact Materialized View
+  - name: mv_redtail_contact
+    type: materialized_view
+    description: "Transform redtail_silver.contact → timeline events"
+    mv_name: "mv_redtail_contact_to_timeline"
+    target_table: "timeline"
+    source_table: "redtail_silver.contact"
+    database: "org_123"
+    table_path: "silver/timeline/org_123/mv_redtail_contact"
+    event_type: "contact_created"
+
+    # Task configuration
+    task:
+      backfill_on_creation: true
+      validate_after_creation: true
+      expected_min_events: 1
+
+    # Dependencies: Must wait for base_timeline
+    dependencies:
+      - base_timeline
+
+  # Component 9: Transaction Materialized View
+  - name: mv_redtail_transaction
+    type: materialized_view
+    description: "Transform redtail_silver.transaction → timeline events"
+    mv_name: "mv_redtail_transaction_to_timeline"
+    target_table: "timeline"
+    source_table: "redtail_silver.transaction"
+    database: "org_123"
+    table_path: "silver/timeline/org_123/mv_redtail_transaction"
+    event_type: "transaction_executed"
 
     # Task configuration
     task:
@@ -250,12 +292,14 @@ monitoring:
       alert_if_above: 300  # Alert if lag > 5 minutes
 
 # ============================================================
-# Future Expansion
+# Future Expansion (Phase 2+)
 # ============================================================
 # Add more MVs here as you expand to other Redtail tables:
 #
-# - name: mv_redtail_contact
-#   type: materialized_view
-#   source_table: "redtail_silver.contact"
-#   event_type: "contact_created"
-#   ... (enable when contact table has data)
+# - name: mv_redtail_asset (asset_purchased, asset_created, asset_updated)
+# - name: mv_redtail_household (household_created, household_updated)
+# - name: mv_redtail_lead (lead_created, lead_converted, lead_updated)
+# - name: mv_redtail_note (note_created, note_updated)
+# - name: mv_redtail_portfolio (portfolio_created, portfolio_inception, portfolio_updated)
+# - name: mv_redtail_prospect (prospect_created, prospect_stage_changed, prospect_updated)
+# - name: mv_redtail_net_worth (net_worth_snapshot, net_worth_created, net_worth_updated)
