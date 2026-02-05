@@ -1,0 +1,70 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Activity
+# ============================================================
+# Generates timeline events from redtail_silver.activity table
+# Events: activity_created, activity_scheduled, activity_updated
+# NOTE: Removed columns that don't exist in actual table (schema drift)
+#       - priority_normalized, status_normalized, duration_minutes,
+#       - owner_id, location, outcome, notes
+
+source:
+  database: redtail_silver
+  table: activity
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: activity
+  mv_name: mv_redtail_activity_to_timeline
+
+  events:
+    # Event 1: activity_created [timestamp: rec_add]
+    - type: activity_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "{activity_type} created: {subject}"
+      metadata:
+        activity_id: "toString(COALESCE(activity_id, 0))"
+        category: "COALESCE(category, '')"
+        subcategory: "COALESCE(subcategory, '')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        backfill: "'true'"
+
+    # Event 2: activity_scheduled [timestamp: activity_date] - business event
+    - type: activity_scheduled
+      timestamp_field: activity_date
+      timestamp_source: activity_date
+      condition: "activity_date IS NOT NULL AND (rec_add IS NULL OR activity_date != rec_add)"
+      description_template: "{activity_type} scheduled: {subject}"
+      metadata:
+        activity_id: "toString(COALESCE(activity_id, 0))"
+        category: "COALESCE(category, '')"
+        subcategory: "COALESCE(subcategory, '')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        backfill: "'true'"
+
+    # Event 3: activity_completed - SKIPPED (status_normalized column doesn't exist)
+    # Uncomment when column is confirmed to exist
+    # - type: activity_completed
+    #   timestamp_field: rec_edit
+    #   timestamp_source: rec_edit
+    #   condition: "rec_edit IS NOT NULL AND status_normalized = 'completed'"
+    #   description_template: "{activity_type} completed: {subject}"
+    #   metadata:
+    #     activity_id: "toString(COALESCE(activity_id, 0))"
+    #     category: "COALESCE(category, '')"
+    #     contact_id: "toString(COALESCE(contact_id, 0))"
+    #     backfill: "'true'"
+
+    # Event 4: activity_updated [timestamp: rec_edit]
+    - type: activity_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "{activity_type} updated: {subject}"
+      metadata:
+        activity_id: "toString(COALESCE(activity_id, 0))"
+        backfill: "'true'"
+        represents: "'final_state'"

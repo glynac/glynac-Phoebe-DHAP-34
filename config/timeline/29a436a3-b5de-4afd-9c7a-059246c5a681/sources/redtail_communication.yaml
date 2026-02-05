@@ -1,0 +1,57 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Communication
+# ============================================================
+# Generates timeline events from redtail_silver.communication table
+# Events: communication_created, communication_sent, communication_updated
+
+source:
+  database: redtail_silver
+  table: communication
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: communication
+  mv_name: mv_redtail_communication_to_timeline
+
+  events:
+    # Event 1: communication_created [timestamp: rec_add]
+    - type: communication_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "{communication_type} created: {subject}"
+      metadata:
+        communication_id: "toString(COALESCE(communication_id, 0))"
+        communication_type: "COALESCE(communication_type, '')"
+        direction: "COALESCE(direction, '')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+
+    # Event 2: communication_sent [timestamp: communication_date] - business event
+    - type: communication_sent
+      timestamp_field: communication_date
+      timestamp_source: communication_date
+      condition: "communication_date IS NOT NULL AND (rec_add IS NULL OR communication_date != rec_add)"
+      description_template: "{communication_type} ({direction}): {subject}"
+      metadata:
+        communication_id: "toString(COALESCE(communication_id, 0))"
+        communication_type: "COALESCE(communication_type, '')"
+        direction: "COALESCE(direction, '')"
+        comm_status: "COALESCE(status_normalized, '')"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        from_user_id: "toString(COALESCE(from_user_id, 0))"
+        to_contact_id: "toString(COALESCE(to_contact_id, 0))"
+        attachments_count: "toString(COALESCE(attachments_count, 0))"
+
+    # Event 3: communication_updated [timestamp: rec_edit]
+    - type: communication_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "{communication_type} updated: {subject}"
+      metadata:
+        communication_id: "toString(COALESCE(communication_id, 0))"
+        comm_status: "COALESCE(status_normalized, '')"
+        read_status: "toString(COALESCE(read_status, false))"
+        represents: "'final_state'"

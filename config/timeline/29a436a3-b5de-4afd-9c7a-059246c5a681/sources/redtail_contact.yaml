@@ -1,0 +1,40 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Contact
+# ============================================================
+# Generates timeline events from redtail_silver.contact table
+# Events: contact_created, contact_updated
+# NOTE: Schema drift - removed columns that don't exist:
+#       - full_name_hash, status_normalized, company, job_title, owner_id
+
+source:
+  database: redtail_silver
+  table: contact
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: contact
+  mv_name: mv_redtail_contact_to_timeline
+
+  events:
+    # Event 1: contact_created [timestamp: rec_add]
+    - type: contact_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "Contact record created"
+      metadata:
+        contact_id: "toString(rec_id)"
+        backfill: "'true'"
+
+    # Event 2: contact_updated [timestamp: rec_edit]
+    - type: contact_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "Contact record updated"
+      metadata:
+        contact_id: "toString(rec_id)"
+        backfill: "'true'"
+        represents: "'final_state'"
