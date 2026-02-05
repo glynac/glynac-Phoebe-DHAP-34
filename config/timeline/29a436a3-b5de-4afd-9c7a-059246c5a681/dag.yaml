@@ -13,8 +13,8 @@ pipeline_type: timeline
 # The MVs automatically capture new data from silver tables (no scheduled jobs needed)
 
 dag:
-  dag_id: "timeline__org_29a436a3-b5de-4afd-9c7a-059246c5a681"
-  description: "Canonical Event Timeline for Organization 123"
+  dag_id: "timeline__org_29a436a3_b5de_4afd_9c7a_059246c5a681"
+  description: "Canonical Event Timeline for Organization "
   schedule_interval: "@once"  # Run once to create infrastructure
   start_date: "2026-01-01"
   catchup: false
