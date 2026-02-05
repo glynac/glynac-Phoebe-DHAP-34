@@ -3,7 +3,10 @@ version: "1.0"
 # Timeline Source: Redtail Activity
 # ============================================================
 # Generates timeline events from redtail_silver.activity table
-# Events: activity_created, activity_scheduled, activity_completed, activity_updated
+# Events: activity_created, activity_scheduled, activity_updated
+# NOTE: Removed columns that don't exist in actual table (schema drift)
+#       - priority_normalized, status_normalized, duration_minutes,
+#       - owner_id, location, outcome, notes
 
 source:
   database: redtail_silver
@@ -26,8 +29,8 @@ timeline:
         activity_id: "toString(COALESCE(activity_id, 0))"
         category: "COALESCE(category, '')"
         subcategory: "COALESCE(subcategory, '')"
-        priority: "COALESCE(priority_normalized, '')"
         contact_id: "toString(COALESCE(contact_id, 0))"
+        backfill: "'true'"
 
     # Event 2: activity_scheduled [timestamp: activity_date] - business event
     - type: activity_scheduled
@@ -39,27 +42,21 @@ timeline:
         activity_id: "toString(COALESCE(activity_id, 0))"
         category: "COALESCE(category, '')"
         subcategory: "COALESCE(subcategory, '')"
-        activity_status: "COALESCE(status_normalized, '')"
-        priority: "COALESCE(priority_normalized, '')"
-        duration_minutes: "toString(COALESCE(duration_minutes, 0))"
         contact_id: "toString(COALESCE(contact_id, 0))"
-        owner_id: "toString(COALESCE(owner_id, 0))"
-        location: "COALESCE(location, '')"
+        backfill: "'true'"
 
-    # Event 3: activity_completed [timestamp: rec_edit] - when status = completed
-    - type: activity_completed
-      timestamp_field: rec_edit
-      timestamp_source: rec_edit
-      condition: "rec_edit IS NOT NULL AND status_normalized = 'completed'"
-      description_template: "{activity_type} completed: {subject} - {outcome}"
-      metadata:
-        activity_id: "toString(COALESCE(activity_id, 0))"
-        category: "COALESCE(category, '')"
-        activity_status: "COALESCE(status_normalized, '')"
-        outcome: "COALESCE(outcome, '')"
-        duration_minutes: "toString(COALESCE(duration_minutes, 0))"
-        contact_id: "toString(COALESCE(contact_id, 0))"
-        notes: "COALESCE(notes, '')"
+    # Event 3: activity_completed - SKIPPED (status_normalized column doesn't exist)
+    # Uncomment when column is confirmed to exist
+    # - type: activity_completed
+    #   timestamp_field: rec_edit
+    #   timestamp_source: rec_edit
+    #   condition: "rec_edit IS NOT NULL AND status_normalized = 'completed'"
+    #   description_template: "{activity_type} completed: {subject}"
+    #   metadata:
+    #     activity_id: "toString(COALESCE(activity_id, 0))"
+    #     category: "COALESCE(category, '')"
+    #     contact_id: "toString(COALESCE(contact_id, 0))"
+    #     backfill: "'true'"
 
     # Event 4: activity_updated [timestamp: rec_edit]
     - type: activity_updated
@@ -69,6 +66,5 @@ timeline:
       description_template: "{activity_type} updated: {subject}"
       metadata:
         activity_id: "toString(COALESCE(activity_id, 0))"
-        activity_status: "COALESCE(status_normalized, '')"
-        priority: "COALESCE(priority_normalized, '')"
+        backfill: "'true'"
         represents: "'final_state'"

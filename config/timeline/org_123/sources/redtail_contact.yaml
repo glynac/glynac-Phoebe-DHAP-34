@@ -4,6 +4,8 @@ version: "1.0"
 # ============================================================
 # Generates timeline events from redtail_silver.contact table
 # Events: contact_created, contact_updated
+# NOTE: Columns matched to working silver/timeline MV
+#       - Removed status_normalized (may not exist - schema drift)
 
 source:
   database: redtail_silver
@@ -24,10 +26,10 @@ timeline:
       description_template: "Contact '{full_name_hash}' created - {contact_type}"
       metadata:
         contact_type: "COALESCE(contact_type, '')"
-        status: "COALESCE(status_normalized, '')"
         company: "COALESCE(company, '')"
         job_title: "COALESCE(job_title, '')"
         owner_id: "toString(COALESCE(owner_id, 0))"
+        backfill: "'true'"
 
     # Event 2: contact_updated [timestamp: rec_edit]
     - type: contact_updated
@@ -37,7 +39,7 @@ timeline:
       description_template: "Contact '{full_name_hash}' information updated"
       metadata:
         contact_type: "COALESCE(contact_type, '')"
-        status: "COALESCE(status_normalized, '')"
         company: "COALESCE(company, '')"
         job_title: "COALESCE(job_title, '')"
+        backfill: "'true'"
         represents: "'final_state'"

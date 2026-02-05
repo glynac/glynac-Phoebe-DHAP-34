@@ -4,7 +4,9 @@ version: "1.0"
 # ============================================================
 # Generates timeline events from redtail_silver.client table
 # Events: client_created, client_updated
-# Note: client_onboarded skipped due to client_since column missing (schema drift)
+# NOTE: Columns matched to working silver/timeline MV
+#       - Uses client_status (not status_normalized)
+#       - Removed aum, annual_revenue, rec_edit_user (schema drift)
 
 source:
   database: redtail_silver
@@ -22,42 +24,38 @@ timeline:
       timestamp_field: rec_add
       timestamp_source: rec_add
       condition: "rec_add IS NOT NULL"
-      description_template: "Client record created ({client_number})"
+      description_template: "Client created: {service_level} - {client_status}"
       metadata:
+        client_status: "COALESCE(client_status, '')"
+        service_level: "COALESCE(service_level, '')"
         client_id: "toString(COALESCE(client_id, 0))"
         contact_id: "toString(COALESCE(contact_id, 0))"
-        client_number: "COALESCE(client_number, '')"
-        client_status: "COALESCE(status_normalized, '')"
-        service_level: "COALESCE(service_level, '')"
+        backfill: "'true'"
 
-    # Event 2: client_onboarded [timestamp: client_since] - SKIPPED (schema drift)
-    # Uncomment when client_since column exists in actual table
+    # Event 2: client_onboarded - SKIPPED (client_since column doesn't exist)
+    # Uncomment when column is confirmed to exist
     # - type: client_onboarded
     #   timestamp_field: client_since
     #   timestamp_source: client_since
     #   condition: "client_since IS NOT NULL AND (rec_add IS NULL OR client_since != rec_add)"
     #   description_template: "Client officially onboarded - {service_level} service level"
     #   metadata:
+    #     client_status: "COALESCE(client_status, '')"
+    #     service_level: "COALESCE(service_level, '')"
     #     client_id: "toString(COALESCE(client_id, 0))"
     #     contact_id: "toString(COALESCE(contact_id, 0))"
-    #     client_number: "COALESCE(client_number, '')"
-    #     client_status: "COALESCE(status_normalized, '')"
-    #     service_level: "COALESCE(service_level, '')"
-    #     risk_tolerance: "COALESCE(risk_tolerance, '')"
-    #     investment_objective: "COALESCE(investment_objective, '')"
-    #     aum: "toString(COALESCE(aum, 0))"
+    #     backfill: "'true'"
 
     # Event 3: client_updated [timestamp: rec_edit]
     - type: client_updated
       timestamp_field: rec_edit
       timestamp_source: rec_edit
       condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
-      description_template: "Client information updated"
+      description_template: "Client updated: {service_level} (current state)"
       metadata:
-        client_id: "toString(COALESCE(client_id, 0))"
-        client_status: "COALESCE(status_normalized, '')"
+        client_status: "COALESCE(client_status, '')"
         service_level: "COALESCE(service_level, '')"
-        aum: "toString(COALESCE(aum, 0))"
-        annual_revenue: "toString(COALESCE(annual_revenue, 0))"
-        updated_by: "toString(COALESCE(rec_edit_user, 0))"
+        client_id: "toString(COALESCE(client_id, 0))"
+        contact_id: "toString(COALESCE(contact_id, 0))"
+        backfill: "'true'"
         represents: "'final_state'"
