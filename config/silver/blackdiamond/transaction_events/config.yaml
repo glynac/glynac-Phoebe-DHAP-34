@@ -60,10 +60,9 @@ dedupe:
   order_by:
     - processing_date DESC
 
-# Filters
+# Filters (holding_id may be Int64, check Bronze schema)
 filters:
   - "holding_id IS NOT NULL"
-  - "holding_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 

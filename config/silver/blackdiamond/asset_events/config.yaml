@@ -46,10 +46,9 @@ dedupe:
   order_by:
     - processing_date DESC
 
-# Filters
+# Filters (asset_id is Int64, not String)
 filters:
   - "asset_id IS NOT NULL"
-  - "asset_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
