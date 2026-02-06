@@ -1,0 +1,39 @@
+version: "1.0"
+layer: bronze
+database: blackdiamond
+view: portfolio_accounts_raw
+
+metadata:
+  description: "Raw Black Diamond portfolio accounts data from MinIO"
+  owner: data-engineering
+  tags:
+    - bronze
+    - blackdiamond
+    - wealth-management
+    - portfolio-accounts
+
+source:
+  type: minio
+  bucket: black-diamond-data
+  path: main-data/blackdiamond/normalized
+  format: parquet
+  file_pattern: portfolio_accounts.parquet
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_parquet_allow_missing_columns: 1
+
+schema:
+  mode: auto
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{table}"
