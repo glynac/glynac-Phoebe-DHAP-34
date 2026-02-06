@@ -1,0 +1,80 @@
+# Silver Layer - Black Diamond Transaction Events (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.holdings_raw
+# Note: Black Diamond uses "holdings" to track positions (result of transactions)
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond holdings/transaction data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "transaction-events", "auto-mode", "wealth-management", "holdings"]
+
+source:
+  database: blackdiamond
+  table: holdings_raw
+
+target:
+  database: blackdiamond_silver
+  table: transaction_events
+
+# Transform overrides (only columns needing special handling)
+transforms:
+  # String cleaning
+  security_name:
+    transform: clean_string
+
+  ticker:
+    transform: clean_string
+
+  cusip:
+    transform: clean_string
+
+  asset_class:
+    transform: clean_string
+
+  security_type:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  # Date parsing (if stored as String in Bronze)
+  trade_date:
+    transform: parse_date
+
+  settle_date:
+    transform: parse_date
+
+  acquisition_date:
+    transform: parse_date
+
+  # Note: Numeric fields (quantity, price, market_value, cost_basis, etc.)
+  # pass through as-is if already Float64 in Bronze
+
+# Deduplication (Black Diamond holdings use holding_id as primary key)
+dedupe:
+  partition_by:
+    - holding_id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+# Filters
+filters:
+  - "holding_id IS NOT NULL"
+  - "holding_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - holding_id
+      - glynac_organization_id
+    severity: error

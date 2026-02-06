@@ -1,0 +1,74 @@
+# Silver Layer - Black Diamond Portfolio Events (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.portfolios_raw
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond portfolio data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "portfolio-events", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: portfolios_raw
+
+target:
+  database: blackdiamond_silver
+  table: portfolio_events
+
+# Transform overrides (only columns needing special handling)
+transforms:
+  # String cleaning
+  portfolio_name:
+    transform: clean_string
+
+  portfolio_type:
+    transform: clean_string
+
+  status:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  # Status normalization
+  portfolio_status:
+    target: status_normalized
+    transform: normalize_status
+
+  # Date parsing (if stored as String in Bronze)
+  inception_date:
+    transform: parse_date
+
+  close_date:
+    transform: parse_date
+
+  # Note: Numeric fields (total_value, cash_balance, etc.) pass through as-is
+
+# Deduplication (Black Diamond uses portfolio_id as primary key)
+dedupe:
+  partition_by:
+    - portfolio_id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+# Filters
+filters:
+  - "portfolio_id IS NOT NULL"
+  - "portfolio_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - portfolio_id
+      - glynac_organization_id
+    severity: error

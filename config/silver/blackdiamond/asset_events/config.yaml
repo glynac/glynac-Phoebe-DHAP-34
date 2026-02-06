@@ -1,0 +1,66 @@
+# Silver Layer - Black Diamond Asset Events (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.assets_raw
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond asset data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "asset-events", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: assets_raw
+
+target:
+  database: blackdiamond_silver
+  table: asset_events
+
+# Transform overrides (only columns needing special handling)
+transforms:
+  # String cleaning
+  asset_name:
+    transform: clean_string
+
+  asset_type:
+    transform: clean_string
+
+  ticker:
+    transform: clean_string
+
+  cusip:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  # Note: Numeric fields (market_value, quantity, price, etc.) pass through as-is
+  # if already Float64 in Bronze
+
+# Deduplication (Black Diamond uses asset_id as primary key)
+dedupe:
+  partition_by:
+    - asset_id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+# Filters
+filters:
+  - "asset_id IS NOT NULL"
+  - "asset_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - asset_id
+      - glynac_organization_id
+    severity: error
