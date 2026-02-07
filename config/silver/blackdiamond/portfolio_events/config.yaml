@@ -17,46 +17,33 @@ target:
   table: portfolio_events
 
 # Transform overrides (only columns needing special handling)
+# Note: Bronze schema has: id, name, display_name, relationship_id, etc.
 transforms:
-  # String cleaning
-  portfolio_name:
+  # String cleaning (use actual Bronze column names)
+  name:
     transform: clean_string
 
-  portfolio_type:
-    transform: clean_string
-
-  status:
+  display_name:
     transform: clean_string
 
   description:
     transform: clean_string
 
-  # Status normalization
-  portfolio_status:
-    target: status_normalized
-    transform: normalize_status
+  # Note: Numeric fields pass through as-is
 
-  # Date parsing (if stored as String in Bronze)
-  inception_date:
-    transform: parse_date
-
-  close_date:
-    transform: parse_date
-
-  # Note: Numeric fields (total_value, cash_balance, etc.) pass through as-is
-
-# Deduplication (Black Diamond uses portfolio_id as primary key)
+# Deduplication (Black Diamond portfolios uses 'id' as primary key)
 dedupe:
   partition_by:
-    - portfolio_id
+    - id
     - glynac_organization_id
     - processing_date
   order_by:
     - processing_date DESC
 
-# Filters (portfolio_id may be Int64, check Bronze schema)
+# Filters (id is String type in Bronze)
 filters:
-  - "portfolio_id IS NOT NULL"
+  - "id IS NOT NULL"
+  - "id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
@@ -68,6 +55,6 @@ tests:
 
   - type: not_null
     columns:
-      - portfolio_id
+      - id
       - glynac_organization_id
     severity: error
