@@ -41,30 +41,34 @@ schema:
       type: String
     - name: batch_status
       type: String
+    - name: rec_id
+      type: Int32
     - name: client_id
       type: Int32
     - name: contact_id
       type: Int32
     - name: client_number
       type: String
-    - name: client_type
+    - name: client_since
       type: String
     - name: client_status
       type: String
     - name: service_level
       type: String
-    - name: risk_profile
+    - name: risk_tolerance
       type: String
-    - name: assets_under_management
+    - name: investment_objective
       type: String
-    - name: onboarding_date
+    - name: aum
       type: String
-    - name: review_date
+    - name: annual_revenue
+      type: String
+    - name: next_review_date
       type: String
     - name: notes
       type: String
-    - name: rec_id
-      type: Int32
+    - name: is_active
+      type: Bool
     - name: rec_add
       type: String
     - name: rec_edit
@@ -77,7 +81,7 @@ schema:
       type: String
     - name: processing_date
       type: Date
-
+      
 validation:
   enabled: true
   checks:
