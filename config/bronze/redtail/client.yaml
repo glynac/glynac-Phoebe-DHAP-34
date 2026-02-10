@@ -2,11 +2,9 @@ version: "1.0"
 layer: bronze
 database: redtail
 view: client_raw
-
 metadata:
   description: "Raw Redtail client data from MinIO"
   owner: data-engineering
-
 source:
   type: minio
   bucket: main-data
@@ -21,7 +19,6 @@ clickhouse:
   engine: S3
   settings:
     input_format_orc_allow_missing_columns: 1
-
 schema:
   mode: manual
   columns:
@@ -49,26 +46,36 @@ schema:
       type: Int32
     - name: client_number
       type: String
-    - name: client_since
+    - name: client_type
       type: String
     - name: client_status
       type: String
     - name: service_level
       type: String
-    - name: risk_tolerance
+    - name: risk_profile
       type: String
     - name: investment_objective
       type: String
-    - name: aum
+    - name: assets_under_management
       type: String
-    - name: annual_revenue
+    - name: onboarding_date
       type: String
-    - name: next_review_date
+    - name: review_date
+      type: String
+    - name: prospect_origin
+      type: String
+    - name: conversion_date
+      type: String
+    - name: first_name
+      type: String
+    - name: last_name
+      type: String
+    - name: email
+      type: String
+    - name: phone
       type: String
     - name: notes
       type: String
-    - name: is_active
-      type: Bool
     - name: rec_add
       type: String
     - name: rec_edit
