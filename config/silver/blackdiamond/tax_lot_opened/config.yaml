@@ -1,0 +1,50 @@
+# Silver Layer - Black Diamond Tax Lot Opened (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.cost_basis_summary_raw
+# Bronze columns: account_id, as_of_date, tax_status, emv, units, cost_basis,
+#   proceeds, realized_lt, realized_st, unrealized_lt, unrealized_st, accrual,
+#   ytd_short_term_realized_gain, ytd_long_term_realized_gain
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond tax lot data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "tax-lot-opened", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: cost_basis_summary_raw
+
+target:
+  database: blackdiamond_silver
+  table: tax_lot_opened
+
+transforms:
+  as_of_date:
+    transform: parse_date
+
+# Deduplication (composite key: account_id + as_of_date, no 'id' column)
+dedupe:
+  partition_by:
+    - account_id
+    - as_of_date
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+filters:
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - account_id
+      - glynac_organization_id
+    severity: error

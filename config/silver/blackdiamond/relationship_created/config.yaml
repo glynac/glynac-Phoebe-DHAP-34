@@ -1,0 +1,49 @@
+# Silver Layer - Black Diamond Relationship Created (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.relationship_accounts_raw
+# Bronze columns: relationship_id, account_id, include_in_net_worth, is_direct_assigned
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond relationship-account data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "relationship-created", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: relationship_accounts_raw
+
+target:
+  database: blackdiamond_silver
+  table: relationship_created
+
+transforms: {}
+
+# Deduplication (composite key: relationship_id + account_id)
+dedupe:
+  partition_by:
+    - relationship_id
+    - account_id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+filters:
+  - "relationship_id IS NOT NULL"
+  - "relationship_id != ''"
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - relationship_id
+      - account_id
+      - glynac_organization_id
+    severity: error

@@ -1,0 +1,51 @@
+# Silver Layer - Black Diamond Portfolio Created (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.portfolios_raw
+# Bronze columns: id, name, display_name, relationship_id, external_relationship_id,
+#   is_master_portfolio, exclude_from_rebalancing, admin_only, demo_portfolio,
+#   history_loaded, client_visibility
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond portfolio creation data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "portfolio-created", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: portfolios_raw
+
+target:
+  database: blackdiamond_silver
+  table: portfolio_created
+
+transforms:
+  name:
+    transform: clean_string
+
+  display_name:
+    transform: clean_string
+
+dedupe:
+  partition_by:
+    - id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+filters:
+  - "id IS NOT NULL"
+  - "id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - id
+      - glynac_organization_id
+    severity: error

@@ -1,0 +1,61 @@
+# Silver Layer - Black Diamond Transaction Deposit (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.holdings_raw
+# Bronze columns: id, account_id, asset_id, as_of_date, units, market_value,
+#   discretionary, supervised, billable, money_market, investment_discretion,
+#   voting_authority, price_factor, paydown_factor, coupon_rate, muni_state,
+#   call_date, yield, cash, maturity_date, accrual, long_holding, is_manual
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond deposit transaction data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "transaction-deposit", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: holdings_raw
+
+target:
+  database: blackdiamond_silver
+  table: transaction_deposit
+
+transforms:
+  investment_discretion:
+    transform: clean_string
+
+  voting_authority:
+    transform: clean_string
+
+  as_of_date:
+    transform: parse_date
+
+  call_date:
+    transform: parse_date
+
+  maturity_date:
+    transform: parse_date
+
+dedupe:
+  partition_by:
+    - id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+filters:
+  - "id IS NOT NULL"
+  - "id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - id
+      - glynac_organization_id
+    severity: error

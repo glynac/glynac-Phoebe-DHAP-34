@@ -1,0 +1,84 @@
+# Silver Layer - Black Diamond Account Created (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.accounts_raw
+# Bronze columns: id, name, custodial_account_name, account_number, billing_number,
+#   long_number, account_type, account_category, account_sub_category, tax_methodology,
+#   tax_status, account_registration_type, start_date, closed_date, as_of_date,
+#   billing_start_date, billing_end_date, history_start_date, last_reconciled_date,
+#   performance_start_date, create_date, custodian, data_provider, data_provider_id,
+#   manager_strategy_name, discretionary, billable, supervised, position_only, is_sleeve_account
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond account creation data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "account-created", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: accounts_raw
+
+target:
+  database: blackdiamond_silver
+  table: account_created
+
+transforms:
+  name:
+    transform: clean_string
+
+  custodial_account_name:
+    transform: clean_string
+
+  account_number:
+    transform: clean_string
+
+  account_type:
+    transform: clean_string
+
+  account_category:
+    transform: clean_string
+
+  account_sub_category:
+    transform: clean_string
+
+  account_registration_type:
+    transform: clean_string
+
+  custodian:
+    transform: clean_string
+
+  data_provider:
+    transform: clean_string
+
+  start_date:
+    transform: parse_date
+
+  as_of_date:
+    transform: parse_date
+
+  create_date:
+    transform: parse_date
+
+dedupe:
+  partition_by:
+    - id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+filters:
+  - "id IS NOT NULL"
+  - "id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - id
+      - glynac_organization_id
+    severity: error

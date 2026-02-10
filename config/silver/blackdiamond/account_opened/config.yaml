@@ -1,0 +1,52 @@
+# Silver Layer - Black Diamond Account Opened (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.account_details_raw
+# Bronze columns: account_id, as_of_date, max_account_as_of_date, total_emv,
+#   supervised_emv, unsupervised_emv, realized_short_term_gain_loss,
+#   realized_long_term_gain_loss
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond account details data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "account-opened", "auto-mode", "wealth-management"]
+
+source:
+  database: blackdiamond
+  table: account_details_raw
+
+target:
+  database: blackdiamond_silver
+  table: account_opened
+
+transforms:
+  as_of_date:
+    transform: parse_date
+
+  max_account_as_of_date:
+    transform: parse_date
+
+# Deduplication (primary key: account_id, no 'id' column in this table)
+dedupe:
+  partition_by:
+    - account_id
+    - glynac_organization_id
+    - processing_date
+  order_by:
+    - processing_date DESC
+
+filters:
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+
+  - type: not_null
+    columns:
+      - account_id
+      - glynac_organization_id
+    severity: error
