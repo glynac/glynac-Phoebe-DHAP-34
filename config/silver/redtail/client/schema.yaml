@@ -3,13 +3,12 @@ layer: silver
 database: redtail_silver
 table: client
 
-
 metadata:
   display_name: "Redtail Clients (Cleaned)"
   description: |
     Cleaned and transformed Redtail client data from Bronze layer.
     Represents all client relationships with service level, risk tolerance,
-    AUM, annual revenue, and investment objectives.
+    AUM, and investment objectives.
   
   owner: data-engineering
   domain: redtail
@@ -24,9 +23,12 @@ metadata:
   contains_pii: true
   pii_columns:
     - client_number
+    - first_name
+    - last_name
+    - email
+    - phone
     - notes
-    - aum
-    - annual_revenue
+    - assets_under_management
   update_frequency: hourly
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:
@@ -63,8 +65,12 @@ clickhouse:
       expression: service_level
       type: set
       granularity: 4
-    - name: risk_tolerance_idx
-      expression: risk_tolerance
+    - name: risk_profile_idx
+      expression: risk_profile
+      type: set
+      granularity: 4
+    - name: client_type_idx
+      expression: client_type
       type: set
       granularity: 4
 
@@ -98,15 +104,21 @@ columns:
   - name: client_number
     type: String
     nullable: false
-    description: "Client account/reference number (trimmed)"
+    description: "Client account/reference number"
     pii: true
     example: "CLT-2025-001"
     
   # Client classification
+  - name: client_type
+    type: String
+    nullable: false
+    description: "Type of client (Individual, Corporate, Trust, etc.)"
+    example: "Individual"
+    
   - name: client_status
     type: String
     nullable: false
-    description: "Current status of client relationship (trimmed)"
+    description: "Current status of client relationship"
     example: "Active"
     
   - name: status_normalized
@@ -120,75 +132,103 @@ columns:
   - name: service_level
     type: String
     nullable: false
-    description: "Service tier/level for client (Premium, Standard, Basic) (trimmed)"
+    description: "Service tier/level for client (Premium, Standard, Basic)"
     example: "Premium"
     
-  - name: risk_tolerance
+  - name: risk_profile
     type: String
     nullable: false
-    description: "Risk tolerance profile (Conservative, Moderate, Aggressive) (trimmed)"
+    description: "Risk tolerance profile (Conservative, Moderate, Aggressive)"
     example: "Moderate"
     
   - name: investment_objective
     type: String
     nullable: false
-    description: "Primary investment objective (Growth, Income, Preservation) (trimmed)"
+    description: "Primary investment objective (Growth, Income, Preservation)"
     example: "Growth"
     
   # Financial data
-  - name: aum
+  - name: assets_under_management
     type: Float64
     nullable: false
-    description: "Assets under management (already numeric in Bronze)"
+    description: "Assets under management"
     pii: true
     example: 1500000.0
     
-  - name: annual_revenue
-    type: Float64
-    nullable: false
-    description: "Annual revenue from this client (already numeric in Bronze)"
-    pii: true
-    example: 15000.0
-    
   # Important dates
-  - name: client_since
+  - name: onboarding_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Date when client relationship started (parsed from string)"
+    description: "Date when client relationship started"
     example: "2020-03-15 00:00:00.000"
     
-  - name: next_review_date
+  - name: review_date
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Next scheduled review date (parsed from string)"
+    description: "Next scheduled review date"
     example: "2026-03-15 00:00:00.000"
+    
+  # Conversion tracking
+  - name: prospect_origin
+    type: String
+    nullable: false
+    description: "Origin prospect identifier"
+    example: "PROSPECT-PK-2025-001"
+    
+  - name: conversion_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date when prospect converted to client"
+    example: "2025-04-15 00:00:00.000"
+    
+  # Contact information (PII)
+  - name: first_name
+    type: String
+    nullable: false
+    description: "Client first name"
+    pii: true
+    example: "John"
+    
+  - name: last_name
+    type: String
+    nullable: false
+    description: "Client last name"
+    pii: true
+    example: "Doe"
+    
+  - name: email
+    type: String
+    nullable: false
+    description: "Client email address"
+    pii: true
+    example: "john.doe@example.com"
+    
+  - name: phone
+    type: String
+    nullable: false
+    description: "Client phone number"
+    pii: true
+    example: "+1-555-123-4567"
     
   # Notes
   - name: notes
     type: String
     nullable: false
-    description: "Client notes and additional information (trimmed)"
+    description: "Client notes and additional information"
     pii: true
     example: "Prefers quarterly reviews, interested in ESG investments"
-    
-  # Status flag
-  - name: is_active
-    type: Bool
-    nullable: false
-    description: "Whether client is currently active"
-    example: true
     
   # Audit fields
   - name: rec_add
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was added in Redtail (parsed from string)"
+    description: "Timestamp when record was added in Redtail"
     example: "2020-03-15 10:30:00.000"
     
   - name: rec_edit
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when record was last edited in Redtail (parsed from string)"
+    description: "Timestamp when record was last edited in Redtail"
     example: "2025-11-28 14:20:00.000"
     
   - name: rec_add_user
@@ -207,7 +247,7 @@ columns:
   - name: scan_id
     type: String
     nullable: false
-    description: "Unique identifier for the batch run (trimmed)"
+    description: "Unique identifier for the batch run"
     example: "scan_20251128_143022"
     
   - name: batch_number
@@ -219,14 +259,14 @@ columns:
   - name: processing_date
     type: Date
     nullable: false
-    description: "Date when data was processed (partition key)"
+    description: "Date when data was processed"
     partition_key: true
     example: "2025-11-28"
     
   - name: processing_timestamp
     type: Nullable(DateTime64(3))
     nullable: true
-    description: "Timestamp when Flink processed this record (parsed from string)"
+    description: "Timestamp when Flink processed this record"
     example: "2025-11-28 14:30:22.123"
     
   # System columns

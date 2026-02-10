@@ -81,7 +81,20 @@ tests:
     expect:
       invalid_count: 0
   
-  - name: aum_non_negative
+  - name: valid_client_types
+    type: accepted_values
+    description: "Client type should be valid"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_client
+      WHERE processing_date = toDate('{{ ds }}')
+        AND client_type != ''
+        AND client_type NOT IN ('Individual', 'Corporate', 'Trust', 'Partnership', 'Foundation', 'Estate', 'Joint')
+    expect:
+      invalid_count: 0
+  
+  - name: assets_under_management_non_negative
     type: assertion
     description: "Assets under management should not be negative"
     severity: error
@@ -89,11 +102,11 @@ tests:
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND aum < 0
+        AND assets_under_management < 0
     expect:
       invalid_count: 0
   
-  - name: aum_reasonable_range
+  - name: assets_under_management_reasonable_range
     type: assertion
     description: "AUM should be in reasonable range (< $1 billion per client)"
     severity: warning
@@ -101,84 +114,73 @@ tests:
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND aum > 1000000000
+        AND assets_under_management > 1000000000
     expect:
       invalid_count: 0
   
-  - name: annual_revenue_non_negative
+  - name: onboarding_date_not_future
     type: assertion
-    description: "Annual revenue should not be negative"
+    description: "Onboarding date should not be in the future"
     severity: error
     query: |
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND annual_revenue < 0
+        AND onboarding_date > now()
     expect:
       invalid_count: 0
   
-  - name: annual_revenue_reasonable
+  - name: onboarding_date_reasonable
     type: assertion
-    description: "Annual revenue should be reasonable (< 10% of AUM)"
+    description: "Onboarding date should be reasonable (within last 50 years)"
     severity: warning
     query: |
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND aum > 0
-        AND annual_revenue > (aum * 0.1)
+        AND onboarding_date IS NOT NULL
+        AND onboarding_date < now() - INTERVAL 50 YEAR
     expect:
       invalid_count: 0
   
-  - name: client_since_not_future
+  - name: review_date_after_onboarding
     type: assertion
-    description: "Client since date should not be in the future"
-    severity: error
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND client_since > now()
-    expect:
-      invalid_count: 0
-  
-  - name: client_since_reasonable
-    type: assertion
-    description: "Client since date should be reasonable (within last 50 years)"
+    description: "Review date should be after onboarding date"
     severity: warning
     query: |
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND client_since IS NOT NULL
-        AND client_since < now() - INTERVAL 50 YEAR
+        AND onboarding_date IS NOT NULL
+        AND review_date IS NOT NULL
+        AND review_date < onboarding_date
     expect:
       invalid_count: 0
   
-  - name: next_review_date_after_client_since
+  - name: review_date_reasonable_future
     type: assertion
-    description: "Next review date should be after client since date"
+    description: "Review date should not be more than 5 years in future"
     severity: warning
     query: |
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND client_since IS NOT NULL
-        AND next_review_date IS NOT NULL
-        AND next_review_date < client_since
+        AND review_date IS NOT NULL
+        AND review_date > now() + INTERVAL 5 YEAR
     expect:
       invalid_count: 0
   
-  - name: next_review_date_reasonable_future
+  - name: conversion_date_after_onboarding
     type: assertion
-    description: "Next review date should not be more than 5 years in future"
+    description: "Conversion date should match or be close to onboarding date"
     severity: warning
     query: |
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND next_review_date IS NOT NULL
-        AND next_review_date > now() + INTERVAL 5 YEAR
+        AND onboarding_date IS NOT NULL
+        AND conversion_date IS NOT NULL
+        AND abs(dateDiff('day', conversion_date, onboarding_date)) > 30
     expect:
       invalid_count: 0
   
@@ -209,16 +211,16 @@ tests:
     expect:
       invalid_count: 0
   
-  - name: valid_risk_tolerance
+  - name: valid_risk_profile
     type: accepted_values
-    description: "Risk tolerance should be valid"
+    description: "Risk profile should be valid"
     severity: warning
     query: |
       SELECT count() as invalid_count
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
-        AND risk_tolerance != ''
-        AND risk_tolerance NOT IN ('Conservative', 'Moderate', 'Aggressive', 'Moderately Conservative', 'Moderately Aggressive')
+        AND risk_profile != ''
+        AND risk_profile NOT IN ('Conservative', 'Moderate', 'Aggressive', 'Moderately Conservative', 'Moderately Aggressive')
     expect:
       invalid_count: 0
   
@@ -231,7 +233,7 @@ tests:
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
         AND investment_objective != ''
-        AND investment_objective NOT IN ('Growth', 'Income', 'Preservation', 'Balanced', 'Growth and Income', 'Capital Appreciation', 'Tax Efficiency')
+        AND investment_objective NOT IN ('Growth', 'Income', 'Preservation', 'Balanced', 'Growth and Income', 'Capital Appreciation', 'Tax Efficiency', 'Wealth Preservation & Growth with Venture Exposure')
     expect:
       invalid_count: 0
   
@@ -244,24 +246,7 @@ tests:
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
         AND status_normalized = 'active'
-        AND is_active = true
-        AND aum = 0
-    expect:
-      invalid_count: 0
-  
-  - name: is_active_status_consistency
-    type: assertion
-    description: "is_active flag should match status_normalized"
-    severity: warning
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND (
-          (is_active = true AND status_normalized IN ('inactive', 'archived'))
-          OR
-          (is_active = false AND status_normalized = 'active')
-        )
+        AND assets_under_management = 0
     expect:
       invalid_count: 0
   
@@ -274,7 +259,46 @@ tests:
       FROM silver.redtail_client
       WHERE processing_date = toDate('{{ ds }}')
         AND status_normalized = 'active'
-        AND is_active = true
         AND client_number = ''
+    expect:
+      invalid_count: 0
+  
+  - name: email_format_valid
+    type: assertion
+    description: "Email should contain @ symbol if not empty"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_client
+      WHERE processing_date = toDate('{{ ds }}')
+        AND email != ''
+        AND email NOT LIKE '%@%'
+    expect:
+      invalid_count: 0
+  
+  - name: active_clients_have_contact_info
+    type: assertion
+    description: "Active clients should have at least email or phone"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_client
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'active'
+        AND email = ''
+        AND phone = ''
+    expect:
+      invalid_count: 0
+  
+  - name: active_clients_have_names
+    type: assertion
+    description: "Active clients should have first and last names"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM silver.redtail_client
+      WHERE processing_date = toDate('{{ ds }}')
+        AND status_normalized = 'active'
+        AND (first_name = '' OR last_name = '')
     expect:
       invalid_count: 0
