@@ -1,0 +1,85 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(goal_id IS NULL) as null_goal_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.goals
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_goal_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: goal_id_unique_per_partition
+    type: uniqueness
+    description: "Goal ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT goal_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.goals
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY goal_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_goals_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver goals should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_goals
+      FROM blackdiamond_silver.goals s
+      LEFT JOIN blackdiamond.goals_raw b
+        ON s.goal_id = b.goal_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.goal_id IS NULL
+    expect:
+      orphaned_goals: 0
+  
+  - name: goals_have_name
+    type: assertion
+    description: "Goals should have a name"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.goals
+      WHERE processing_date = toDate('{{ ds }}')
+        AND name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: valid_ordinal
+    type: assertion
+    description: "Ordinal should be non-negative when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.goals
+      WHERE processing_date = toDate('{{ ds }}')
+        AND ordinal IS NOT NULL
+        AND ordinal < 0
+    expect:
+      invalid_count: 0
+  
+  - name: goals_with_benchmark_have_name
+    type: assertion
+    description: "If benchmark_id exists, benchmark_name should also exist"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.goals
+      WHERE processing_date = toDate('{{ ds }}')
+        AND benchmark_id IS NOT NULL
+        AND benchmark_name = ''
+    expect:
+      invalid_count: 0
