@@ -1,0 +1,78 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(portfolio_id IS NULL) as null_portfolio_id,
+        countIf(portfolio_id = '') as empty_portfolio_id,
+        countIf(account_id IS NULL) as null_account_id,
+        countIf(account_id = '') as empty_account_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.portfolio_accounts
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_portfolio_id: 0
+      empty_portfolio_id: 0
+      null_account_id: 0
+      empty_account_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: mapping_unique_per_partition
+    type: uniqueness
+    description: "Each portfolio-account pair should be unique per processing_date"
+    severity: error
+    query: |
+      SELECT portfolio_id, account_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.portfolio_accounts
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY portfolio_id, account_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_mappings_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver mappings should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_mappings
+      FROM blackdiamond_silver.portfolio_accounts s
+      LEFT JOIN blackdiamond.portfolio_accounts_raw b
+        ON s.portfolio_id = b.portfolio_id
+        AND s.account_id = b.account_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.portfolio_id IS NULL
+    expect:
+      orphaned_mappings: 0
+  
+  - name: valid_ordinal
+    type: assertion
+    description: "Ordinal should be non-negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.portfolio_accounts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND ordinal < 0
+    expect:
+      invalid_count: 0
+  
+  - name: no_duplicate_ordinals_per_portfolio
+    type: assertion
+    description: "Each ordinal should be unique within a portfolio"
+    severity: warning
+    query: |
+      SELECT portfolio_id, ordinal, count() as cnt
+      FROM blackdiamond_silver.portfolio_accounts
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY portfolio_id, ordinal
+      HAVING cnt > 1
+    expect_empty: true
