@@ -1,0 +1,75 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(id IS NULL) as null_id,
+        countIf(id = '') as empty_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.contacts
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_id: 0
+      empty_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: contact_id_unique_per_partition
+    type: uniqueness
+    description: "Contact ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT id, processing_date, count() as cnt
+      FROM blackdiamond_silver.contacts
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contacts_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contacts should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_contacts
+      FROM blackdiamond_silver.contacts s
+      LEFT JOIN blackdiamond.contacts_raw b
+        ON s.id = b.id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.id IS NULL
+    expect:
+      orphaned_contacts: 0
+  
+  - name: contacts_have_name
+    type: assertion
+    description: "Contacts should have at least first or last name"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contacts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND first_name = ''
+        AND last_name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: valid_member_type
+    type: assertion
+    description: "Member type should be non-negative when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contacts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND member_type IS NOT NULL
+        AND member_type < 0
+    expect:
+      invalid_count: 0
