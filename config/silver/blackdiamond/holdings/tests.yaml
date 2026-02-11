@@ -1,0 +1,109 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(id IS NULL) as null_id,
+        countIf(id = '') as empty_id,
+        countIf(account_id IS NULL) as null_account_id,
+        countIf(account_id = '') as empty_account_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.holdings
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_id: 0
+      empty_id: 0
+      null_account_id: 0
+      empty_account_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: holding_id_unique_per_partition
+    type: uniqueness
+    description: "Holding ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT id, processing_date, count() as cnt
+      FROM blackdiamond_silver.holdings
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_holdings_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver holdings should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_holdings
+      FROM blackdiamond_silver.holdings s
+      LEFT JOIN blackdiamond.holdings_raw b
+        ON s.id = b.id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.id IS NULL
+    expect:
+      orphaned_holdings: 0
+  
+  - name: valid_boolean_flags
+    type: accepted_values
+    description: "Boolean flags must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.holdings
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (
+          discretionary NOT IN (0, 1)
+          OR supervised NOT IN (0, 1)
+          OR billable NOT IN (0, 1)
+          OR money_market NOT IN (0, 1)
+          OR cash NOT IN (0, 1)
+          OR long_holding NOT IN (0, 1)
+          OR is_manual NOT IN (0, 1)
+        )
+    expect:
+      invalid_count: 0
+  
+  - name: market_value_non_negative
+    type: assertion
+    description: "Market value should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.holdings
+      WHERE processing_date = toDate('{{ ds }}')
+        AND market_value < 0
+    expect:
+      invalid_count: 0
+  
+  - name: price_factor_positive
+    type: assertion
+    description: "Price factor should be positive"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.holdings
+      WHERE processing_date = toDate('{{ ds }}')
+        AND price_factor <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: as_of_date_not_future
+    type: assertion
+    description: "As-of date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.holdings
+      WHERE processing_date = toDate('{{ ds }}')
+        AND as_of_date > now()
+    expect:
+      invalid_count: 0

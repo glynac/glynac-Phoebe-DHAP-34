@@ -1,0 +1,242 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: holdings
+
+metadata:
+  display_name: "Black Diamond Holdings (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond holdings from Bronze layer.
+    Contains position-level data linking accounts to assets with quantities, values,
+    and investment characteristics.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - holdings
+    - positions
+    - financial
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - id
+    - account_id
+    - units
+    - market_value
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.holdings_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - account_id
+    - id
+  primary_key:
+    - id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: account_id_idx
+      expression: account_id
+      type: bloom_filter
+      granularity: 1
+    - name: asset_id_idx
+      expression: asset_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: id
+    type: String
+    nullable: false
+    description: "Black Diamond holding ID (primary key)"
+    primary_key: true
+    pii: true
+    example: "70000001"
+    
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Account ID (foreign key)"
+    pii: true
+    example: "6000001"
+    
+  - name: asset_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Asset ID (foreign key)"
+    example: 1009
+    
+  - name: as_of_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date of holding snapshot"
+    example: "2025-12-31 00:00:00.000"
+    
+  - name: units
+    type: Float64
+    nullable: false
+    description: "Number of units/shares held"
+    pii: true
+    example: 250000.0
+    
+  - name: market_value
+    type: Float64
+    nullable: false
+    description: "Market value of holding"
+    pii: true
+    example: 250000.0
+    
+  - name: discretionary
+    type: UInt8
+    nullable: false
+    description: "Is discretionary holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: supervised
+    type: UInt8
+    nullable: false
+    description: "Is supervised holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: billable
+    type: UInt8
+    nullable: false
+    description: "Is billable holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: money_market
+    type: UInt8
+    nullable: false
+    description: "Is money market holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: cash
+    type: UInt8
+    nullable: false
+    description: "Is cash holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: long_holding
+    type: UInt8
+    nullable: false
+    description: "Is long-term holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: is_manual
+    type: UInt8
+    nullable: false
+    description: "Is manually entered holding (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: investment_discretion
+    type: String
+    nullable: false
+    description: "Investment discretion level"
+    example: "Full"
+    
+  - name: voting_authority
+    type: String
+    nullable: false
+    description: "Voting authority level"
+    example: "Full"
+    
+  - name: price_factor
+    type: Float64
+    nullable: false
+    description: "Price factor multiplier"
+    example: 1.0
+    
+  - name: paydown_factor
+    type: Float64
+    nullable: false
+    description: "Paydown factor"
+    example: 1.0
+    
+  - name: coupon_rate
+    type: Nullable(Int32)
+    nullable: true
+    description: "Coupon rate for fixed income"
+    example: null
+    
+  - name: muni_state
+    type: Nullable(Int32)
+    nullable: true
+    description: "Municipal state code"
+    example: null
+    
+  - name: call_date
+    type: String
+    nullable: false
+    description: "Call date for bonds"
+    example: ""
+    
+  - name: yield
+    type: Nullable(Int64)
+    nullable: true
+    description: "Yield percentage"
+    example: 0
+    
+  - name: maturity_date
+    type: String
+    nullable: false
+    description: "Maturity date for fixed income"
+    example: ""
+    
+  - name: accrual
+    type: Float64
+    nullable: false
+    description: "Accrued interest/income"
+    example: 0.0
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.holdings_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
