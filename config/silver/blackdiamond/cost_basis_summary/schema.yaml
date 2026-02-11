@@ -1,0 +1,186 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: cost_basis_summary
+
+metadata:
+  display_name: "Black Diamond Cost Basis Summary (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond cost basis summary from Bronze layer.
+    Contains tax-related information including cost basis, realized/unrealized gains,
+    and year-to-date tax reporting for accounts.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - cost_basis_summary
+    - tax
+    - financial
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - account_id
+    - emv
+    - cost_basis
+    - realized_lt
+    - realized_st
+    - unrealized_lt
+    - unrealized_st
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.cost_basis_summary_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - account_id
+  primary_key:
+    - account_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: as_of_date_idx
+      expression: as_of_date
+      type: minmax
+      granularity: 2
+    - name: tax_status_idx
+      expression: tax_status
+      type: set
+      granularity: 4
+
+columns:
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Black Diamond account ID (foreign key)"
+    primary_key: true
+    pii: true
+    example: "6000001"
+    
+  - name: as_of_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date of cost basis snapshot"
+    example: "2025-12-31 00:00:00.000"
+    
+  - name: tax_status
+    type: Nullable(Int32)
+    nullable: true
+    description: "Tax status code"
+    example: 1
+    
+  - name: emv
+    type: Float64
+    nullable: false
+    description: "Ending market value"
+    pii: true
+    example: 250000.0
+    
+  - name: units
+    type: Int64
+    nullable: false
+    description: "Total units/shares"
+    example: 0
+    
+  - name: cost_basis
+    type: Float64
+    nullable: false
+    description: "Total cost basis"
+    pii: true
+    example: 250000.0
+    
+  - name: proceeds
+    type: Nullable(Int32)
+    nullable: true
+    description: "Sale proceeds"
+    example: null
+    
+  - name: realized_lt
+    type: Float64
+    nullable: false
+    description: "Realized long-term capital gains/losses"
+    pii: true
+    example: 0.0
+    
+  - name: realized_st
+    type: Float64
+    nullable: false
+    description: "Realized short-term capital gains/losses"
+    pii: true
+    example: 0.0
+    
+  - name: unrealized_lt
+    type: Float64
+    nullable: false
+    description: "Unrealized long-term capital gains/losses"
+    pii: true
+    example: 0.0
+    
+  - name: unrealized_st
+    type: Float64
+    nullable: false
+    description: "Unrealized short-term capital gains/losses"
+    pii: true
+    example: 0.0
+    
+  - name: accrual
+    type: Float64
+    nullable: false
+    description: "Accrued income"
+    example: 0.0
+    
+  - name: ytd_short_term_realized_gain
+    type: Nullable(Int32)
+    nullable: true
+    description: "Year-to-date short-term realized gains"
+    example: 0
+    
+  - name: ytd_long_term_realized_gain
+    type: Nullable(Int32)
+    nullable: true
+    description: "Year-to-date long-term realized gains"
+    example: 0
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.cost_basis_summary_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
