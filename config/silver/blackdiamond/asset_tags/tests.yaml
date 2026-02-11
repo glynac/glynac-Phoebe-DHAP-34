@@ -1,0 +1,64 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(asset_id IS NULL) as null_asset_id,
+        countIf(name IS NULL) as null_name,
+        countIf(name = '') as empty_name,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.asset_tags
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_asset_id: 0
+      null_name: 0
+      empty_name: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: tag_unique_per_asset_per_partition
+    type: uniqueness
+    description: "Each asset should have only one value per tag name per processing_date"
+    severity: error
+    query: |
+      SELECT asset_id, name, processing_date, count() as cnt
+      FROM blackdiamond_silver.asset_tags
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY asset_id, name, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_tags_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver tags should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_tags
+      FROM blackdiamond_silver.asset_tags s
+      LEFT JOIN blackdiamond.asset_tags_raw b
+        ON s.asset_id = b.asset_id
+        AND s.name = b.name
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.asset_id IS NULL
+    expect:
+      orphaned_tags: 0
+  
+  - name: no_empty_values
+    type: assertion
+    description: "Tag values should not be empty strings"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.asset_tags
+      WHERE processing_date = toDate('{{ ds }}')
+        AND value = ''
+    expect:
+      invalid_count: 0

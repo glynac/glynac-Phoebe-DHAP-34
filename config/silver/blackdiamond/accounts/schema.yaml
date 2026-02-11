@@ -1,0 +1,286 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: accounts
+
+metadata:
+  display_name: "Black Diamond Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond account records from Bronze layer.
+    Includes account identifiers, classifications, tax information, custodian details, and account flags.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - accounts
+    - financial
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - id
+    - name
+    - custodial_account_name
+    - account_number
+    - billing_number
+    - long_number
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.accounts_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - id
+  primary_key:
+    - id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: account_number_idx
+      expression: account_number
+      type: bloom_filter
+      granularity: 1
+    - name: account_type_idx
+      expression: account_type
+      type: set
+      granularity: 4
+    - name: custodian_idx
+      expression: custodian
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: id
+    type: String
+    nullable: false
+    description: "Black Diamond account ID (primary key)"
+    primary_key: true
+    pii: true
+    example: "6000001"
+    
+  - name: name
+    type: String
+    nullable: false
+    description: "Account display name"
+    pii: true
+    example: "Marcus Bennett Checking"
+    
+  - name: custodial_account_name
+    type: String
+    nullable: false
+    description: "Custodial account name"
+    pii: true
+    example: "Marcus Bennett Individual Checking"
+    
+  - name: account_number
+    type: String
+    nullable: false
+    description: "External account number"
+    pii: true
+    example: "CHK-MB-001"
+    
+  - name: billing_number
+    type: String
+    nullable: false
+    description: "Billing account number"
+    example: ""
+    
+  - name: long_number
+    type: String
+    nullable: false
+    description: "Long form account number"
+    pii: true
+    example: "30001234567"
+    
+  - name: account_type
+    type: String
+    nullable: false
+    description: "Type of account"
+    example: "Individual"
+    
+  - name: account_category
+    type: String
+    nullable: false
+    description: "Account category"
+    example: "Banking"
+    
+  - name: account_sub_category
+    type: String
+    nullable: false
+    description: "Account sub-category"
+    example: "Checking"
+    
+  - name: tax_methodology
+    type: Nullable(Int64)
+    nullable: true
+    description: "Tax methodology code"
+    example: 1
+    
+  - name: tax_status
+    type: Nullable(Int64)
+    nullable: true
+    description: "Tax status code"
+    example: 1
+    
+  - name: account_registration_type
+    type: String
+    nullable: false
+    description: "Account registration type"
+    example: "401K"
+    
+  - name: start_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Account start date"
+    example: "2022-05-05 00:00:00.000"
+    
+  - name: closed_date
+    type: Nullable(Int32)
+    nullable: true
+    description: "Account closed date"
+    example: null
+    
+  - name: as_of_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "As-of date for account snapshot"
+    example: "2025-12-31 00:00:00.000"
+    
+  - name: billing_start_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Billing period start date"
+    example: null
+    
+  - name: billing_end_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Billing period end date"
+    example: null
+    
+  - name: history_start_date
+    type: Nullable(Int32)
+    nullable: true
+    description: "History start date"
+    example: null
+    
+  - name: last_reconciled_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last reconciliation date"
+    example: "2025-12-31 00:00:00.000"
+    
+  - name: performance_start_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Performance tracking start date"
+    example: "2022-05-05 00:00:00.000"
+    
+  - name: create_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation timestamp"
+    example: "2022-05-05 10:30:00.000"
+    
+  - name: custodian
+    type: String
+    nullable: false
+    description: "Custodian institution name"
+    example: "Bank of America"
+    
+  - name: data_provider
+    type: String
+    nullable: false
+    description: "Data provider name"
+    example: "Bank of America"
+    
+  - name: data_provider_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Data provider ID"
+    example: 1001
+    
+  - name: manager_strategy_name
+    type: Nullable(Int32)
+    nullable: true
+    description: "Manager strategy name"
+    example: null
+    
+  - name: discretionary
+    type: UInt8
+    nullable: false
+    description: "Whether account is discretionary (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: billable
+    type: UInt8
+    nullable: false
+    description: "Whether account is billable (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: supervised
+    type: UInt8
+    nullable: false
+    description: "Whether account is supervised (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: position_only
+    type: UInt8
+    nullable: false
+    description: "Position-only account flag (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: is_sleeve_account
+    type: UInt8
+    nullable: false
+    description: "Sleeve account flag (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.accounts_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"

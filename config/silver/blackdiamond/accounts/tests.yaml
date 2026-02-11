@@ -1,0 +1,93 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(id IS NULL) as null_id,
+        countIf(id = '') as empty_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.accounts
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_id: 0
+      empty_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: account_id_unique_per_partition
+    type: uniqueness
+    description: "Account ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT id, processing_date, count() as cnt
+      FROM blackdiamond_silver.accounts
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_accounts_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver accounts should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_accounts
+      FROM blackdiamond_silver.accounts s
+      LEFT JOIN blackdiamond.accounts_raw b
+        ON s.id = b.id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.id IS NULL
+    expect:
+      orphaned_accounts: 0
+  
+  - name: valid_boolean_flags
+    type: accepted_values
+    description: "Boolean flags must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.accounts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (
+          discretionary NOT IN (0, 1)
+          OR billable NOT IN (0, 1)
+          OR supervised NOT IN (0, 1)
+          OR position_only NOT IN (0, 1)
+          OR is_sleeve_account NOT IN (0, 1)
+        )
+    expect:
+      invalid_count: 0
+  
+  - name: start_date_before_as_of_date
+    type: assertion
+    description: "Start date should be before or equal to as-of date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.accounts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_date IS NOT NULL
+        AND as_of_date IS NOT NULL
+        AND start_date > as_of_date
+    expect:
+      invalid_count: 0
+  
+  - name: as_of_date_not_future
+    type: assertion
+    description: "As-of date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.accounts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND as_of_date > now()
+    expect:
+      invalid_count: 0
