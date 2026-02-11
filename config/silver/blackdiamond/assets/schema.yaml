@@ -1,0 +1,342 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: assets
+
+metadata:
+  display_name: "Black Diamond Assets (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond asset records from Bronze layer.
+    Includes securities, cash, and other financial instruments with classification hierarchy,
+    identifiers (ticker, CUSIP), and financial attributes.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - assets
+    - securities
+    - silver
+  data_classification: internal
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.assets_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - asset_id
+  primary_key:
+    - asset_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: ticker_idx
+      expression: ticker
+      type: bloom_filter
+      granularity: 1
+    - name: cusip_idx
+      expression: cusip
+      type: bloom_filter
+      granularity: 1
+    - name: class_name_idx
+      expression: class_name
+      type: set
+      granularity: 4
+
+columns:
+  - name: asset_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Black Diamond asset ID (primary key)"
+    primary_key: true
+    example: 1001
+    
+  - name: asset_name
+    type: String
+    nullable: false
+    description: "Full asset name"
+    example: "APPLE INC"
+    
+  - name: asset_name_short
+    type: String
+    nullable: false
+    description: "Short asset name"
+    example: "APPLE INC COM"
+    
+  - name: ticker
+    type: String
+    nullable: false
+    description: "Trading symbol/ticker"
+    example: "AAPL"
+    
+  - name: cusip
+    type: String
+    nullable: false
+    description: "CUSIP identifier"
+    example: "03783310"
+    
+  - name: display_cusip
+    type: String
+    nullable: false
+    description: "Display CUSIP with check digit"
+    example: "037833100"
+    
+  - name: alternate_id
+    type: String
+    nullable: false
+    description: "Alternate identifier (e.g., ISIN)"
+    example: "US0378331005"
+    
+  - name: super_class_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Super class identifier"
+    example: 2271
+    
+  - name: superclass_name
+    type: String
+    nullable: false
+    description: "Super class name"
+    example: "Super Global Equities"
+    
+  - name: super_class_ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Super class ordinal"
+    example: 0
+    
+  - name: class_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Asset class identifier"
+    example: 35921
+    
+  - name: class_name
+    type: String
+    nullable: false
+    description: "Asset class name"
+    example: "Equity"
+    
+  - name: class_ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Asset class ordinal"
+    example: 19
+    
+  - name: sector_segment_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Sector segment identifier"
+    example: 229701
+    
+  - name: sector_segment
+    type: String
+    nullable: false
+    description: "Sector segment name"
+    example: "Technology"
+    
+  - name: sector_segment_ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Sector segment ordinal"
+    example: 40
+    
+  - name: segment_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Segment identifier"
+    example: 189391
+    
+  - name: segment_name
+    type: String
+    nullable: false
+    description: "Segment name"
+    example: "US Large Cap Growth"
+    
+  - name: cap_segment_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Capitalization segment identifier"
+    example: 189391
+    
+  - name: cap_segment_ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Capitalization segment ordinal"
+    example: 21
+    
+  - name: provider_issue_type
+    type: String
+    nullable: false
+    description: "Provider issue type"
+    example: "Stock"
+    
+  - name: sec_asset_type
+    type: String
+    nullable: false
+    description: "SEC asset type"
+    example: "Exchange-Traded Equity Securities"
+    
+  - name: cash
+    type: UInt8
+    nullable: false
+    description: "Is cash asset (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: is_cash_equivalent
+    type: UInt8
+    nullable: false
+    description: "Is cash equivalent (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: money_market
+    type: UInt8
+    nullable: false
+    description: "Is money market (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: archived
+    type: UInt8
+    nullable: false
+    description: "Is archived (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: billable
+    type: UInt8
+    nullable: false
+    description: "Is billable (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: supervised
+    type: UInt8
+    nullable: false
+    description: "Is supervised (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: discretionary
+    type: UInt8
+    nullable: false
+    description: "Is discretionary (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: coupon_rate
+    type: Nullable(Int32)
+    nullable: true
+    description: "Coupon rate for fixed income"
+    example: null
+    
+  - name: last_dividend
+    type: Nullable(Int32)
+    nullable: true
+    description: "Last dividend payment"
+    example: null
+    
+  - name: maturity_date
+    type: Nullable(Int32)
+    nullable: true
+    description: "Maturity date"
+    example: null
+    
+  - name: first_payment_date
+    type: Nullable(Int32)
+    nullable: true
+    description: "First payment date"
+    example: null
+    
+  - name: issue_date
+    type: Nullable(Int32)
+    nullable: true
+    description: "Issue date"
+    example: null
+    
+  - name: call_date
+    type: Nullable(Int32)
+    nullable: true
+    description: "Call date"
+    example: null
+    
+  - name: tax_status
+    type: String
+    nullable: false
+    description: "Tax status"
+    example: "Taxable"
+    
+  - name: paydown_factor
+    type: String
+    nullable: false
+    description: "Paydown factor"
+    example: ""
+    
+  - name: price_factor
+    type: Float64
+    nullable: false
+    description: "Price factor"
+    example: 1.0
+    
+  - name: muni_state
+    type: Nullable(Int32)
+    nullable: true
+    description: "Municipal state code"
+    example: null
+    
+  - name: yield
+    type: Float64
+    nullable: false
+    description: "Yield percentage"
+    example: 0.005
+    
+  - name: exchange
+    type: Nullable(Int32)
+    nullable: true
+    description: "Exchange code"
+    example: null
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.assets_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
