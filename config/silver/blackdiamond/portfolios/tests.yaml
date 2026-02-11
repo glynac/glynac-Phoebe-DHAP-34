@@ -1,0 +1,93 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(id IS NULL) as null_id,
+        countIf(id = '') as empty_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.portfolios
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_id: 0
+      empty_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: portfolio_id_unique_per_partition
+    type: uniqueness
+    description: "Portfolio ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT id, processing_date, count() as cnt
+      FROM blackdiamond_silver.portfolios
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_portfolios_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver portfolios should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_portfolios
+      FROM blackdiamond_silver.portfolios s
+      LEFT JOIN blackdiamond.portfolios_raw b
+        ON s.id = b.id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.id IS NULL
+    expect:
+      orphaned_portfolios: 0
+  
+  - name: valid_boolean_flags
+    type: accepted_values
+    description: "Boolean flags must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.portfolios
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (
+          is_master_portfolio NOT IN (0, 1)
+          OR exclude_from_rebalancing NOT IN (0, 1)
+          OR admin_only NOT IN (0, 1)
+          OR demo_portfolio NOT IN (0, 1)
+          OR history_loaded NOT IN (0, 1)
+          OR client_visibility NOT IN (0, 1)
+        )
+    expect:
+      invalid_count: 0
+  
+  - name: portfolios_have_name
+    type: assertion
+    description: "Portfolios should have a name"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.portfolios
+      WHERE processing_date = toDate('{{ ds }}')
+        AND name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: demo_portfolios_not_client_visible
+    type: assertion
+    description: "Demo portfolios should not be client visible"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.portfolios
+      WHERE processing_date = toDate('{{ ds }}')
+        AND demo_portfolio = 1
+        AND client_visibility = 1
+    expect:
+      invalid_count: 0

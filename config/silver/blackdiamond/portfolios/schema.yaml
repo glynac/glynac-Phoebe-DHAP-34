@@ -1,0 +1,157 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: portfolios
+
+metadata:
+  display_name: "Black Diamond Portfolios (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond portfolio records from Bronze layer.
+    Contains portfolio definitions with configuration flags, visibility settings,
+    and relationship associations.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - portfolios
+    - financial
+    - silver
+  data_classification: internal
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.portfolios_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - id
+  primary_key:
+    - id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: portfolio_name_idx
+      expression: name
+      type: bloom_filter
+      granularity: 1
+    - name: relationship_id_idx
+      expression: relationship_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: id
+    type: String
+    nullable: false
+    description: "Black Diamond portfolio ID (primary key)"
+    primary_key: true
+    example: "2000001"
+    
+  - name: name
+    type: String
+    nullable: false
+    description: "Portfolio name"
+    example: "Marcus Bennett Personal"
+    
+  - name: display_name
+    type: String
+    nullable: false
+    description: "Portfolio display name"
+    example: ""
+    
+  - name: relationship_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Client relationship ID (foreign key)"
+    example: 150001
+    
+  - name: external_relationship_id
+    type: String
+    nullable: false
+    description: "External relationship identifier"
+    example: "z0150001"
+    
+  - name: is_master_portfolio
+    type: UInt8
+    nullable: false
+    description: "Is master portfolio (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: exclude_from_rebalancing
+    type: UInt8
+    nullable: false
+    description: "Exclude from rebalancing (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: admin_only
+    type: UInt8
+    nullable: false
+    description: "Admin only visibility (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: demo_portfolio
+    type: UInt8
+    nullable: false
+    description: "Is demo portfolio (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: history_loaded
+    type: UInt8
+    nullable: false
+    description: "Historical data loaded (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: client_visibility
+    type: UInt8
+    nullable: false
+    description: "Visible to client (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.portfolios_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"

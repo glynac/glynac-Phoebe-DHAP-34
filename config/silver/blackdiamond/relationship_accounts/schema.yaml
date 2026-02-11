@@ -1,0 +1,109 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: relationship_accounts
+
+metadata:
+  display_name: "Black Diamond Relationship Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond relationship accounts mapping from Bronze layer.
+    Links client relationships to accounts with net worth and assignment configuration.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - relationship_accounts
+    - mapping
+    - silver
+  data_classification: internal
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.relationship_accounts_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - relationship_id
+    - account_id
+  primary_key:
+    - relationship_id
+    - account_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: account_id_idx
+      expression: account_id
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: relationship_id
+    type: String
+    nullable: false
+    description: "Client relationship ID (foreign key)"
+    primary_key: true
+    example: "z0150001"
+    
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Account ID (foreign key)"
+    primary_key: true
+    example: "6000001"
+    
+  - name: include_in_net_worth
+    type: UInt8
+    nullable: false
+    description: "Include in net worth calculation (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: is_direct_assigned
+    type: UInt8
+    nullable: false
+    description: "Is directly assigned to relationship (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.relationship_accounts_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
