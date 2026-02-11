@@ -14,8 +14,8 @@ metadata:
 
 source:
   type: minio
-  bucket: black-diamond-data
-  path: main-data/blackdiamond/normalized
+  bucket: main-data
+  path: blackdiamond/goals
   format: parquet
   file_pattern: goals.parquet
   partitions:

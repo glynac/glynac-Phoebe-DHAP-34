@@ -14,8 +14,8 @@ metadata:
 
 source:
   type: minio
-  bucket: black-diamond-data
-  path: main-data/blackdiamond/normalized
+  bucket: main-data
+  path: blackdiamond/firm_users
   format: parquet
   file_pattern: firm_users.parquet
   partitions:
