@@ -1,23 +1,23 @@
 version: "1.0"
 layer: bronze
 database: blackdiamond
-view: relationship_portfolios_raw
+view: segment_allocations_raw
 
 metadata:
-  description: "Raw Black Diamond relationship portfolios data from MinIO"
+  description: "Raw Black Diamond segment allocations data from MinIO"
   owner: data-engineering
   tags:
     - bronze
     - blackdiamond
     - wealth-management
-    - relationship-portfolios
+    - segment-allocations
 
 source:
   type: minio
   bucket: main-data
-  path: blackdiamond/relationship_portfolios
+  path: blackdiamond/segment_allocations
   format: parquet
-  file_pattern: relationship_portfolios.parquet
+  file_pattern: segment_allocations.parquet
   partitions:
     - name: glynac_organization_id
       type: String

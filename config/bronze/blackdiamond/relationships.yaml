@@ -17,6 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/relationships
   format: parquet
+  file_pattern: relationships.parquet
   partitions:
     - name: glynac_organization_id
       type: String

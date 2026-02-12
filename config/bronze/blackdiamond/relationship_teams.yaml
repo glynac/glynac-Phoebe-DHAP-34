@@ -1,23 +1,23 @@
 version: "1.0"
 layer: bronze
 database: blackdiamond
-view: relationship_portfolios_raw
+view: relationship_teams_raw
 
 metadata:
-  description: "Raw Black Diamond relationship portfolios data from MinIO"
+  description: "Raw Black Diamond relationship teams data from MinIO"
   owner: data-engineering
   tags:
     - bronze
     - blackdiamond
     - wealth-management
-    - relationship-portfolios
+    - relationship-teams
 
 source:
   type: minio
   bucket: main-data
-  path: blackdiamond/relationship_portfolios
+  path: blackdiamond/relationship_teams
   format: parquet
-  file_pattern: relationship_portfolios.parquet
+  file_pattern: relationship_teams.parquet
   partitions:
     - name: glynac_organization_id
       type: String
