@@ -1,0 +1,38 @@
+version: "1.0"
+layer: bronze
+database: blackdiamond
+view: transactions_raw
+
+metadata:
+  description: "Raw Black Diamond transactions data from MinIO"
+  owner: data-engineering
+  tags:
+    - bronze
+    - blackdiamond
+    - wealth-management
+    - transactions
+
+source:
+  type: minio
+  bucket: main-data
+  path: blackdiamond/transactions
+  format: parquet
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_parquet_allow_missing_columns: 1
+
+schema:
+  mode: auto
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{table}"
