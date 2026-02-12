@@ -1,0 +1,123 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Holdings
+# ============================================================
+# Generates timeline events from blackdiamond_silver.holdings table
+# Events: holding_established, transaction_buy, transaction_sell,
+#         transaction_deposit, transaction_withdrawal
+# Source Bronze: holdings_raw
+# NOTE: Black Diamond stores positions (holdings) not transactions
+#       Transaction events are inferred from holding changes
+
+source:
+  database: blackdiamond_silver
+  table: holdings
+  primary_key: id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: holding
+  mv_name: mv_blackdiamond_holdings_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: holding_established
+    # Condition: id IS NOT NULL (first appearance of holding)
+    # Priority: Phase 1 (Core)
+    # NOTE: Timestamp is earliest transaction trade_date or as_of_date
+    - type: holding_established
+      timestamp_field: as_of_date
+      timestamp_source: derived_from_transactions
+      condition: "id IS NOT NULL AND units IS NOT NULL AND units != 0"
+      description_template: "Position established in account"
+      metadata:
+        holding_id: "toString(COALESCE(id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        asset_id: "toString(COALESCE(asset_id, 0))"
+        units: "toString(COALESCE(units, 0))"
+        market_value: "toString(COALESCE(market_value, 0))"
+        discretionary: "toString(COALESCE(discretionary, false))"
+        supervised: "toString(COALESCE(supervised, false))"
+        billable: "toString(COALESCE(billable, false))"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+
+    # Event 2: transaction_buy
+    # Condition: Inferred from holdings with positive units change
+    # Priority: Phase 1 (Core)
+    # NOTE: In Black Diamond, we don't have explicit transaction records
+    #       Buy events are inferred from holdings where units increase
+    #       For Phase 1, we mark all holdings with positive units as potential buys
+    - type: transaction_buy
+      timestamp_field: as_of_date
+      timestamp_source: derived
+      condition: "id IS NOT NULL AND units IS NOT NULL AND units > 0 AND cash != true"
+      description_template: "Purchase units in account"
+      metadata:
+        holding_id: "toString(COALESCE(id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        asset_id: "toString(COALESCE(asset_id, 0))"
+        units: "toString(COALESCE(units, 0))"
+        market_value: "toString(COALESCE(market_value, 0))"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+
+    # Event 3: transaction_sell
+    # Condition: Inferred from holdings that close or reduce
+    # Priority: Phase 1 (Core)
+    # NOTE: For Phase 1, this is challenging without historical tracking
+    #       Ideally would compare current vs previous holdings to detect sells
+    - type: transaction_sell
+      timestamp_field: as_of_date
+      timestamp_source: derived
+      condition: "id IS NOT NULL AND units IS NOT NULL AND units < 0"
+      description_template: "Sold units from account"
+      metadata:
+        holding_id: "toString(COALESCE(id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        asset_id: "toString(COALESCE(asset_id, 0))"
+        units: "toString(abs(COALESCE(units, 0)))"
+        market_value: "toString(COALESCE(market_value, 0))"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+
+    # Event 4: transaction_deposit
+    # Condition: Cash holdings with positive market value
+    # Priority: Phase 1 (Core)
+    - type: transaction_deposit
+      timestamp_field: as_of_date
+      timestamp_source: as_of_date
+      condition: "id IS NOT NULL AND cash = true AND market_value IS NOT NULL AND market_value > 0"
+      description_template: "Cash deposit - ${market_value}"
+      metadata:
+        holding_id: "toString(COALESCE(id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        market_value: "toString(COALESCE(market_value, 0))"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+
+    # Event 5: transaction_withdrawal
+    # Condition: Cash holdings with negative market value change
+    # Priority: Phase 1 (Core)
+    - type: transaction_withdrawal
+      timestamp_field: as_of_date
+      timestamp_source: as_of_date
+      condition: "id IS NOT NULL AND cash = true AND market_value IS NOT NULL AND market_value < 0"
+      description_template: "Cash withdrawal - ${abs(market_value)}"
+      metadata:
+        holding_id: "toString(COALESCE(id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        market_value: "toString(abs(COALESCE(market_value, 0)))"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+
+    # Phase 2/3 events (disabled for Phase 1):
+    # - holding_closed (condition: units = 0 or no longer in holdings)
+    # - transaction_dividend (requires separate transaction data)
+    # - transaction_interest (requires separate transaction data)
+    # - transaction_contribution (requires separate transaction data)
+    # - transaction_employer_match (requires separate transaction data)
+    # - transaction_transfer (requires separate transaction data)
+    # - transaction_grant (requires separate transaction data)
+
+# IMPORTANT NOTE:
+# Black Diamond's holdings table represents positions/balances, not individual transactions.
+# The transaction events here are INFERRED from holding snapshots and may not represent
+# actual transaction activity. For true transaction events, Black Diamond would need to
+# provide explicit transaction records or we would need to implement historical diff logic
+# to compare holdings snapshots over time.

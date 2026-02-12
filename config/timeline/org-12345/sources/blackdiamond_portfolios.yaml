@@ -1,0 +1,42 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Portfolios
+# ============================================================
+# Generates timeline events from blackdiamond_silver.portfolios table
+# Events: portfolio_created
+# Source Bronze: portfolios_raw
+
+source:
+  database: blackdiamond_silver
+  table: portfolios
+  primary_key: id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: portfolio
+  mv_name: mv_blackdiamond_portfolios_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: portfolio_created
+    # Condition: id IS NOT NULL
+    # Priority: Phase 1 (Core)
+    # NOTE: Timestamp is derived from earliest account create_date in portfolio
+    # For Phase 1, using processing_date as fallback
+    - type: portfolio_created
+      timestamp_field: processing_date
+      timestamp_source: derived_from_accounts
+      condition: "id IS NOT NULL"
+      description_template: "Portfolio '{name}' created"
+      metadata:
+        portfolio_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        display_name: "COALESCE(display_name, '')"
+        relationship_id: "toString(COALESCE(relationship_id, 0))"
+        external_relationship_id: "COALESCE(external_relationship_id, '')"
+        is_master_portfolio: "toString(COALESCE(is_master_portfolio, false))"
+        client_visibility: "toString(COALESCE(client_visibility, false))"
+
+    # Phase 2/3 events (disabled for Phase 1):
+    # - portfolio_benchmark_assigned (from portfolio_benchmarks table)
+    # - portfolio_benchmark_removed (from portfolio_benchmarks table)
