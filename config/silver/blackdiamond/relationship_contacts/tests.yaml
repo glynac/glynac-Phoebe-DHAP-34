@@ -1,0 +1,129 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(relationship_id IS NULL) as null_relationship_id,
+        countIf(relationship_id = '') as empty_relationship_id,
+        countIf(contact_id IS NULL) as null_contact_id,
+        countIf(contact_id = '') as empty_contact_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.relationship_contacts
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_relationship_id: 0
+      empty_relationship_id: 0
+      null_contact_id: 0
+      empty_contact_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: relationship_contact_unique_per_partition
+    type: uniqueness
+    description: "Relationship-Contact pair should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT relationship_id, contact_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.relationship_contacts
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY relationship_id, contact_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: relationships_exist
+    type: referential_integrity
+    description: "All relationship_ids must exist in relationships table"
+    severity: error
+    query: |
+      SELECT count() as orphaned_relationships
+      FROM blackdiamond_silver.relationship_contacts rc
+      LEFT JOIN blackdiamond_silver.relationships r
+        ON rc.relationship_id = r.id
+        AND rc.processing_date = r.processing_date
+        AND rc.glynac_organization_id = r.glynac_organization_id
+      WHERE rc.processing_date = toDate('{{ ds }}')
+        AND r.id IS NULL
+    expect:
+      orphaned_relationships: 0
+  
+  - name: contacts_exist
+    type: referential_integrity
+    description: "All contact_ids must exist in contacts table"
+    severity: error
+    query: |
+      SELECT count() as orphaned_contacts
+      FROM blackdiamond_silver.relationship_contacts rc
+      LEFT JOIN blackdiamond_silver.contacts c
+        ON rc.contact_id = c.id
+        AND rc.processing_date = c.processing_date
+        AND rc.glynac_organization_id = c.glynac_organization_id
+      WHERE rc.processing_date = toDate('{{ ds }}')
+        AND c.id IS NULL
+    expect:
+      orphaned_contacts: 0
+  
+  - name: primary_contact_uniqueness
+    type: assertion
+    description: "Each relationship should have at most one primary contact"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM (
+        SELECT relationship_id, count() as primary_count
+        FROM blackdiamond_silver.relationship_contacts
+        WHERE processing_date = toDate('{{ ds }}')
+          AND is_primary = true
+        GROUP BY relationship_id
+        HAVING primary_count > 1
+      )
+    expect:
+      invalid_count: 0
+  
+  - name: contact_role_exclusivity
+    type: assertion
+    description: "Contact cannot be both primary and secondary"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.relationship_contacts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_primary = true
+        AND is_secondary = true
+    expect:
+      invalid_count: 0
+  
+  - name: at_least_one_role_assigned
+    type: assertion
+    description: "Contact should have at least one role (primary or secondary)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.relationship_contacts
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_primary = false
+        AND is_secondary = false
+    expect:
+      invalid_count: 0
+  
+  - name: all_mappings_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver mappings should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_mappings
+      FROM blackdiamond_silver.relationship_contacts s
+      LEFT JOIN blackdiamond.relationship_contacts_raw b
+        ON s.relationship_id = b.relationship_id
+        AND s.contact_id = b.contact_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.relationship_id IS NULL
+    expect:
+      orphaned_mappings: 0
