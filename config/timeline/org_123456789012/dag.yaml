@@ -40,7 +40,7 @@ dag:
 # ============================================================
 organization:
   org_id: "org-123456789012"
-  org_name: "Organization 123456789012"
+  org_name: "Organization 12345"
   database: "org_123456789012"
 
 # ============================================================
@@ -81,55 +81,113 @@ timeline_table:
 # The generator reads these YAML files and creates MVs automatically
 
 sources:
-  # Relationship Events (1 event)
+  # ============================================================
+  # Phase 1: Core Events (11 events - tax_lots disabled)
+  # ============================================================
+
+  # Relationship Events (2 events: created, terminated)
   - name: blackdiamond_relationships
     enabled: true
     config_path: "timeline/org_123456789012/sources/blackdiamond_relationships.yaml"
     expected_min_events: 1
-    description: "Relationship lifecycle events (created)"
+    description: "Relationship lifecycle events (Phase 1+3)"
 
-  # Contact Events (1 event)
+  # Contact Events (1 event: created)
   - name: blackdiamond_contacts
     enabled: true
     config_path: "timeline/org_123456789012/sources/blackdiamond_contacts.yaml"
     expected_min_events: 1
-    description: "Contact lifecycle events (created)"
+    description: "Contact lifecycle events (Phase 1)"
 
-  # Portfolio Events (1 event)
+  # Portfolio Events (1 event: created)
   - name: blackdiamond_portfolios
     enabled: true
     config_path: "timeline/org_123456789012/sources/blackdiamond_portfolios.yaml"
     expected_min_events: 1
-    description: "Portfolio lifecycle events (created)"
+    description: "Portfolio lifecycle events (Phase 1)"
 
-  # Account Events (2 events: created, opened)
+  # Account Events (6 events: created, opened, closed, reconciled, billing started/ended)
   - name: blackdiamond_accounts
     enabled: true
     config_path: "timeline/org_123456789012/sources/blackdiamond_accounts.yaml"
     expected_min_events: 1
-    description: "Account lifecycle events (created, opened)"
+    description: "Account lifecycle and billing events (Phase 1+2+3)"
 
-  # Portfolio-Account Assignment Events (1 event)
+  # Portfolio-Account Assignment Events (1 event: assigned)
   - name: blackdiamond_portfolio_accounts
     enabled: true
     config_path: "timeline/org_123456789012/sources/blackdiamond_portfolio_accounts.yaml"
     expected_min_events: 1
-    description: "Account-to-portfolio assignment events"
+    description: "Account-to-portfolio assignment events (Phase 1)"
 
-  # Holding Events (5 events: established, buy, sell, deposit, withdrawal)
+  # Holding Events (6 events: established, closed, buy, sell, deposit, withdrawal)
   - name: blackdiamond_holdings
     enabled: true
     config_path: "timeline/org_123456789012/sources/blackdiamond_holdings.yaml"
     expected_min_events: 1
-    description: "Holding and transaction events"
+    description: "Holding and transaction events (Phase 1+2)"
+
+  # ============================================================
+  # Phase 2: High Value Events (7 events)
+  # ============================================================
+
+  # Goal Events (1 event: created)
+  - name: blackdiamond_goals
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_goals.yaml"
+    expected_min_events: 0
+    description: "Goal lifecycle events (Phase 2)"
+
+  # Goal Assignment Events (1 event: assigned to account)
+  - name: blackdiamond_portfolio_account_goals
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_portfolio_account_goals.yaml"
+    expected_min_events: 0
+    description: "Goal assignment events (Phase 2)"
+
+  # Portfolio Benchmark Events (2 events: assigned, removed)
+  - name: blackdiamond_portfolio_benchmarks
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_portfolio_benchmarks.yaml"
+    expected_min_events: 0
+    description: "Portfolio benchmark events (Phase 2+3)"
+
+  # Portfolio Advisor Events (1 event: assigned)
+  - name: blackdiamond_portfolio_advisors
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_portfolio_advisors.yaml"
+    expected_min_events: 0
+    description: "Portfolio advisor assignment events (Phase 2)"
+
+  # ============================================================
+  # Phase 3: Enhanced Events (3 events)
+  # ============================================================
+
+  # Relationship Contact Events (2 events: primary, secondary)
+  - name: blackdiamond_relationship_contacts
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_relationship_contacts.yaml"
+    expected_min_events: 0
+    description: "Contact assignment events (Phase 3)"
+
+  # Portfolio Group Events (1 event: group assigned)
+  - name: blackdiamond_portfolio_group_members
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_portfolio_group_members.yaml"
+    expected_min_events: 0
+    description: "Portfolio group assignment events (Phase 3)"
+
+  # ============================================================
+  # Disabled Sources (table not available)
+  # ============================================================
 
   # Tax Lot Events (1 event: opened)
   # DISABLED: tax_lots table does not exist in blackdiamond_silver yet
   - name: blackdiamond_tax_lots
     enabled: false
     config_path: "timeline/org_123456789012/sources/blackdiamond_tax_lots.yaml"
-    expected_min_events: 1
-    description: "Tax lot lifecycle events (opened)"
+    expected_min_events: 0
+    description: "Tax lot lifecycle events (disabled - table not available)"
 
 # ============================================================
 # Validation Configuration
@@ -197,18 +255,48 @@ monitoring:
 # ============================================================
 # Notes
 # ============================================================
-# Phase 1 includes 12 core events:
+# Total Implemented Events: 25 out of 36 canonical events
+#
+# Phase 1 - Core Events (11 events - tax_lot_opened disabled):
 #   1. relationship_created
 #   2. contact_created
 #   3. portfolio_created
 #   4. account_created
 #   5. account_opened
 #   6. account_assigned_to_portfolio
-#   7. transaction_buy
-#   8. transaction_sell
-#   9. transaction_deposit
-#  10. transaction_withdrawal
-#  11. holding_established
-#  12. tax_lot_opened
+#   7. holding_established
+#   8. transaction_buy (inferred from holdings)
+#   9. transaction_sell (inferred from holdings)
+#  10. transaction_deposit (inferred from holdings)
+#  11. transaction_withdrawal (inferred from holdings)
 #
-# Phase 2 and 3 events are defined in the documentation but not yet implemented.
+# Phase 2 - High Value Events (7 events implemented):
+#  12. account_closed
+#  13. account_reconciled
+#  14. holding_closed
+#  15. goal_created
+#  16. goal_assigned_to_account
+#  17. portfolio_benchmark_assigned
+#  18. advisor_assigned_to_portfolio
+#
+# Phase 3 - Enhanced Events (7 events implemented):
+#  19. relationship_terminated
+#  20. billing_period_started
+#  21. billing_period_ended
+#  22. contact_assigned_primary
+#  23. contact_assigned_secondary
+#  24. portfolio_benchmark_removed
+#  25. portfolio_group_assigned
+#
+# Not Implemented (11 events - missing source tables):
+#  - tax_lot_opened (no tax_lots table)
+#  - tax_lot_closed (no tax_lots table)
+#  - target_created (no targets table)
+#  - target_deactivated (no targets table)
+#  - transaction_dividend (no transactions table)
+#  - transaction_interest (no transactions table)
+#  - transaction_contribution (no transactions table)
+#  - transaction_employer_match (no transactions table)
+#  - transaction_transfer (no transactions table)
+#  - transaction_grant (no transactions table)
+#  - team_assigned_to_relationship (no relationship_teams/teams table)

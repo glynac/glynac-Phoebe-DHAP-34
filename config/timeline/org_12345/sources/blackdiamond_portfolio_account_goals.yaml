@@ -1,0 +1,33 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Portfolio Account Goals
+# ============================================================
+# Generates timeline events from blackdiamond_silver.portfolio_account_goals table
+# Events: goal_assigned_to_account
+# Source Bronze: portfolio_account_goals_raw
+
+source:
+  database: blackdiamond_silver
+  table: portfolio_account_goals
+  primary_key: account_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: goal
+  mv_name: mv_blackdiamond_portfolio_account_goals_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: goal_assigned_to_account
+    # Condition: goal_id IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: goal_assigned_to_account
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "goal_id IS NOT NULL"
+      description_template: "Goal assigned to account"
+      metadata:
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        goal_id: "toString(COALESCE(goal_id, 0))"
+        ordinal: "toString(COALESCE(ordinal, 0))"

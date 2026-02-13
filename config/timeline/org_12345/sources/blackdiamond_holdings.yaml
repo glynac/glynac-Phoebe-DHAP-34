@@ -3,7 +3,7 @@ version: "1.0"
 # Timeline Source: Black Diamond Holdings
 # ============================================================
 # Generates timeline events from blackdiamond_silver.holdings table
-# Events: holding_established, transaction_buy, transaction_sell,
+# Events: holding_established, holding_closed, transaction_buy, transaction_sell,
 #         transaction_deposit, transaction_withdrawal
 # Source Bronze: holdings_raw
 # NOTE: Black Diamond stores positions (holdings) not transactions
@@ -106,14 +106,28 @@ timeline:
         market_value: "toString(abs(COALESCE(market_value, 0)))"
         as_of_date: "toString(COALESCE(as_of_date, ''))"
 
-    # Phase 2/3 events (disabled for Phase 1):
-    # - holding_closed (condition: units = 0 or no longer in holdings)
-    # - transaction_dividend (requires separate transaction data)
-    # - transaction_interest (requires separate transaction data)
-    # - transaction_contribution (requires separate transaction data)
-    # - transaction_employer_match (requires separate transaction data)
-    # - transaction_transfer (requires separate transaction data)
-    # - transaction_grant (requires separate transaction data)
+    # Event 6: holding_closed
+    # Condition: units = 0 (position closed)
+    # Priority: Phase 2 (High Value)
+    - type: holding_closed
+      timestamp_field: as_of_date
+      timestamp_source: as_of_date
+      condition: "id IS NOT NULL AND units IS NOT NULL AND units = 0"
+      description_template: "Position closed in account"
+      metadata:
+        holding_id: "toString(COALESCE(id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        asset_id: "toString(COALESCE(asset_id, 0))"
+        final_market_value: "toString(COALESCE(market_value, 0))"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+
+    # Phase 2/3 transaction events (require separate transactions table - not available):
+    # - transaction_dividend
+    # - transaction_interest
+    # - transaction_contribution
+    # - transaction_employer_match
+    # - transaction_transfer
+    # - transaction_grant
 
 # IMPORTANT NOTE:
 # Black Diamond's holdings table represents positions/balances, not individual transactions.

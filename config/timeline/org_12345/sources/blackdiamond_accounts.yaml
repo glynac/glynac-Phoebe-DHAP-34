@@ -3,7 +3,8 @@ version: "1.0"
 # Timeline Source: Black Diamond Accounts
 # ============================================================
 # Generates timeline events from blackdiamond_silver.accounts table
-# Events: account_created, account_opened
+# Events: account_created, account_opened, account_closed, account_reconciled,
+#         billing_period_started, billing_period_ended
 # Source Bronze: accounts_raw
 
 source:
@@ -57,8 +58,62 @@ timeline:
         billable: "toString(COALESCE(billable, false))"
         supervised: "toString(COALESCE(supervised, false))"
 
-    # Phase 2/3 events (disabled for Phase 1):
-    # - account_closed (condition: closed_date IS NOT NULL)
-    # - account_reconciled (condition: last_reconciled_date IS NOT NULL)
-    # - billing_period_started (condition: billing_start_date IS NOT NULL)
-    # - billing_period_ended (condition: billing_end_date IS NOT NULL)
+    # Event 3: account_closed
+    # Condition: closed_date IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: account_closed
+      timestamp_field: closed_date
+      timestamp_source: closed_date
+      condition: "closed_date IS NOT NULL"
+      description_template: "Account '{name}' ({account_number}) closed"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        account_type: "COALESCE(account_type, '')"
+        start_date: "toString(COALESCE(start_date, ''))"
+        custodian: "COALESCE(custodian, '')"
+
+    # Event 4: account_reconciled
+    # Condition: last_reconciled_date IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: account_reconciled
+      timestamp_field: last_reconciled_date
+      timestamp_source: last_reconciled_date
+      condition: "last_reconciled_date IS NOT NULL"
+      description_template: "Account '{name}' reconciled as of {as_of_date}"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+        custodian: "COALESCE(custodian, '')"
+
+    # Event 5: billing_period_started
+    # Condition: billing_start_date IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: billing_period_started
+      timestamp_field: billing_start_date
+      timestamp_source: billing_start_date
+      condition: "billing_start_date IS NOT NULL"
+      description_template: "Billing started for account '{name}'"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        billable: "toString(COALESCE(billable, false))"
+        billing_number: "COALESCE(billing_number, '')"
+
+    # Event 6: billing_period_ended
+    # Condition: billing_end_date IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: billing_period_ended
+      timestamp_field: billing_end_date
+      timestamp_source: billing_end_date
+      condition: "billing_end_date IS NOT NULL"
+      description_template: "Billing ended for account '{name}'"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        billing_start_date: "toString(COALESCE(billing_start_date, ''))"

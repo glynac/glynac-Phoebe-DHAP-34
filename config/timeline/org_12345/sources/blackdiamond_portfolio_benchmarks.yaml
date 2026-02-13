@@ -1,0 +1,44 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Portfolio Benchmarks
+# ============================================================
+# Generates timeline events from blackdiamond_silver.portfolio_benchmarks table
+# Events: portfolio_benchmark_assigned, portfolio_benchmark_removed
+# Source Bronze: portfolio_benchmarks_raw
+
+source:
+  database: blackdiamond_silver
+  table: portfolio_benchmarks
+  primary_key: portfolio_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: portfolio
+  mv_name: mv_blackdiamond_portfolio_benchmarks_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: portfolio_benchmark_assigned
+    # Condition: start_date IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: portfolio_benchmark_assigned
+      timestamp_field: start_date
+      timestamp_source: start_date
+      condition: "start_date IS NOT NULL"
+      description_template: "Benchmark assigned to portfolio"
+      metadata:
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        benchmark_id: "toString(COALESCE(benchmark_id, ''))"
+
+    # Event 2: portfolio_benchmark_removed
+    # Condition: end_date IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: portfolio_benchmark_removed
+      timestamp_field: end_date
+      timestamp_source: end_date
+      condition: "end_date IS NOT NULL"
+      description_template: "Benchmark removed from portfolio"
+      metadata:
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        benchmark_id: "toString(COALESCE(benchmark_id, ''))"
+        start_date: "toString(COALESCE(start_date, ''))"

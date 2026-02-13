@@ -1,0 +1,34 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Portfolio Advisors
+# ============================================================
+# Generates timeline events from blackdiamond_silver.portfolio_advisors table
+# Events: advisor_assigned_to_portfolio
+# Source Bronze: portfolio_advisors_raw
+
+source:
+  database: blackdiamond_silver
+  table: portfolio_advisors
+  primary_key: portfolio_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: portfolio
+  mv_name: mv_blackdiamond_portfolio_advisors_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: advisor_assigned_to_portfolio
+    # Condition: advisor_id IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: advisor_assigned_to_portfolio
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "advisor_id IS NOT NULL"
+      description_template: "Advisor '{first_name} {last_name}' assigned to portfolio"
+      metadata:
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        advisor_id: "toString(COALESCE(advisor_id, ''))"
+        advisor_name: "concat(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"
+        first_name: "COALESCE(first_name, '')"
+        last_name: "COALESCE(last_name, '')"

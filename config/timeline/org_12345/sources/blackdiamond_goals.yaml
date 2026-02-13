@@ -1,0 +1,35 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Goals
+# ============================================================
+# Generates timeline events from blackdiamond_silver.goals table
+# Events: goal_created
+# Source Bronze: goals_raw
+
+source:
+  database: blackdiamond_silver
+  table: goals
+  primary_key: goal_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: goal
+  mv_name: mv_blackdiamond_goals_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: goal_created
+    # Condition: goal_id IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: goal_created
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "goal_id IS NOT NULL"
+      description_template: "Goal '{name}' created for portfolio"
+      metadata:
+        goal_id: "toString(COALESCE(goal_id, 0))"
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        name: "COALESCE(name, '')"
+        benchmark_id: "toString(COALESCE(benchmark_id, 0))"
+        benchmark_name: "COALESCE(benchmark_name, '')"
+        ordinal: "toString(COALESCE(ordinal, 0))"

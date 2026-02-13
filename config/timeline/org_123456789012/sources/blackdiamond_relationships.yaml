@@ -3,7 +3,7 @@ version: "1.0"
 # Timeline Source: Black Diamond Relationships
 # ============================================================
 # Generates timeline events from blackdiamond_silver.relationships table
-# Events: relationship_created
+# Events: relationship_created, relationship_terminated
 # Source Bronze: relationships_raw
 
 source:
@@ -32,5 +32,16 @@ timeline:
         client_type_id: "toString(COALESCE(client_type_id, 0))"
         name: "COALESCE(name, '')"
 
-    # Phase 2/3 events (disabled for Phase 1):
-    # - relationship_terminated (condition: termination_date IS NOT NULL)
+    # Event 2: relationship_terminated
+    # Condition: termination_date IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: relationship_terminated
+      timestamp_field: termination_date
+      timestamp_source: termination_date
+      condition: "termination_date IS NOT NULL"
+      description_template: "Client relationship '{name}' terminated"
+      metadata:
+        relationship_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        inception_date: "toString(COALESCE(inception_date, ''))"
+        crm_source: "COALESCE(crm_source, '')"

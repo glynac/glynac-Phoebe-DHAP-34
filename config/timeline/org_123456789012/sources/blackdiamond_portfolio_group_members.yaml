@@ -1,0 +1,31 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Portfolio Group Members
+# ============================================================
+# Generates timeline events from blackdiamond_silver.portfolio_group_members table
+# Events: portfolio_group_assigned
+# Source Bronze: portfolio_group_members_raw
+
+source:
+  database: blackdiamond_silver
+  table: portfolio_group_members
+  primary_key: portfolio_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: portfolio
+  mv_name: mv_blackdiamond_portfolio_group_members_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: portfolio_group_assigned
+    # Condition: portfolio_group_id IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: portfolio_group_assigned
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "portfolio_group_id IS NOT NULL"
+      description_template: "Portfolio added to group"
+      metadata:
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        portfolio_group_id: "toString(COALESCE(portfolio_group_id, ''))"
