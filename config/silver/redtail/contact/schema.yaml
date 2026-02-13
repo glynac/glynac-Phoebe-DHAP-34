@@ -20,7 +20,7 @@ metadata:
     - silver
   data_classification: confidential
   contains_pii: true
-  pii_columns:
+    pii_columns:
     - first_name
     - last_name
     - full_name
