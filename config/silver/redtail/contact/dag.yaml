@@ -1,8 +1,7 @@
 version: "1.0"
 
 dag:
-  # dag_id derived from folder path: silver_redtail_contact
-  description: "Transform and clean Redtail contact data from Bronze to Silver layer"
+  description: "Transform and clean Redtail contacts from Bronze to Silver layer"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"
   catchup: false
@@ -28,24 +27,22 @@ dag:
   concurrency: 1
   max_active_tasks_per_dag: 1
 
-
 task:
-  task_id: "transform_redtail_contact"
+  task_id: "transform_redtail_contacts"
   task_type: clickhouse_transformation
   incremental:
     enabled: true
     strategy: partition_based
     partition_column: processing_date
-    lookback_days: 90  # Reload last 7 days for late data
+    lookback_days: 90
   execution:
-    mode: insert_overwrite  # Overwrite partition
+    mode: insert_overwrite
     batch_size: 100000
     max_insert_threads: 4
 
 dependencies:
   auto_detect: true
   
-  # Dependency checks before running
   check_strategy:
     - type: table_exists
       description: "Check if Bronze table exists"
@@ -58,5 +55,6 @@ dependencies:
     - type: freshness
       description: "Check Bronze data is fresh (< 2 hours old)"
       max_age_hours: 2
-      fail_on_stale: false  
+      fail_on_stale: false
+  
   mode: dataset_aware
