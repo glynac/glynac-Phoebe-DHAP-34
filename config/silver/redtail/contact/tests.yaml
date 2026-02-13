@@ -11,7 +11,7 @@ tests:
         countIf(glynac_organization_id IS NULL) as null_org_id,
         countIf(glynac_organization_id = '') as empty_org_id,
         countIf(processing_date IS NULL) as null_processing_date
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
     expect:
       null_contact_id: 0
@@ -25,7 +25,7 @@ tests:
     severity: error
     query: |
       SELECT contact_id, processing_date, count() as cnt
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
       GROUP BY contact_id, processing_date
       HAVING cnt > 1
@@ -37,7 +37,7 @@ tests:
     severity: warning
     query: |
       SELECT count() as orphaned_contacts
-      FROM redtail_silver.contacts s
+      FROM redtail_silver.contact s
       LEFT JOIN redtail.contact_raw b
         ON s.contact_id = b.contact_id
         AND s.processing_date = b.processing_date
@@ -52,7 +52,7 @@ tests:
     severity: error
     query: |
       SELECT count() as invalid_count
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
         AND first_name = ''
         AND last_name = ''
@@ -66,7 +66,7 @@ tests:
     severity: warning
     query: |
       SELECT count() as invalid_count
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
         AND email != ''
         AND NOT match(email, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}$')
@@ -79,7 +79,7 @@ tests:
     severity: error
     query: |
       SELECT count() as invalid_count
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
         AND date_of_birth > today()
     expect:
@@ -91,7 +91,7 @@ tests:
     severity: warning
     query: |
       SELECT count() as invalid_count
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
         AND date_of_birth IS NOT NULL
         AND (
@@ -107,7 +107,7 @@ tests:
     severity: warning
     query: |
       SELECT count() as invalid_count
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
         AND rec_add IS NOT NULL
         AND rec_edit IS NOT NULL
@@ -121,7 +121,7 @@ tests:
     severity: info
     query: |
       SELECT DISTINCT contact_status, count() as cnt
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
         AND contact_status NOT IN ('Active', 'Inactive', 'Prospect', 'Former Client', '')
       GROUP BY contact_status
@@ -137,7 +137,7 @@ tests:
         countIf(phone_number != '' OR mobile_phone != '' OR home_phone != '') as has_phone,
         countIf(address1 != '') as has_address,
         count() as total_contacts
-      FROM redtail_silver.contacts
+      FROM redtail_silver.contact
       WHERE processing_date = toDate('{{ ds }}')
     expect_greater_than:
       has_email: 0

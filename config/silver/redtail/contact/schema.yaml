@@ -1,10 +1,10 @@
 version: "1.0"
 layer: silver
 database: redtail_silver
-table: contacts
+table: contact
 
 metadata:
-  display_name: "Redtail Contacts (Cleaned)"
+  display_name: "Redtail Contact (Cleaned)"
   description: |
     Cleaned and transformed Redtail contact records from Bronze layer.
     Contains individual and company contact information including personal details,
@@ -14,7 +14,7 @@ metadata:
   domain: redtail
   tags:
     - redtail
-    - contacts
+    - contact
     - clients
     - individuals
     - silver

@@ -1,7 +1,7 @@
 version: "1.0"
 
 dag:
-  description: "Transform and clean Redtail contacts from Bronze to Silver layer"
+  description: "Transform and clean Redtail contact from Bronze to Silver layer"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"
   catchup: false
@@ -9,7 +9,7 @@ dag:
   tags:
     - silver
     - redtail
-    - contacts
+    - contact
     - clients
     - pii
     - dataset-aware
@@ -28,7 +28,7 @@ dag:
   max_active_tasks_per_dag: 1
 
 task:
-  task_id: "transform_redtail_contacts"
+  task_id: "transform_redtail_contact"
   task_type: clickhouse_transformation
   incremental:
     enabled: true
