@@ -124,8 +124,9 @@ sources:
     description: "Holding and transaction events"
 
   # Tax Lot Events (1 event: opened)
+  # DISABLED: tax_lots table does not exist in blackdiamond_silver yet
   - name: blackdiamond_tax_lots
-    enabled: true
+    enabled: false
     config_path: "timeline/org_123456789012/sources/blackdiamond_tax_lots.yaml"
     expected_min_events: 1
     description: "Tax lot lifecycle events (opened)"

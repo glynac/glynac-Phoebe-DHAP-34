@@ -28,7 +28,6 @@ timeline:
       description_template: "Client relationship '{name}' established"
       metadata:
         relationship_id: "toString(COALESCE(id, ''))"
-        external_relationship_id: "COALESCE(external_relationship_id, '')"
         crm_source: "COALESCE(crm_source, '')"
         client_type_id: "toString(COALESCE(client_type_id, 0))"
         name: "COALESCE(name, '')"
