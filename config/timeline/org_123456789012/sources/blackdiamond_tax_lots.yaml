@@ -1,0 +1,42 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Tax Lots
+# ============================================================
+# Generates timeline events from blackdiamond_silver.tax_lots table
+# Events: tax_lot_opened
+# Source Bronze: tax_lots_raw
+
+source:
+  database: blackdiamond_silver
+  table: tax_lots
+  primary_key: tax_lot_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: tax_lot
+  mv_name: mv_blackdiamond_tax_lots_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: tax_lot_opened
+    # Condition: open_date IS NOT NULL
+    # Priority: Phase 1 (Core)
+    - type: tax_lot_opened
+      timestamp_field: open_date
+      timestamp_source: open_date
+      condition: "open_date IS NOT NULL"
+      description_template: "Tax lot opened: {units} units at ${unit_cost}/unit"
+      metadata:
+        tax_lot_id: "toString(COALESCE(tax_lot_id, ''))"
+        holding_id: "toString(COALESCE(holding_id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        asset_id: "toString(COALESCE(asset_id, ''))"
+        ticker: "COALESCE(ticker, '')"
+        trade_date: "toString(COALESCE(trade_date, ''))"
+        units: "toString(COALESCE(units, 0))"
+        cost_basis: "toString(COALESCE(cost_basis, 0))"
+        unit_cost: "toString(COALESCE(unit_cost, 0))"
+        tax_status: "toString(COALESCE(tax_status, 0))"
+
+    # Phase 2/3 events (disabled for Phase 1):
+    # - tax_lot_closed (condition: proceeds IS NOT NULL - lot was sold)

@@ -1,0 +1,213 @@
+version: "1.0"
+pipeline_type: timeline
+
+# ============================================================
+# Timeline DAG Configuration - Organization org-123456789012
+# ============================================================
+# This creates a DAG that:
+#   1. Creates the timeline database and table
+#   2. Creates MVs from source YAML configs
+#   3. Backfills existing data
+#   4. Validates the timeline
+#
+# Production configuration for org-123456789012 with Black Diamond data
+
+dag:
+  dag_id: "timeline__org_123456789012"
+  description: "Canonical Event Timeline for Black Diamond - Organization org-123456789012"
+  schedule_interval: "@once"  # Run once to create infrastructure
+  start_date: "2026-01-01"
+  catchup: false
+  max_active_runs: 1
+  concurrency: 5  # Run up to 5 source MVs in parallel
+
+  tags:
+    - timeline
+    - blackdiamond
+    - canonical-events
+    - phase1
+
+  default_args:
+    owner: ai-team
+    retries: 2
+    retry_delay_minutes: 3
+    execution_timeout_minutes: 30
+    email_on_failure: false
+    email_on_retry: false
+
+# ============================================================
+# Organization Configuration
+# ============================================================
+organization:
+  org_id: "org-123456789012"
+  org_name: "Organization 123456789012"
+  database: "org_123456789012"
+
+# ============================================================
+# Timeline Table Configuration
+# ============================================================
+# Uses shared Jinja template: timeline/_templates/table.sql.j2
+# Template variables: {{ database }}, {{ org_id }}, {{ ttl_days }}
+
+timeline_table:
+  name: timeline
+  database: org_123456789012
+
+  # Jinja template (shared across all orgs - no org-specific SQL needed)
+  template_path: "timeline/_templates/table.sql.j2"
+
+  # TTL
+  ttl_days: 2555  # ~7 years
+
+  # Table engine settings (documented for reference)
+  engine: ReplacingMergeTree
+  version_column: _version
+  partition_by: "toYYYYMM(processing_date)"
+  order_by:
+    - org_id
+    - entity_type
+    - entity_id
+    - timestamp
+    - event_type
+  primary_key:
+    - org_id
+    - entity_type
+    - entity_id
+
+# ============================================================
+# Source Configurations - Phase 1 (12 Core Events)
+# ============================================================
+# Each source file defines events to extract from a silver table
+# The generator reads these YAML files and creates MVs automatically
+
+sources:
+  # Relationship Events (1 event)
+  - name: blackdiamond_relationships
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_relationships.yaml"
+    expected_min_events: 1
+    description: "Relationship lifecycle events (created)"
+
+  # Contact Events (1 event)
+  - name: blackdiamond_contacts
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_contacts.yaml"
+    expected_min_events: 1
+    description: "Contact lifecycle events (created)"
+
+  # Portfolio Events (1 event)
+  - name: blackdiamond_portfolios
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_portfolios.yaml"
+    expected_min_events: 1
+    description: "Portfolio lifecycle events (created)"
+
+  # Account Events (2 events: created, opened)
+  - name: blackdiamond_accounts
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_accounts.yaml"
+    expected_min_events: 1
+    description: "Account lifecycle events (created, opened)"
+
+  # Portfolio-Account Assignment Events (1 event)
+  - name: blackdiamond_portfolio_accounts
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_portfolio_accounts.yaml"
+    expected_min_events: 1
+    description: "Account-to-portfolio assignment events"
+
+  # Holding Events (5 events: established, buy, sell, deposit, withdrawal)
+  - name: blackdiamond_holdings
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_holdings.yaml"
+    expected_min_events: 1
+    description: "Holding and transaction events"
+
+  # Tax Lot Events (1 event: opened)
+  - name: blackdiamond_tax_lots
+    enabled: true
+    config_path: "timeline/org_123456789012/sources/blackdiamond_tax_lots.yaml"
+    expected_min_events: 1
+    description: "Tax lot lifecycle events (opened)"
+
+# ============================================================
+# Validation Configuration
+# ============================================================
+validation:
+  enabled: true
+
+  checks:
+    - type: table_exists
+      description: "Verify timeline table was created"
+      table: timeline
+      fail_on_missing: true
+
+    - type: mv_exists
+      description: "Verify all MVs were created"
+      fail_on_missing: true
+
+    - type: has_data
+      description: "Verify timeline has events"
+      table: timeline
+      min_rows: 1
+      fail_on_empty: false  # Warn only
+
+    - type: data_quality
+      description: "Check for NULL values in required fields"
+      checks:
+        - field: event_id
+          rule: not_null
+        - field: org_id
+          rule: not_null
+        - field: event_type
+          rule: not_null
+        - field: timestamp
+          rule: not_null
+
+# ============================================================
+# Monitoring Configuration
+# ============================================================
+monitoring:
+  enabled: true
+
+  sla:
+    enabled: true
+    duration_minutes: 30
+
+  metrics:
+    - name: timeline_event_count
+      query: "SELECT count() FROM org_123456789012.timeline"
+      alert_if_below: 1
+
+    - name: events_by_type
+      query: |
+        SELECT event_type, count() as cnt
+        FROM org_123456789012.timeline
+        GROUP BY event_type
+        ORDER BY cnt DESC
+
+    - name: events_by_entity_type
+      query: |
+        SELECT entity_type, count() as cnt
+        FROM org_123456789012.timeline
+        GROUP BY entity_type
+        ORDER BY cnt DESC
+
+# ============================================================
+# Notes
+# ============================================================
+# Phase 1 includes 12 core events:
+#   1. relationship_created
+#   2. contact_created
+#   3. portfolio_created
+#   4. account_created
+#   5. account_opened
+#   6. account_assigned_to_portfolio
+#   7. transaction_buy
+#   8. transaction_sell
+#   9. transaction_deposit
+#  10. transaction_withdrawal
+#  11. holding_established
+#  12. tax_lot_opened
+#
+# Phase 2 and 3 events are defined in the documentation but not yet implemented.

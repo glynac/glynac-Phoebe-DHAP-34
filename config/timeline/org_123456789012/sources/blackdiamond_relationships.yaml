@@ -1,0 +1,37 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Relationships
+# ============================================================
+# Generates timeline events from blackdiamond_silver.relationships table
+# Events: relationship_created
+# Source Bronze: relationships_raw
+
+source:
+  database: blackdiamond_silver
+  table: relationships
+  primary_key: id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: relationship
+  mv_name: mv_blackdiamond_relationships_to_timeline
+
+  # Event definitions - each becomes a SELECT in UNION ALL
+  events:
+    # Event 1: relationship_created
+    # Condition: inception_date IS NOT NULL
+    # Priority: Phase 1 (Core)
+    - type: relationship_created
+      timestamp_field: inception_date
+      timestamp_source: inception_date
+      condition: "inception_date IS NOT NULL"
+      description_template: "Client relationship '{name}' established"
+      metadata:
+        relationship_id: "toString(COALESCE(id, ''))"
+        external_relationship_id: "COALESCE(external_relationship_id, '')"
+        crm_source: "COALESCE(crm_source, '')"
+        client_type_id: "toString(COALESCE(client_type_id, 0))"
+        name: "COALESCE(name, '')"
+
+    # Phase 2/3 events (disabled for Phase 1):
+    # - relationship_terminated (condition: termination_date IS NOT NULL)
