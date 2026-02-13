@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/segment_allocations
   format: parquet
-  file_pattern: segment_allocations.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

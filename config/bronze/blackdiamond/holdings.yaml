@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/holdings
   format: parquet
-  file_pattern: holdings.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/tax_lots
   format: parquet
-  file_pattern: tax_lots.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

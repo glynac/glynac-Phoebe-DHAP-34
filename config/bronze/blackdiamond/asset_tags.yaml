@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/asset_tags
   format: parquet
-  file_pattern: asset_tags.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/class_allocations
   format: parquet
-  file_pattern: class_allocations.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

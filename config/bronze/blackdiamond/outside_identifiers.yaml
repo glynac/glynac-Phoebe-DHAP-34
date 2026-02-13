@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/outside_identifiers
   format: parquet
-  file_pattern: outside_identifiers.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

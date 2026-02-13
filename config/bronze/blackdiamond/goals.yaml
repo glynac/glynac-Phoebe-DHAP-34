@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/goals
   format: parquet
-  file_pattern: goals.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

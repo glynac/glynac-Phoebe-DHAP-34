@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/cost_basis_summary
   format: parquet
-  file_pattern: cost_basis_summary.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String

@@ -17,7 +17,7 @@ source:
   bucket: main-data
   path: blackdiamond/teams
   format: parquet
-  file_pattern: teams.parquet
+
   partitions:
     - name: glynac_organization_id
       type: String
