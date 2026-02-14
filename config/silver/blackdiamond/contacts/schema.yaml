@@ -22,14 +22,10 @@ metadata:
   data_classification: highly_confidential
   contains_pii: true
   pii_columns:
-    - id
-    - salutation
     - first_name
     - middle_name
     - last_name
-    - suffix
     - nickname
-    - user_id
   update_frequency: daily
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:

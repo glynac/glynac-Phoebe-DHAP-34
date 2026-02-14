@@ -23,7 +23,6 @@ metadata:
   data_classification: highly_confidential
   contains_pii: true
   pii_columns:
-    - id
     - first_name
     - last_name
     - login

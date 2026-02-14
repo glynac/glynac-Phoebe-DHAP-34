@@ -20,7 +20,6 @@ metadata:
   data_classification: confidential
   contains_pii: true
   pii_columns:
-    - id
     - name
     - custodial_account_name
     - account_number

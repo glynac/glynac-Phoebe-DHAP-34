@@ -17,7 +17,9 @@ metadata:
     - reference
     - silver
   data_classification: internal
-  contains_pii: false
+  contains_pii: true
+  pii_columns:
+    - name
   update_frequency: daily
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:

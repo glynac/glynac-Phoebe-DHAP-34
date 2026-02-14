@@ -1,0 +1,241 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(transaction_id IS NULL) as null_transaction_id,
+        countIf(account_id IS NULL) as null_account_id,
+        countIf(account_id = '') as empty_account_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_transaction_id: 0
+      null_account_id: 0
+      empty_account_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: transaction_id_unique_per_partition
+    type: uniqueness
+    description: "Transaction ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT transaction_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY transaction_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_transactions_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver transactions should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_transactions
+      FROM blackdiamond_silver.transactions s
+      LEFT JOIN blackdiamond.transactions_raw b
+        ON s.transaction_id = b.transaction_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.transaction_id IS NULL
+    expect:
+      orphaned_transactions: 0
+  
+  - name: accounts_exist
+    type: referential_integrity
+    description: "All account_ids must exist in accounts table"
+    severity: error
+    query: |
+      SELECT count() as orphaned_accounts
+      FROM blackdiamond_silver.transactions t
+      LEFT JOIN blackdiamond_silver.accounts a
+        ON t.account_id = a.id
+        AND t.processing_date = a.processing_date
+        AND t.glynac_organization_id = a.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND a.id IS NULL
+    expect:
+      orphaned_accounts: 0
+  
+  - name: holdings_exist
+    type: referential_integrity
+    description: "All holding_ids should exist in holdings table when populated"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_holdings
+      FROM blackdiamond_silver.transactions t
+      LEFT JOIN blackdiamond_silver.holdings h
+        ON t.holding_id = h.id
+        AND t.processing_date = h.processing_date
+        AND t.glynac_organization_id = h.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.holding_id != ''
+        AND h.id IS NULL
+    expect:
+      orphaned_holdings: 0
+  
+  - name: assets_exist
+    type: referential_integrity
+    description: "All asset_ids should exist in assets table when populated"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_assets
+      FROM blackdiamond_silver.transactions t
+      LEFT JOIN blackdiamond_silver.assets a
+        ON t.asset_id = a.id
+        AND t.processing_date = a.processing_date
+        AND t.glynac_organization_id = a.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.asset_id IS NOT NULL
+        AND a.id IS NULL
+    expect:
+      orphaned_assets: 0
+  
+  - name: trade_date_not_future
+    type: assertion
+    description: "Trade date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND trade_date > today()
+    expect:
+      invalid_count: 0
+  
+  - name: settle_date_not_future
+    type: assertion
+    description: "Settle date should not be far in the future"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND settle_date > today() + INTERVAL 30 DAY
+    expect:
+      invalid_count: 0
+  
+  - name: trade_before_settle
+    type: assertion
+    description: "Trade date should be before or equal to settle date when both present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND trade_date IS NOT NULL
+        AND settle_date IS NOT NULL
+        AND trade_date > settle_date
+    expect:
+      invalid_count: 0
+  
+  - name: units_price_consistency
+    type: assertion
+    description: "Market value should approximately equal units * price for security transactions"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND units != 0
+        AND price != 0
+        AND transaction_type IN ('Buy', 'Sell', 'Purchase', 'Sale')
+        AND abs(market_value - (units * price)) > greatest(abs(market_value) * 0.01, 1.0)
+    expect:
+      invalid_count: 0
+  
+  - name: transaction_type_distribution
+    type: assertion
+    description: "Monitor transaction types and volumes"
+    severity: info
+    query: |
+      SELECT
+        transaction_type,
+        count() as transaction_count,
+        sum(market_value) as total_value,
+        sum(units) as total_units,
+        count(DISTINCT account_id) as unique_accounts
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY transaction_type
+      ORDER BY transaction_count DESC
+    expect_greater_than:
+      transaction_count: 0
+  
+  - name: daily_transaction_volume
+    type: assertion
+    description: "Daily transaction volume summary"
+    severity: info
+    query: |
+      SELECT
+        trade_date,
+        count() as transaction_count,
+        sum(abs(market_value)) as total_volume,
+        count(DISTINCT account_id) as active_accounts,
+        countIf(transaction_type IN ('Buy', 'Purchase')) as buy_count,
+        countIf(transaction_type IN ('Sell', 'Sale')) as sell_count
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND trade_date IS NOT NULL
+      GROUP BY trade_date
+      ORDER BY trade_date DESC
+      LIMIT 30
+    expect_greater_than:
+      transaction_count: 0
+  
+  - name: zero_value_transactions
+    type: assertion
+    description: "Monitor transactions with zero market value"
+    severity: info
+    query: |
+      SELECT
+        transaction_type,
+        count() as zero_value_count
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND market_value = 0
+      GROUP BY transaction_type
+      ORDER BY zero_value_count DESC
+    expect_greater_than_or_equal:
+      zero_value_count: 0
+  
+  - name: fee_summary
+    type: assertion
+    description: "Transaction and account fee summary"
+    severity: info
+    query: |
+      SELECT
+        countIf(transaction_fee IS NOT NULL AND transaction_fee != 0) as transactions_with_fee,
+        sum(transaction_fee) as total_transaction_fees,
+        sum(account_fee) as total_account_fees,
+        avg(transaction_fee) as avg_transaction_fee
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+    expect_greater_than_or_equal:
+      transactions_with_fee: 0
+  
+  - name: external_flow_classification
+    type: assertion
+    description: "Monitor external cash flow classifications"
+    severity: info
+    query: |
+      SELECT
+        external_flow_affect,
+        count() as transaction_count,
+        sum(market_value) as total_value
+      FROM blackdiamond_silver.transactions
+      WHERE processing_date = toDate('{{ ds }}')
+        AND external_flow_affect != ''
+      GROUP BY external_flow_affect
+      ORDER BY transaction_count DESC
+    expect_greater_than_or_equal:
+      transaction_count: 0

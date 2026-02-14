@@ -22,7 +22,6 @@ metadata:
   data_classification: confidential
   contains_pii: true
   pii_columns:
-    - advisor_id
     - first_name
     - last_name
   update_frequency: daily

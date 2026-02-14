@@ -18,12 +18,7 @@ metadata:
     - silver
     - pii
   data_classification: confidential
-  contains_pii: true
-  pii_columns:
-    - account_id
-    - total_emv
-    - supervised_emv
-    - unsupervised_emv
+  contains_pii: false
   update_frequency: daily
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:
