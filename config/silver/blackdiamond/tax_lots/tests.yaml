@@ -1,0 +1,239 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(tax_lot_id IS NULL) as null_tax_lot_id,
+        countIf(tax_lot_id = '') as empty_tax_lot_id,
+        countIf(account_id IS NULL) as null_account_id,
+        countIf(account_id = '') as empty_account_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_tax_lot_id: 0
+      empty_tax_lot_id: 0
+      null_account_id: 0
+      empty_account_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: tax_lot_id_unique_per_partition
+    type: uniqueness
+    description: "Tax lot ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT tax_lot_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY tax_lot_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_tax_lots_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver tax lots should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_tax_lots
+      FROM blackdiamond_silver.tax_lots s
+      LEFT JOIN blackdiamond.tax_lots_raw b
+        ON s.tax_lot_id = b.tax_lot_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.tax_lot_id IS NULL
+    expect:
+      orphaned_tax_lots: 0
+  
+  - name: accounts_exist
+    type: referential_integrity
+    description: "All account_ids must exist in accounts table"
+    severity: error
+    query: |
+      SELECT count() as orphaned_accounts
+      FROM blackdiamond_silver.tax_lots tl
+      LEFT JOIN blackdiamond_silver.accounts a
+        ON tl.account_id = a.id
+        AND tl.processing_date = a.processing_date
+        AND tl.glynac_organization_id = a.glynac_organization_id
+      WHERE tl.processing_date = toDate('{{ ds }}')
+        AND a.id IS NULL
+    expect:
+      orphaned_accounts: 0
+  
+  - name: holdings_exist
+    type: referential_integrity
+    description: "All holding_ids should exist in holdings table when populated"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_holdings
+      FROM blackdiamond_silver.tax_lots tl
+      LEFT JOIN blackdiamond_silver.holdings h
+        ON tl.holding_id = h.id
+        AND tl.processing_date = h.processing_date
+        AND tl.glynac_organization_id = h.glynac_organization_id
+      WHERE tl.processing_date = toDate('{{ ds }}')
+        AND tl.holding_id != ''
+        AND h.id IS NULL
+    expect:
+      orphaned_holdings: 0
+  
+  - name: assets_exist
+    type: referential_integrity
+    description: "All asset_ids should exist in assets table when populated"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_assets
+      FROM blackdiamond_silver.tax_lots tl
+      LEFT JOIN blackdiamond_silver.assets a
+        ON tl.asset_id = a.id
+        AND tl.processing_date = a.processing_date
+        AND tl.glynac_organization_id = a.glynac_organization_id
+      WHERE tl.processing_date = toDate('{{ ds }}')
+        AND tl.asset_id IS NOT NULL
+        AND a.id IS NULL
+    expect:
+      orphaned_assets: 0
+  
+  - name: non_negative_units
+    type: assertion
+    description: "Units should be non-negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND units < 0
+    expect:
+      invalid_count: 0
+  
+  - name: non_negative_emv
+    type: assertion
+    description: "EMV should be non-negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND emv < 0
+    expect:
+      invalid_count: 0
+  
+  - name: cost_basis_consistency
+    type: assertion
+    description: "Cost basis should equal units * unit_cost (within tolerance)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND units != 0
+        AND abs(cost_basis - (units * unit_cost)) > 0.01
+    expect:
+      invalid_count: 0
+  
+  - name: unrealized_gain_consistency
+    type: assertion
+    description: "Unrealized gain should equal EMV - cost_basis (within tolerance)"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND proceeds = 0
+        AND abs((unrealized_lt + unrealized_st) - (emv - cost_basis)) > 0.01
+    expect:
+      invalid_count: 0
+  
+  - name: open_date_not_future
+    type: assertion
+    description: "Open date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND open_date > today()
+    expect:
+      invalid_count: 0
+  
+  - name: trade_date_not_future
+    type: assertion
+    description: "Trade date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND trade_date > today()
+    expect:
+      invalid_count: 0
+  
+  - name: trade_before_or_equal_open
+    type: assertion
+    description: "Trade date should be before or equal to open date when both present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND trade_date IS NOT NULL
+        AND open_date IS NOT NULL
+        AND trade_date > open_date
+    expect:
+      invalid_count: 0
+  
+  - name: realized_gains_for_closed_lots
+    type: assertion
+    description: "Lots with proceeds should have realized gains"
+    severity: info
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND proceeds > 0
+        AND (realized_lt = 0 AND realized_st = 0)
+    expect:
+      invalid_count: 0
+  
+  - name: long_term_vs_short_term_classification
+    type: assertion
+    description: "Monitor long-term vs short-term gain/loss classification"
+    severity: info
+    query: |
+      SELECT
+        countIf(unrealized_lt != 0) as lt_positions,
+        countIf(unrealized_st != 0) as st_positions,
+        countIf(open_date < today() - INTERVAL 1 YEAR AND unrealized_st != 0) as potential_misclassified,
+        sum(unrealized_lt) as total_unrealized_lt,
+        sum(unrealized_st) as total_unrealized_st
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+        AND units > 0
+    expect_greater_than_or_equal:
+      lt_positions: 0
+      st_positions: 0
+  
+  - name: tax_lot_value_summary
+    type: assertion
+    description: "Summary statistics for tax lot values"
+    severity: info
+    query: |
+      SELECT
+        count() as total_lots,
+        count(DISTINCT account_id) as accounts_with_lots,
+        sum(emv) as total_market_value,
+        sum(cost_basis) as total_cost_basis,
+        sum(unrealized_lt + unrealized_st) as total_unrealized_gains,
+        avg(units) as avg_units_per_lot
+      FROM blackdiamond_silver.tax_lots
+      WHERE processing_date = toDate('{{ ds }}')
+    expect_greater_than:
+      total_lots: 0

@@ -1,0 +1,172 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(entity_type IS NULL) as null_entity_type,
+        countIf(entity_type = '') as empty_entity_type,
+        countIf(entity_id IS NULL) as null_entity_id,
+        countIf(entity_id = '') as empty_entity_id,
+        countIf(name IS NULL) as null_name,
+        countIf(name = '') as empty_name,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.tags
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_entity_type: 0
+      empty_entity_type: 0
+      null_entity_id: 0
+      empty_entity_id: 0
+      null_name: 0
+      empty_name: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: tag_unique_per_partition
+    type: uniqueness
+    description: "Entity-Type-ID-Name combination should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT entity_type, entity_id, name, processing_date, count() as cnt
+      FROM blackdiamond_silver.tags
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY entity_type, entity_id, name, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_tags_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver tags should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_tags
+      FROM blackdiamond_silver.tags s
+      LEFT JOIN blackdiamond.tags_raw b
+        ON s.entity_type = b.entity_type
+        AND s.entity_id = b.entity_id
+        AND s.name = b.name
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.entity_type IS NULL
+    expect:
+      orphaned_tags: 0
+  
+  - name: entity_type_valid_values
+    type: assertion
+    description: "Entity types should be from expected domain"
+    severity: info
+    query: |
+      SELECT DISTINCT entity_type, count() as cnt
+      FROM blackdiamond_silver.tags
+      WHERE processing_date = toDate('{{ ds }}')
+        AND entity_type NOT IN (
+          'Account', 'Portfolio', 'Relationship', 'Contact', 
+          'PortfolioGroup', 'Team', 'User', 'Holding', 'Transaction'
+        )
+      GROUP BY entity_type
+    expect_empty: true
+  
+  - name: tag_value_populated
+    type: assertion
+    description: "Tags should have non-empty values when name is present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.tags
+      WHERE processing_date = toDate('{{ ds }}')
+        AND name != ''
+        AND value = ''
+    expect:
+      invalid_count: 0
+  
+  - name: tag_distribution_by_entity_type
+    type: assertion
+    description: "Monitor tag usage across entity types"
+    severity: info
+    query: |
+      SELECT 
+        entity_type,
+        count() as tag_count,
+        count(DISTINCT entity_id) as tagged_entities,
+        count(DISTINCT name) as unique_tag_names
+      FROM blackdiamond_silver.tags
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY entity_type
+      ORDER BY tag_count DESC
+    expect_greater_than:
+      tag_count: 0
+  
+  - name: common_tag_names
+    type: assertion
+    description: "Track most commonly used tag names"
+    severity: info
+    query: |
+      SELECT 
+        name,
+        count() as usage_count,
+        count(DISTINCT entity_type) as entity_types_using
+      FROM blackdiamond_silver.tags
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY name
+      ORDER BY usage_count DESC
+      LIMIT 20
+    expect_greater_than:
+      usage_count: 0
+  
+  - name: account_tags_referential_integrity
+    type: referential_integrity
+    description: "Account entity IDs should exist in accounts table"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_account_tags
+      FROM blackdiamond_silver.tags t
+      LEFT JOIN blackdiamond_silver.accounts a
+        ON t.entity_id = a.id
+        AND t.processing_date = a.processing_date
+        AND t.glynac_organization_id = a.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.entity_type = 'Account'
+        AND a.id IS NULL
+    expect:
+      orphaned_account_tags: 0
+  
+  - name: portfolio_tags_referential_integrity
+    type: referential_integrity
+    description: "Portfolio entity IDs should exist in portfolios table"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_portfolio_tags
+      FROM blackdiamond_silver.tags t
+      LEFT JOIN blackdiamond_silver.portfolios p
+        ON t.entity_id = p.id
+        AND t.processing_date = p.processing_date
+        AND t.glynac_organization_id = p.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.entity_type = 'Portfolio'
+        AND p.id IS NULL
+    expect:
+      orphaned_portfolio_tags: 0
+  
+  - name: relationship_tags_referential_integrity
+    type: referential_integrity
+    description: "Relationship entity IDs should exist in relationships table"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_relationship_tags
+      FROM blackdiamond_silver.tags t
+      LEFT JOIN blackdiamond_silver.relationships r
+        ON t.entity_id = r.id
+        AND t.processing_date = r.processing_date
+        AND t.glynac_organization_id = r.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.entity_type = 'Relationship'
+        AND r.id IS NULL
+    expect:
+      orphaned_relationship_tags: 0

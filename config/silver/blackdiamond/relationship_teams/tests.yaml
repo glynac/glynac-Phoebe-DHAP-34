@@ -1,0 +1,104 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(relationship_id IS NULL) as null_relationship_id,
+        countIf(relationship_id = '') as empty_relationship_id,
+        countIf(team_id IS NULL) as null_team_id,
+        countIf(team_id = '') as empty_team_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.relationship_teams
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_relationship_id: 0
+      empty_relationship_id: 0
+      null_team_id: 0
+      empty_team_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: relationship_team_unique_per_partition
+    type: uniqueness
+    description: "Relationship-Team pair should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT relationship_id, team_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.relationship_teams
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY relationship_id, team_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: relationships_exist
+    type: referential_integrity
+    description: "All relationship_ids must exist in relationships table"
+    severity: error
+    query: |
+      SELECT count() as orphaned_relationships
+      FROM blackdiamond_silver.relationship_teams rt
+      LEFT JOIN blackdiamond_silver.relationships r
+        ON rt.relationship_id = r.id
+        AND rt.processing_date = r.processing_date
+        AND rt.glynac_organization_id = r.glynac_organization_id
+      WHERE rt.processing_date = toDate('{{ ds }}')
+        AND r.id IS NULL
+    expect:
+      orphaned_relationships: 0
+  
+  - name: teams_exist
+    type: referential_integrity
+    description: "All team_ids must exist in teams table"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_teams
+      FROM blackdiamond_silver.relationship_teams rt
+      LEFT JOIN blackdiamond_silver.teams t
+        ON rt.team_id = t.id
+        AND rt.processing_date = t.processing_date
+        AND rt.glynac_organization_id = t.glynac_organization_id
+      WHERE rt.processing_date = toDate('{{ ds }}')
+        AND t.id IS NULL
+    expect:
+      orphaned_teams: 0
+  
+  - name: all_mappings_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver mappings should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_mappings
+      FROM blackdiamond_silver.relationship_teams s
+      LEFT JOIN blackdiamond.relationship_teams_raw b
+        ON s.relationship_id = b.relationship_id
+        AND s.team_id = b.team_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.relationship_id IS NULL
+    expect:
+      orphaned_mappings: 0
+  
+  - name: team_assignment_coverage
+    type: assertion
+    description: "Monitor percentage of relationships with team assignments"
+    severity: info
+    query: |
+      SELECT 
+        count(DISTINCT rt.relationship_id) as relationships_with_teams,
+        count(DISTINCT r.id) as total_relationships,
+        round(count(DISTINCT rt.relationship_id) * 100.0 / count(DISTINCT r.id), 2) as coverage_pct
+      FROM blackdiamond_silver.relationships r
+      LEFT JOIN blackdiamond_silver.relationship_teams rt
+        ON r.id = rt.relationship_id
+        AND r.processing_date = rt.processing_date
+        AND r.glynac_organization_id = rt.glynac_organization_id
+      WHERE r.processing_date = toDate('{{ ds }}')
+    expect_greater_than:
+      coverage_pct: 0

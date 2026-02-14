@@ -1,0 +1,121 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: tags
+
+metadata:
+  display_name: "Black Diamond Tags (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond tag records from Bronze layer.
+    Contains custom tags/labels applied to various entities (accounts, portfolios,
+    relationships, contacts, etc.). Tags are key-value pairs used for categorization,
+    segmentation, and custom metadata tracking.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - tags
+    - metadata
+    - labels
+    - silver
+  data_classification: internal
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.tags_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - entity_type
+    - entity_id
+    - name
+  primary_key:
+    - entity_type
+    - entity_id
+    - name
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: entity_type_idx
+      expression: entity_type
+      type: set
+      granularity: 1
+    - name: tag_name_idx
+      expression: name
+      type: bloom_filter
+      granularity: 1
+    - name: tag_value_idx
+      expression: value
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: entity_type
+    type: String
+    nullable: false
+    description: "Type of entity being tagged (Account, Portfolio, Relationship, Contact, etc.)"
+    primary_key: true
+    example: "Account"
+    
+  - name: entity_id
+    type: String
+    nullable: false
+    description: "ID of the entity being tagged"
+    primary_key: true
+    example: "A123456"
+    
+  - name: name
+    type: String
+    nullable: false
+    description: "Tag name/key"
+    primary_key: true
+    example: "RiskTolerance"
+    
+  - name: value
+    type: String
+    nullable: false
+    description: "Tag value"
+    example: "Aggressive"
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.tags_raw"
+    
+  - name: _source_timestamp
+    type: Date
+    nullable: false
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"

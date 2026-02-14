@@ -1,0 +1,117 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(relationship_id IS NULL) as null_relationship_id,
+        countIf(relationship_id = '') as empty_relationship_id,
+        countIf(firm_user_id IS NULL) as null_firm_user_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.relationship_advisors
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_relationship_id: 0
+      empty_relationship_id: 0
+      null_firm_user_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: relationship_advisor_unique_per_partition
+    type: uniqueness
+    description: "Relationship-Advisor pair should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT relationship_id, firm_user_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.relationship_advisors
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY relationship_id, firm_user_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: relationships_exist
+    type: referential_integrity
+    description: "All relationship_ids must exist in relationships table"
+    severity: error
+    query: |
+      SELECT count() as orphaned_relationships
+      FROM blackdiamond_silver.relationship_advisors ra
+      LEFT JOIN blackdiamond_silver.relationships r
+        ON ra.relationship_id = r.id
+        AND ra.processing_date = r.processing_date
+        AND ra.glynac_organization_id = r.glynac_organization_id
+      WHERE ra.processing_date = toDate('{{ ds }}')
+        AND r.id IS NULL
+    expect:
+      orphaned_relationships: 0
+  
+  - name: advisors_exist
+    type: referential_integrity
+    description: "All firm_user_ids must exist in users table"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_advisors
+      FROM blackdiamond_silver.relationship_advisors ra
+      LEFT JOIN blackdiamond_silver.users u
+        ON ra.firm_user_id = u.id
+        AND ra.processing_date = u.processing_date
+        AND ra.glynac_organization_id = u.glynac_organization_id
+      WHERE ra.processing_date = toDate('{{ ds }}')
+        AND u.id IS NULL
+    expect:
+      orphaned_advisors: 0
+  
+  - name: primary_advisor_uniqueness
+    type: assertion
+    description: "Each relationship should have at most one primary advisor"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM (
+        SELECT relationship_id, count() as primary_count
+        FROM blackdiamond_silver.relationship_advisors
+        WHERE processing_date = toDate('{{ ds }}')
+          AND is_primary = true
+        GROUP BY relationship_id
+        HAVING primary_count > 1
+      )
+    expect:
+      invalid_count: 0
+  
+  - name: all_mappings_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver mappings should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_mappings
+      FROM blackdiamond_silver.relationship_advisors s
+      LEFT JOIN blackdiamond.relationship_advisors_raw b
+        ON s.relationship_id = b.relationship_id
+        AND s.firm_user_id = b.firm_user_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.relationship_id IS NULL
+    expect:
+      orphaned_mappings: 0
+  
+  - name: all_relationships_have_advisor
+    type: assertion
+    description: "All relationships should have at least one advisor assigned"
+    severity: info
+    query: |
+      SELECT count() as relationships_without_advisor
+      FROM blackdiamond_silver.relationships r
+      LEFT JOIN blackdiamond_silver.relationship_advisors ra
+        ON r.id = ra.relationship_id
+        AND r.processing_date = ra.processing_date
+        AND r.glynac_organization_id = ra.glynac_organization_id
+      WHERE r.processing_date = toDate('{{ ds }}')
+        AND ra.relationship_id IS NULL
+    expect:
+      relationships_without_advisor: 0

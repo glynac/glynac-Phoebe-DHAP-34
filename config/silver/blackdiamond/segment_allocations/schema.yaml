@@ -1,0 +1,156 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: segment_allocations
+
+metadata:
+  display_name: "Black Diamond Segment Allocations (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond segment allocation records from Bronze layer.
+    Contains account-level asset allocation data broken down by asset class and segment
+    (e.g., Equities > US Large Cap, Fixed Income > Corporate Bonds). Tracks total,
+    supervised, and unsupervised market values as of specific dates.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - segment_allocations
+    - asset_allocation
+    - accounts
+    - holdings
+    - silver
+  data_classification: confidential
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.segment_allocations_raw
+    - blackdiamond_silver.accounts
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - account_id
+    - as_of_date
+    - class_id
+    - segment_id
+  primary_key:
+    - account_id
+    - as_of_date
+    - class_id
+    - segment_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: as_of_date_idx
+      expression: as_of_date
+      type: minmax
+      granularity: 2
+    - name: class_name_idx
+      expression: class_name
+      type: set
+      granularity: 1
+    - name: segment_name_idx
+      expression: segment_name
+      type: set
+      granularity: 1
+
+columns:
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Black Diamond account ID (foreign key to accounts)"
+    primary_key: true
+    example: "A123456"
+    
+  - name: class_id
+    type: Int64
+    nullable: false
+    description: "Asset class identifier"
+    primary_key: true
+    example: 1
+    
+  - name: class_name
+    type: String
+    nullable: false
+    description: "Asset class name (e.g., Equities, Fixed Income, Cash)"
+    example: "Equities"
+    
+  - name: segment_id
+    type: Int64
+    nullable: false
+    description: "Segment identifier within asset class"
+    primary_key: true
+    example: 101
+    
+  - name: segment_name
+    type: String
+    nullable: false
+    description: "Segment name (e.g., US Large Cap, Corporate Bonds)"
+    example: "US Large Cap"
+    
+  - name: as_of_date
+    type: Date
+    nullable: false
+    description: "Valuation date for allocation snapshot"
+    primary_key: true
+    example: "2024-11-18"
+    
+  - name: total_emv
+    type: Float64
+    nullable: false
+    description: "Total ending market value for this segment"
+    example: 125000.50
+    
+  - name: supervised_emv
+    type: Float64
+    nullable: false
+    description: "Supervised/managed ending market value"
+    example: 100000.00
+    
+  - name: unsupervised_emv
+    type: Float64
+    nullable: false
+    description: "Unsupervised/held-away ending market value"
+    example: 25000.50
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.segment_allocations_raw"
+    
+  - name: _source_timestamp
+    type: Date
+    nullable: false
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"

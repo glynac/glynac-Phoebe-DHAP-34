@@ -1,0 +1,96 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: teams
+
+metadata:
+  display_name: "Black Diamond Teams (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond team records from Bronze layer.
+    Contains team/group definitions used for organizing advisors and staff.
+    Teams are typically used for relationship assignment, reporting hierarchies,
+    and collaborative client management.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - teams
+    - organization
+    - groups
+    - silver
+  data_classification: internal
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.teams_raw
+  downstream_dependencies:
+    - blackdiamond_silver.relationship_teams
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - id
+  primary_key:
+    - id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: name_idx
+      expression: name
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: id
+    type: String
+    nullable: false
+    description: "Black Diamond team ID (primary key)"
+    primary_key: true
+    example: "team-001"
+    
+  - name: name
+    type: String
+    nullable: false
+    description: "Team name"
+    example: "Wealth Management Team A"
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.teams_raw"
+    
+  - name: _source_timestamp
+    type: Date
+    nullable: false
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"

@@ -1,0 +1,146 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(target_id IS NULL) as null_target_id,
+        countIf(target_id = '') as empty_target_id,
+        countIf(composition IS NULL) as null_composition,
+        countIf(composition = '') as empty_composition,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_target_id: 0
+      empty_target_id: 0
+      null_composition: 0
+      empty_composition: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: target_component_unique_per_partition
+    type: uniqueness
+    description: "Target-Composition combination should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT target_id, composition, processing_date, count() as cnt
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY target_id, composition, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_components_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver components should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_components
+      FROM blackdiamond_silver.target_components s
+      LEFT JOIN blackdiamond.target_components_raw b
+        ON s.target_id = b.target_id
+        AND s.composition = b.composition
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.target_id IS NULL
+    expect:
+      orphaned_components: 0
+  
+  - name: allocation_range_valid
+    type: assertion
+    description: "Allocation percentages should be between 0 and 100"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (allocation < 0 OR allocation > 100)
+    expect:
+      invalid_count: 0
+  
+  - name: allocation_sum_per_target
+    type: assertion
+    description: "Total allocation per target should sum to approximately 100%"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM (
+        SELECT 
+          target_id,
+          sum(allocation) as total_allocation
+        FROM blackdiamond_silver.target_components
+        WHERE processing_date = toDate('{{ ds }}')
+        GROUP BY target_id
+        HAVING abs(total_allocation - 100.0) > 1.0
+      )
+    expect:
+      invalid_count: 0
+  
+  - name: non_negative_allocations
+    type: assertion
+    description: "Allocations should be non-negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+        AND allocation < 0
+    expect:
+      invalid_count: 0
+  
+  - name: zero_allocation_components
+    type: assertion
+    description: "Monitor components with zero allocation"
+    severity: info
+    query: |
+      SELECT count() as zero_allocation_count
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+        AND allocation = 0
+    expect_greater_than_or_equal:
+      zero_allocation_count: 0
+  
+  - name: target_composition_diversity
+    type: assertion
+    description: "Track number of components per target model"
+    severity: info
+    query: |
+      SELECT 
+        target_id,
+        count() as component_count,
+        sum(allocation) as total_allocation,
+        min(allocation) as min_allocation,
+        max(allocation) as max_allocation,
+        avg(allocation) as avg_allocation
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY target_id
+      ORDER BY component_count DESC
+    expect_greater_than:
+      component_count: 0
+  
+  - name: common_composition_names
+    type: assertion
+    description: "Track most common composition names across targets"
+    severity: info
+    query: |
+      SELECT 
+        composition,
+        count(DISTINCT target_id) as target_count,
+        avg(allocation) as avg_allocation,
+        min(allocation) as min_allocation,
+        max(allocation) as max_allocation
+      FROM blackdiamond_silver.target_components
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY composition
+      ORDER BY target_count DESC
+      LIMIT 20
+    expect_greater_than:
+      target_count: 0

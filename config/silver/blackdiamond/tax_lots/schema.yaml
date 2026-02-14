@@ -1,0 +1,266 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: tax_lots
+
+metadata:
+  display_name: "Black Diamond Tax Lots (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond tax lot records from Bronze layer.
+    Contains individual tax lot details for securities holdings including acquisition dates,
+    cost basis, unrealized/realized gains/losses (long-term and short-term), and tax status.
+    Critical for tax-loss harvesting, capital gains reporting, and tax optimization strategies.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - tax_lots
+    - holdings
+    - cost_basis
+    - capital_gains
+    - tax_optimization
+    - silver
+  data_classification: confidential
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.tax_lots_raw
+    - blackdiamond_silver.holdings
+    - blackdiamond_silver.accounts
+    - blackdiamond_silver.assets
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - account_id
+    - holding_id
+    - tax_lot_id
+  primary_key:
+    - tax_lot_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: account_id_idx
+      expression: account_id
+      type: bloom_filter
+      granularity: 1
+    - name: holding_id_idx
+      expression: holding_id
+      type: bloom_filter
+      granularity: 1
+    - name: ticker_idx
+      expression: ticker
+      type: bloom_filter
+      granularity: 1
+    - name: cusip_idx
+      expression: cusip
+      type: bloom_filter
+      granularity: 1
+    - name: trade_date_idx
+      expression: trade_date
+      type: minmax
+      granularity: 2
+    - name: open_date_idx
+      expression: open_date
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: tax_lot_id
+    type: String
+    nullable: false
+    description: "Tax lot ID (primary key)"
+    primary_key: true
+    example: "TL123456"
+    
+  - name: holding_id
+    type: String
+    nullable: false
+    description: "Holding ID this tax lot belongs to (foreign key to holdings)"
+    example: "H789012"
+    
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Account ID (foreign key to accounts)"
+    example: "A123456"
+    
+  - name: asset_id
+    type: Nullable(Int32)
+    nullable: true
+    description: "Asset ID (foreign key to assets)"
+    example: 12345
+    
+  - name: ticker
+    type: String
+    nullable: false
+    description: "Asset ticker symbol"
+    example: "AAPL"
+    
+  - name: cusip
+    type: String
+    nullable: false
+    description: "CUSIP identifier"
+    example: "037833100"
+    
+  - name: display_cusip
+    type: String
+    nullable: false
+    description: "Display-formatted CUSIP"
+    example: "037833100"
+    
+  - name: asset_name
+    type: String
+    nullable: false
+    description: "Asset name"
+    example: "Apple Inc."
+    
+  - name: alternative_identifier
+    type: String
+    nullable: false
+    description: "Alternative asset identifier"
+    example: "US0378331005"
+    
+  - name: trade_date
+    type: Nullable(Date)
+    nullable: true
+    description: "Trade execution date"
+    example: "2024-01-15"
+    
+  - name: open_date
+    type: Nullable(Date)
+    nullable: true
+    description: "Lot opening/acquisition date"
+    example: "2024-01-17"
+    
+  - name: tax_status
+    type: Nullable(Float64)
+    nullable: true
+    description: "Tax status code"
+    example: 1.0
+    
+  - name: emv
+    type: Float64
+    nullable: false
+    description: "Ending market value"
+    example: 15000.00
+    
+  - name: units
+    type: Float64
+    nullable: false
+    description: "Number of units/shares"
+    example: 100.0
+    
+  - name: cost_basis
+    type: Float64
+    nullable: false
+    description: "Total cost basis"
+    example: 12000.00
+    
+  - name: proceeds
+    type: Float64
+    nullable: false
+    description: "Sale proceeds (for closed lots)"
+    example: 0.0
+    
+  - name: realized_lt
+    type: Float64
+    nullable: false
+    description: "Realized long-term gain/loss"
+    example: 0.0
+    
+  - name: realized_st
+    type: Float64
+    nullable: false
+    description: "Realized short-term gain/loss"
+    example: 0.0
+    
+  - name: unrealized_lt
+    type: Float64
+    nullable: false
+    description: "Unrealized long-term gain/loss"
+    example: 3000.00
+    
+  - name: unrealized_st
+    type: Float64
+    nullable: false
+    description: "Unrealized short-term gain/loss"
+    example: 0.0
+    
+  - name: unit_cost
+    type: Float64
+    nullable: false
+    description: "Cost per unit/share"
+    example: 120.00
+    
+  - name: accrual
+    type: Nullable(Int32)
+    nullable: true
+    description: "Accrual amount"
+    example: 0
+    
+  - name: price_factor
+    type: Float64
+    nullable: false
+    description: "Price adjustment factor"
+    example: 1.0
+    
+  - name: paydown_factor
+    type: Float64
+    nullable: false
+    description: "Paydown adjustment factor (for bonds)"
+    example: 1.0
+    
+  - name: ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Lot sequence/ordering number"
+    example: 1
+    
+  - name: cash
+    type: Bool
+    nullable: false
+    description: "Cash equivalent flag"
+    example: false
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.tax_lots_raw"
+    
+  - name: _source_timestamp
+    type: Date
+    nullable: false
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"

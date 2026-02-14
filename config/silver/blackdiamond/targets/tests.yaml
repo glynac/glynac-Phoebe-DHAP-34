@@ -1,0 +1,179 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(id IS NULL) as null_id,
+        countIf(id = '') as empty_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_id: 0
+      empty_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: target_id_unique_per_partition
+    type: uniqueness
+    description: "Target ID should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT id, processing_date, count() as cnt
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_targets_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver targets should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_targets
+      FROM blackdiamond_silver.targets s
+      LEFT JOIN blackdiamond.targets_raw b
+        ON s.id = b.id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.id IS NULL
+    expect:
+      orphaned_targets: 0
+  
+  - name: portfolios_exist
+    type: referential_integrity
+    description: "All portfolio_ids should exist in portfolios table when populated"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_portfolios
+      FROM blackdiamond_silver.targets t
+      LEFT JOIN blackdiamond_silver.portfolios p
+        ON t.portfolio_id = p.id
+        AND t.processing_date = p.processing_date
+        AND t.glynac_organization_id = p.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.portfolio_id != ''
+        AND p.id IS NULL
+    expect:
+      orphaned_portfolios: 0
+  
+  - name: accounts_exist
+    type: referential_integrity
+    description: "All account_ids should exist in accounts table when populated"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_accounts
+      FROM blackdiamond_silver.targets t
+      LEFT JOIN blackdiamond_silver.accounts a
+        ON toString(t.account_id) = a.id
+        AND t.processing_date = a.processing_date
+        AND t.glynac_organization_id = a.glynac_organization_id
+      WHERE t.processing_date = toDate('{{ ds }}')
+        AND t.account_id IS NOT NULL
+        AND a.id IS NULL
+    expect:
+      orphaned_accounts: 0
+  
+  - name: targets_have_name
+    type: assertion
+    description: "Targets should have a name"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+        AND name = ''
+    expect:
+      invalid_count: 0
+  
+  - name: date_range_valid
+    type: assertion
+    description: "End date should be after or equal to start date when both present"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_date IS NOT NULL
+        AND end_date IS NOT NULL
+        AND end_date < start_date
+    expect:
+      invalid_count: 0
+  
+  - name: start_date_not_future
+    type: assertion
+    description: "Start date should not be in the far future"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_date > today() + INTERVAL 1 YEAR
+    expect:
+      invalid_count: 0
+  
+  - name: target_level_valid_range
+    type: assertion
+    description: "Target level should be non-negative when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+        AND target_level IS NOT NULL
+        AND target_level < 0
+    expect:
+      invalid_count: 0
+  
+  - name: portfolio_or_account_assignment
+    type: assertion
+    description: "Target should be assigned to either portfolio or account"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+        AND portfolio_id = ''
+        AND account_id IS NULL
+    expect:
+      invalid_count: 0
+  
+  - name: active_targets_coverage
+    type: assertion
+    description: "Monitor active targets (no end date or future end date)"
+    severity: info
+    query: |
+      SELECT 
+        count() as total_targets,
+        countIf(end_date IS NULL OR end_date >= today()) as active_targets,
+        countIf(end_date < today()) as expired_targets,
+        count(DISTINCT portfolio_id) as portfolios_with_targets
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+    expect_greater_than:
+      total_targets: 0
+  
+  - name: common_target_names
+    type: assertion
+    description: "Track most common target model names"
+    severity: info
+    query: |
+      SELECT 
+        name,
+        count() as usage_count,
+        count(DISTINCT portfolio_id) as portfolio_count
+      FROM blackdiamond_silver.targets
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY name
+      ORDER BY usage_count DESC
+      LIMIT 20
+    expect_greater_than:
+      usage_count: 0
