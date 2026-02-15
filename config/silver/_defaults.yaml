@@ -115,6 +115,15 @@ tests:
 # ============================================================
 # PROCESSING DEFAULTS
 # ============================================================
+# Incremental processing configuration
+incremental:
+  enabled: true
+  strategy: partition_based
+  partition_column: processing_date
+  lookback_days: 90  # Number of days to look back from today
+  use_date_filter: true  # Set to false to process ALL Bronze data (no date filtering)
+
+# Backward compatibility: top-level lookback_days still supported
 lookback_days: 90
 
 # ============================================================

@@ -4,6 +4,8 @@
 
 version: "1.0"
 
+mode: auto  # Auto-infers schema and applies transforms
+
 dag:
   description: "Transform and clean Microsoft Calendar data from Bronze to Silver"
   tags: ["silver", "microsoft", "calendar", "auto-mode"]
@@ -16,6 +18,15 @@ source:
 target:
   database: microsoft_silver
   table: calendar
+
+# ClickHouse table configuration
+clickhouse:
+  engine: S3  # Read from MinIO, write back to MinIO
+  output_path: s3://main-data/microsoft_silver/calendar/{glynac_organization_id}/{processing_date}/  # Hive-style partitioning
+  format: ORC
+  compression: ZSTD
+  settings:
+    input_format_orc_allow_missing_columns: 1
 
 # Transform specifications
 # Only specify transforms for columns that need transformation
@@ -122,16 +133,26 @@ tests:
     severity: warning
     description: "Data should be refreshed within 48 hours"
 
-# Additional configuration
+# Incremental processing configuration
 incremental:
   enabled: true
   strategy: partition_based
   partition_column: processing_date
-  lookback_days: 90
+  lookback_days: 90  # Reprocess last 90 days on each run
 
+# Output configuration for MinIO storage
 output:
   format: ORC
   compression: ZSTD
   partition_by:
     - glynac_organization_id
     - processing_date
+  path_template: "microsoft_silver/calendar/glynac_organization_id={glynac_organization_id}/processing_date={processing_date}/"
+
+# Implementation notes
+notes: |
+  AUTO MODE - Simple field transformations (no JSON extraction needed)
+  - String cleaning: clean_string, clean_email
+  - DateTime parsing: parse_datetime for ISO8601 timestamps
+  - Writes to MinIO with Hive-style partitioning: main-data/microsoft_silver/calendar/glynac_organization_id=xx/processing_date=xx/
+  - ClickHouse table uses S3 engine to query MinIO data directly

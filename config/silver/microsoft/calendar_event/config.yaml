@@ -1,13 +1,16 @@
-# Silver Layer - Microsoft Calendar Event (AUTO MODE)
-# Schema inferred from Bronze: microsoft.calendar_event_raw
+# Silver Layer - Microsoft Calendar Event (MANUAL MODE)
+# Custom SQL transformation with JSON extraction from entity_data field
+# Query: query.sql - Extracts 40+ fields using ClickHouse JSONExtract* functions
 # Settings inherited from _defaults.yaml unless overridden
-# NOTE: This config extracts fields from JSON entity_data field
 
 version: "1.0"
 
+# Transformation mode
+mode: manual  # Uses custom query.sql for complex JSON extraction
+
 dag:
   description: "Transform and clean Microsoft Calendar Event data with JSON extraction"
-  tags: ["silver", "microsoft", "calendar_event", "auto-mode", "json-extraction"]
+  tags: ["silver", "microsoft", "calendar_event", "manual-mode", "json-extraction"]
   schedule_interval: "dataset"  # Triggers when Bronze updates
 
 source:
@@ -18,289 +21,14 @@ target:
   database: microsoft_silver
   table: calendar_event
 
-# JSON extraction and transforms
-# Extract fields from entity_data JSON and apply transformations
-json_extractions:
-  # Core event identifiers
-  - source_field: entity_data
-    json_path: $.event_id
-    target: event_id
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.icalendar_uid
-    target: icalendar_uid
-    type: String
-
-  - source_field: entity_data
-    json_path: $.calendar_id
-    target: calendar_id
-    type: String
-
-  - source_field: entity_data
-    json_path: $.calendar_name
-    target: calendar_name
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.calendar_owner_email
-    target: calendar_owner_email
-    type: String
-    transform: clean_email
-
-  - source_field: entity_data
-    json_path: $.calendar_owner_id
-    target: calendar_owner_id
-    type: Int32
-
-  # Event details
-  - source_field: entity_data
-    json_path: $.subject
-    target: subject
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.body_preview
-    target: body_preview
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.body_content_type
-    target: body_content_type
-    type: String
-
-  # DateTime fields
-  - source_field: entity_data
-    json_path: $.start_datetime
-    target: start_datetime
-    type: DateTime64(3)
-    transform: parse_datetime
-
-  - source_field: entity_data
-    json_path: $.end_datetime
-    target: end_datetime
-    type: DateTime64(3)
-    transform: parse_datetime
-
-  - source_field: entity_data
-    json_path: $.start_timezone
-    target: start_timezone
-    type: String
-
-  - source_field: entity_data
-    json_path: $.end_timezone
-    target: end_timezone
-    type: String
-
-  # Event properties
-  - source_field: entity_data
-    json_path: $.is_all_day
-    target: is_all_day
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.duration_minutes
-    target: duration_minutes
-    type: Int32
-
-  - source_field: entity_data
-    json_path: $.location
-    target: location
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.location_display_name
-    target: location_display_name
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.location_type
-    target: location_type
-    type: String
-
-  # Organizer information
-  - source_field: entity_data
-    json_path: $.organizer_email
-    target: organizer_email
-    type: String
-    transform: clean_email
-
-  - source_field: entity_data
-    json_path: $.organizer_name
-    target: organizer_name
-    type: String
-    transform: clean_string
-
-  - source_field: entity_data
-    json_path: $.organizer_id
-    target: organizer_id
-    type: Int32
-
-  # Attendee counts
-  - source_field: entity_data
-    json_path: $.attendee_count
-    target: attendee_count
-    type: Int32
-
-  - source_field: entity_data
-    json_path: $.required_attendee_count
-    target: required_attendee_count
-    type: Int32
-
-  - source_field: entity_data
-    json_path: $.optional_attendee_count
-    target: optional_attendee_count
-    type: Int32
-
-  - source_field: entity_data
-    json_path: $.resource_count
-    target: resource_count
-    type: Int32
-
-  # Meeting properties
-  - source_field: entity_data
-    json_path: $.is_online_meeting
-    target: is_online_meeting
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.online_meeting_provider
-    target: online_meeting_provider
-    type: String
-
-  - source_field: entity_data
-    json_path: $.online_meeting_url
-    target: online_meeting_url
-    type: String
-
-  # Event status and flags
-  - source_field: entity_data
-    json_path: $.show_as
-    target: show_as
-    type: String
-
-  - source_field: entity_data
-    json_path: $.sensitivity
-    target: sensitivity
-    type: String
-
-  - source_field: entity_data
-    json_path: $.importance
-    target: importance
-    type: String
-
-  - source_field: entity_data
-    json_path: $.is_cancelled
-    target: is_cancelled
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.is_draft
-    target: is_draft
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.is_organizer
-    target: is_organizer
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.is_recurring
-    target: is_recurring
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.series_master_id
-    target: series_master_id
-    type: String
-
-  - source_field: entity_data
-    json_path: $.is_exception
-    target: is_exception
-    type: Bool
-
-  # Attachments and categories
-  - source_field: entity_data
-    json_path: $.has_attachments
-    target: has_attachments
-    type: Bool
-
-  - source_field: entity_data
-    json_path: $.attachment_count
-    target: attachment_count
-    type: Int32
-
-  - source_field: entity_data
-    json_path: $.category_count
-    target: category_count
-    type: Int32
-
-  # Response status
-  - source_field: entity_data
-    json_path: $.response_status
-    target: response_status
-    type: String
-
-  # Links and metadata
-  - source_field: entity_data
-    json_path: $.web_link
-    target: web_link
-    type: String
-
-  - source_field: entity_data
-    json_path: $.created_datetime
-    target: created_datetime
-    type: DateTime64(3)
-    transform: parse_datetime
-
-  - source_field: entity_data
-    json_path: $.last_modified_datetime
-    target: last_modified_datetime
-    type: DateTime64(3)
-    transform: parse_datetime
-
-# Additional transforms on Bronze fields (non-JSON)
-transforms:
-  pii_masked_at:
-    transform: parse_datetime
-    target: pii_masked_datetime
-    format: "ISO8601"
-
-  scan_timestamp:
-    transform: parse_datetime
-    target: scan_datetime
-    format: "ISO8601"
-
-  processing_timestamp:
-    transform: parse_datetime
-    target: processing_datetime
-    format: "ISO8601"
-
-# Deduplication strategy
-dedupe:
-  partition_by:
-    - record_id
-    - processing_date
-  order_by:
-    - processing_timestamp DESC
-    - scan_timestamp DESC
-
-# Filters
-filters:
-  - "record_id IS NOT NULL"
-  - "record_id != ''"
-  - "glynac_organization_id IS NOT NULL"
-  - "glynac_organization_id != ''"
-  - "tenant_id IS NOT NULL"
-  - "tenant_id != ''"
-  - "entity_data IS NOT NULL"
-  - "isValidJSON(entity_data) = 1"
+# ClickHouse table configuration
+clickhouse:
+  engine: S3  # Read from MinIO, write back to MinIO
+  output_path: s3://main-data/microsoft_silver/calendar_event/{glynac_organization_id}/{processing_date}/  # Hive-style partitioning
+  format: ORC
+  compression: ZSTD
+  settings:
+    input_format_orc_allow_missing_columns: 1
 
 # Data quality tests
 tests:
@@ -343,23 +71,27 @@ tests:
     severity: warning
     description: "Data should be refreshed within 48 hours"
 
-# Additional configuration
+# Incremental processing configuration
 incremental:
   enabled: true
   strategy: partition_based
   partition_column: processing_date
-  lookback_days: 90
+  lookback_days: 90  # Reprocess last 90 days on each run
 
+# Output configuration for MinIO storage
 output:
   format: ORC
   compression: ZSTD
   partition_by:
     - glynac_organization_id
     - processing_date
+  path_template: "microsoft_silver/calendar_event/glynac_organization_id={glynac_organization_id}/processing_date={processing_date}/"
 
-# Notes for implementation
+# Implementation notes
 notes: |
-  This config uses JSON extraction from the entity_data field.
-  If the AUTO mode generator doesn't support json_extractions yet,
-  this will need to be converted to MANUAL mode with custom query.sql
-  that includes JSONExtract* functions for each field.
+  MANUAL MODE - Uses custom query.sql for JSON extraction
+  - Extracts 40+ fields from entity_data JSON using ClickHouse JSONExtract* functions
+  - Applies string cleaning (trimBoth, COALESCE) and datetime parsing
+  - Implements deduplication via QUALIFY ROW_NUMBER() in query
+  - Writes to MinIO with Hive-style partitioning: main-data/microsoft_silver/calendar_event/glynac_organization_id=xx/processing_date=xx/
+  - ClickHouse table uses S3 engine to query MinIO data directly
