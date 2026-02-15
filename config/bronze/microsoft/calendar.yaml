@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
-database: bronze
-view: microsoft_calendar
+database: microsoft
+view: calendar_raw
 
 metadata:
   description: "Raw Microsoft Calendar data from MinIO"

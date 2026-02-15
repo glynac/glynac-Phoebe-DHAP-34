@@ -10,8 +10,8 @@ dag:
   schedule_interval: "dataset"  # Triggers when Bronze updates
 
 source:
-  database: bronze
-  table: microsoft_calendar
+  database: microsoft
+  table: calendar_raw
 
 target:
   database: microsoft_silver

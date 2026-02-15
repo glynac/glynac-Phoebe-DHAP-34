@@ -11,11 +11,11 @@ dag:
   schedule_interval: "dataset"  # Triggers when Bronze updates
 
 source:
-  database: bronze
-  table: microsoft_calendar_event
+  database: microsoft
+  table: calendar_event_raw
 
 target:
-  database: bronze_silver
+  database: microsoft_silver
   table: calendar_event
 
 # JSON extraction and transforms
