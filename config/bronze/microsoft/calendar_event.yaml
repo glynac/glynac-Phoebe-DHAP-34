@@ -1,0 +1,136 @@
+version: "1.0"
+layer: bronze
+database: microsoft
+view: calendar_event_raw
+
+metadata:
+  description: "Raw Microsoft Calendar Event data from MinIO with detailed event information"
+  owner: data-engineering
+  source_system: microsoft_graph_api
+  notes: "Contains JSON entity_data field with detailed event properties"
+
+source:
+  type: minio
+  bucket: main-data
+  path: microsoft/calendar_event
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    # Record identification
+    - name: record_id
+      type: String
+      comment: "Unique record identifier"
+
+    - name: tenant_id
+      type: String
+      comment: "Microsoft 365 tenant ID"
+
+    - name: is_active
+      type: Bool
+      comment: "Whether the record is active"
+
+    - name: pii_masked_at
+      type: String
+      comment: "Timestamp when PII was masked"
+
+    # Core event data (JSON)
+    - name: entity_data
+      type: String
+      comment: "JSON string containing full event details from Microsoft Graph API"
+
+    # Scan metadata
+    - name: scan_id
+      type: String
+      comment: "Unique identifier for the scan batch"
+
+    - name: batch_offset
+      type: Int64
+      comment: "Offset of this batch in the overall scan"
+
+    - name: batch_size
+      type: Int32
+      comment: "Number of records in this batch"
+
+    - name: batch_number
+      type: Int32
+      comment: "Batch number in the scan sequence"
+
+    - name: scan_timestamp
+      type: String
+      comment: "Timestamp when the scan was initiated"
+
+    - name: batch_status
+      type: String
+      comment: "Status of the batch (completed, failed, etc.)"
+
+    - name: message_type
+      type: String
+      comment: "Type of message (batch_data, etc.)"
+
+    # Pagination metadata
+    - name: pagination_total
+      type: Int32
+      comment: "Total number of records across all pages"
+
+    - name: pagination_offset
+      type: Int32
+      comment: "Offset for pagination"
+
+    - name: pagination_limit
+      type: Int32
+      comment: "Limit for pagination"
+
+    - name: pagination_has_more
+      type: Bool
+      comment: "Whether more pages are available"
+
+    # Processing metadata (Glynac standard fields)
+    - name: processing_timestamp
+      type: String
+      comment: "When the record was processed by Glynac pipeline"
+
+    - name: glynac_organization_id
+      type: String
+      comment: "Glynac organization identifier (partition key)"
+
+    - name: processing_date
+      type: Date
+      comment: "Processing date partition (YYYY-MM-DD)"
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{view}"
+      description: "Ensure the table has at least one record"
+
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{view}"
+      description: "Ensure data is no older than 7 days"
+
+    - name: entity_data_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE entity_data IS NULL"
+      threshold: 0
+      description: "Ensure entity_data is never NULL"
+
+    - name: entity_data_valid_json
+      query: "SELECT count() FROM {database}.{view} WHERE NOT isValidJSON(entity_data)"
+      threshold: 0
+      description: "Ensure entity_data contains valid JSON"
+
+    - name: org_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE glynac_organization_id IS NULL"
+      threshold: 0
+      description: "Ensure glynac_organization_id is never NULL"

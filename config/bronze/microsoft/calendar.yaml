@@ -1,0 +1,145 @@
+version: "1.0"
+layer: bronze
+database: microsoft
+view: calendar_raw
+
+metadata:
+  description: "Raw Microsoft Calendar data from MinIO"
+  owner: data-engineering
+  source_system: microsoft_graph_api
+
+source:
+  type: minio
+  bucket: main-data
+  path: microsoft/calendar
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    # Scan metadata
+    - name: scan_id
+      type: String
+      comment: "Unique identifier for the scan batch"
+
+    - name: service
+      type: String
+      comment: "Service name (microsoft_calendar)"
+
+    - name: batch_timestamp
+      type: String
+      comment: "Timestamp when the batch was processed"
+
+    - name: page_number
+      type: Int32
+      comment: "Page number in paginated results"
+
+    # Calendar event core fields
+    - name: event_id
+      type: String
+      comment: "Microsoft Graph API event ID"
+
+    - name: tenant_id
+      type: String
+      comment: "Microsoft 365 tenant ID"
+
+    - name: user_upn
+      type: String
+      comment: "User Principal Name (email)"
+
+    # Organizer information
+    - name: organizer_name
+      type: String
+      comment: "Name of the event organizer"
+
+    - name: organizer_email
+      type: String
+      comment: "Email of the event organizer"
+
+    # Event details
+    - name: title
+      type: String
+      comment: "Event title/subject"
+
+    - name: description
+      type: String
+      comment: "Event description/body"
+
+    - name: location
+      type: String
+      comment: "Event location"
+
+    - name: is_virtual
+      type: Bool
+      comment: "Whether the event is virtual/online"
+
+    # Date/time fields
+    - name: start_time
+      type: String
+      comment: "Event start datetime (ISO 8601 format)"
+
+    - name: end_time
+      type: String
+      comment: "Event end datetime (ISO 8601 format)"
+
+    # Response tracking
+    - name: organizer_response
+      type: String
+      comment: "Organizer's response status"
+
+    - name: allow_new_time_proposals
+      type: Bool
+      comment: "Whether attendees can propose new times"
+
+    # Audit timestamps
+    - name: created_at
+      type: String
+      comment: "When the event was created in Microsoft Graph"
+
+    - name: updated_at
+      type: String
+      comment: "When the event was last updated in Microsoft Graph"
+
+    # Processing metadata (Glynac standard fields)
+    - name: processing_timestamp
+      type: String
+      comment: "When the record was processed by Glynac pipeline"
+
+    - name: glynac_organization_id
+      type: String
+      comment: "Glynac organization identifier (partition key)"
+
+    - name: processing_date
+      type: Date
+      comment: "Processing date partition (YYYY-MM-DD)"
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{view}"
+      description: "Ensure the table has at least one record"
+
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{view}"
+      description: "Ensure data is no older than 7 days"
+
+    - name: event_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE event_id IS NULL"
+      threshold: 0
+      description: "Ensure event_id is never NULL"
+
+    - name: org_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE glynac_organization_id IS NULL"
+      threshold: 0
+      description: "Ensure glynac_organization_id is never NULL"
