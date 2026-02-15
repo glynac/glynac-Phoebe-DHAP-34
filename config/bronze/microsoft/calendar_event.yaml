@@ -1,7 +1,7 @@
 version: "1.0"
 layer: bronze
-database: microsoft
-view: calendar_event_raw
+database: bronze
+view: microsoft_calendar_event
 
 metadata:
   description: "Raw Microsoft Calendar Event data from MinIO with detailed event information"
