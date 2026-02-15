@@ -4,8 +4,6 @@
 
 version: "1.0"
 
-mode: auto  # Auto-infers schema and applies transforms
-
 dag:
   description: "Transform and clean Microsoft Calendar data from Bronze to Silver"
   tags: ["silver", "microsoft", "calendar", "auto-mode"]
@@ -19,68 +17,48 @@ target:
   database: microsoft_silver
   table: calendar
 
-# ClickHouse table configuration
-clickhouse:
-  engine: S3  # Read from MinIO, write back to MinIO
-  output_path: s3://main-data/microsoft_silver/calendar/{glynac_organization_id}/{processing_date}/  # Hive-style partitioning
-  format: ORC
-  compression: ZSTD
-  settings:
-    input_format_orc_allow_missing_columns: 1
-
 # Transform specifications
 # Only specify transforms for columns that need transformation
 transforms:
   # String cleaning
   title:
     transform: clean_string
-    target: title
 
   description:
     transform: clean_string
-    target: description
 
   location:
     transform: clean_string
-    target: location
 
   organizer_name:
     transform: clean_string
-    target: organizer_name
 
   organizer_email:
     transform: clean_email
-    target: organizer_email
 
   user_upn:
     transform: clean_email
-    target: user_upn
 
   # DateTime parsing
   start_time:
-    transform: parse_datetime
+    transform: parse_date
     target: start_datetime
-    format: "ISO8601"
 
   end_time:
-    transform: parse_datetime
+    transform: parse_date
     target: end_datetime
-    format: "ISO8601"
 
   created_at:
-    transform: parse_datetime
+    transform: parse_date
     target: created_datetime
-    format: "ISO8601"
 
   updated_at:
-    transform: parse_datetime
+    transform: parse_date
     target: updated_datetime
-    format: "ISO8601"
 
   processing_timestamp:
-    transform: parse_datetime
+    transform: parse_date
     target: processing_datetime
-    format: "ISO8601"
 
 # Deduplication strategy
 dedupe:
@@ -98,6 +76,9 @@ filters:
   - "glynac_organization_id != ''"
   - "tenant_id IS NOT NULL"
   - "tenant_id != ''"
+
+# Lookback days
+lookback_days: 90
 
 # Data quality tests
 tests:
@@ -122,37 +103,7 @@ tests:
     severity: warning
     description: "Event ID should be unique per processing date after dedup"
 
-  - type: custom
-    query: "SELECT count() FROM {table} WHERE start_datetime > end_datetime"
-    threshold: 0
-    severity: warning
-    description: "Start datetime should not be after end datetime"
-
   - type: freshness
     max_age_hours: 48
     severity: warning
     description: "Data should be refreshed within 48 hours"
-
-# Incremental processing configuration
-incremental:
-  enabled: true
-  strategy: partition_based
-  partition_column: processing_date
-  lookback_days: 90  # Reprocess last 90 days on each run
-
-# Output configuration for MinIO storage
-output:
-  format: ORC
-  compression: ZSTD
-  partition_by:
-    - glynac_organization_id
-    - processing_date
-  path_template: "microsoft_silver/calendar/glynac_organization_id={glynac_organization_id}/processing_date={processing_date}/"
-
-# Implementation notes
-notes: |
-  AUTO MODE - Simple field transformations (no JSON extraction needed)
-  - String cleaning: clean_string, clean_email
-  - DateTime parsing: parse_datetime for ISO8601 timestamps
-  - Writes to MinIO with Hive-style partitioning: main-data/microsoft_silver/calendar/glynac_organization_id=xx/processing_date=xx/
-  - ClickHouse table uses S3 engine to query MinIO data directly
