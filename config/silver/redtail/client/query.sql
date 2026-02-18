@@ -24,7 +24,7 @@ SELECT
     -- Service details
     trim(COALESCE(service_level, '')) as service_level,
     trim(COALESCE(risk_profile, '')) as risk_profile,
-    trim(COALESCE(investment_objective, '')) as investment_objective,
+    -- trim(COALESCE(investment_objective, '')) as investment_objective,
     
     -- Financial data (parse from string)
     CAST(replaceAll(COALESCE(assets_under_management, '0'), ',', '') AS Float64) as assets_under_management,
@@ -34,14 +34,14 @@ SELECT
     parseDateTime64BestEffortOrNull(toString(review_date)) as review_date,
     
     -- Conversion tracking
-    trim(COALESCE(prospect_origin, '')) as prospect_origin,
-    parseDateTime64BestEffortOrNull(toString(conversion_date)) as conversion_date,
+    -- trim(COALESCE(prospect_origin, '')) as prospect_origin,
+    -- parseDateTime64BestEffortOrNull(toString(conversion_date)) as conversion_date,
     
     -- Contact information (PII)
-    trim(COALESCE(first_name, '')) as first_name,
-    trim(COALESCE(last_name, '')) as last_name,
-    trim(COALESCE(email, '')) as email,
-    trim(COALESCE(phone, '')) as phone,
+    -- trim(COALESCE(first_name, '')) as first_name,
+    -- trim(COALESCE(last_name, '')) as last_name,
+    -- trim(COALESCE(email, '')) as email,
+    -- trim(COALESCE(phone, '')) as phone,
     
     -- Notes
     trim(COALESCE(notes, '')) as notes,

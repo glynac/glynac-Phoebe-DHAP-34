@@ -141,12 +141,6 @@ columns:
     description: "Risk tolerance profile (Conservative, Moderate, Aggressive)"
     example: "Moderate"
     
-  - name: investment_objective
-    type: String
-    nullable: false
-    description: "Primary investment objective (Growth, Income, Preservation)"
-    example: "Growth"
-    
   # Financial data
   - name: assets_under_management
     type: Float64
@@ -167,48 +161,6 @@ columns:
     nullable: true
     description: "Next scheduled review date"
     example: "2026-03-15 00:00:00.000"
-    
-  # Conversion tracking
-  - name: prospect_origin
-    type: String
-    nullable: false
-    description: "Origin prospect identifier"
-    example: "PROSPECT-PK-2025-001"
-    
-  - name: conversion_date
-    type: Nullable(DateTime64(3))
-    nullable: true
-    description: "Date when prospect converted to client"
-    example: "2025-04-15 00:00:00.000"
-    
-  # Contact information (PII)
-  - name: first_name
-    type: String
-    nullable: false
-    description: "Client first name"
-    pii: true
-    example: "John"
-    
-  - name: last_name
-    type: String
-    nullable: false
-    description: "Client last name"
-    pii: true
-    example: "Doe"
-    
-  - name: email
-    type: String
-    nullable: false
-    description: "Client email address"
-    pii: true
-    example: "john.doe@example.com"
-    
-  - name: phone
-    type: String
-    nullable: false
-    description: "Client phone number"
-    pii: true
-    example: "+1-555-123-4567"
     
   # Notes
   - name: notes

@@ -170,20 +170,6 @@ tests:
     expect:
       invalid_count: 0
   
-  - name: conversion_date_after_onboarding
-    type: assertion
-    description: "Conversion date should match or be close to onboarding date"
-    severity: warning
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND onboarding_date IS NOT NULL
-        AND conversion_date IS NOT NULL
-        AND abs(dateDiff('day', conversion_date, onboarding_date)) > 30
-    expect:
-      invalid_count: 0
-  
   - name: rec_edit_after_rec_add
     type: assertion
     description: "Edit timestamp should be after or equal to add timestamp"
@@ -224,19 +210,6 @@ tests:
     expect:
       invalid_count: 0
   
-  - name: valid_investment_objectives
-    type: accepted_values
-    description: "Investment objective should be valid"
-    severity: warning
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND investment_objective != ''
-        AND investment_objective NOT IN ('Growth', 'Income', 'Preservation', 'Balanced', 'Growth and Income', 'Capital Appreciation', 'Tax Efficiency', 'Wealth Preservation & Growth with Venture Exposure')
-    expect:
-      invalid_count: 0
-  
   - name: active_clients_have_aum
     type: assertion
     description: "Active clients should typically have AUM > 0"
@@ -260,45 +233,5 @@ tests:
       WHERE processing_date = toDate('{{ ds }}')
         AND status_normalized = 'active'
         AND client_number = ''
-    expect:
-      invalid_count: 0
-  
-  - name: email_format_valid
-    type: assertion
-    description: "Email should contain @ symbol if not empty"
-    severity: warning
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND email != ''
-        AND email NOT LIKE '%@%'
-    expect:
-      invalid_count: 0
-  
-  - name: active_clients_have_contact_info
-    type: assertion
-    description: "Active clients should have at least email or phone"
-    severity: warning
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND status_normalized = 'active'
-        AND email = ''
-        AND phone = ''
-    expect:
-      invalid_count: 0
-  
-  - name: active_clients_have_names
-    type: assertion
-    description: "Active clients should have first and last names"
-    severity: error
-    query: |
-      SELECT count() as invalid_count
-      FROM silver.redtail_client
-      WHERE processing_date = toDate('{{ ds }}')
-        AND status_normalized = 'active'
-        AND (first_name = '' OR last_name = '')
     expect:
       invalid_count: 0
