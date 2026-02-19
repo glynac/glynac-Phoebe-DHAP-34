@@ -1,0 +1,72 @@
+# Silver Layer - Black Diamond Portfolio Goal Assignments (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.portfolio_goal_assignments_raw
+# Linking table: associates investment goals to portfolios
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond portfolio goal assignments data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "portfolio-goal-assignments", "auto-mode"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: portfolio_goal_assignments_raw
+
+target:
+  database: blackdiamond_silver
+  table: portfolio_goal_assignments
+
+# Transform specifications
+transforms:
+  # Assignment metadata
+  assignment_type:
+    transform: clean_string
+
+  assigned_date:
+    transform: parse_date
+
+  effective_date:
+    transform: parse_date
+
+# Deduplication - composite key for portfolio-goal linking table
+dedupe:
+  partition_by:
+    - portfolio_id
+    - goal_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "portfolio_id IS NOT NULL"
+  - "portfolio_id != ''"
+  - "goal_id IS NOT NULL"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+    description: "Ensure at least one portfolio-goal assignment exists"
+
+  - type: not_null
+    columns:
+      - portfolio_id
+      - goal_id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Link keys and partition columns must not be NULL"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"

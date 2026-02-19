@@ -1,0 +1,71 @@
+# Silver Layer - Black Diamond Target Portfolios (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.target_portfolios_raw
+# Linking table: portfolios associated with a specific investment target model
+# Identifies which portfolios are being rebalanced against a target allocation
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond target portfolios data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "target-portfolios", "auto-mode"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: target_portfolios_raw
+
+target:
+  database: blackdiamond_silver
+  table: target_portfolios
+
+# Transform specifications
+transforms:
+  # Portfolio labels
+  portfolio_name:
+    transform: clean_string
+
+  role:
+    transform: clean_string
+
+# Deduplication - composite key: target + portfolio
+dedupe:
+  partition_by:
+    - target_id
+    - portfolio_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "target_id IS NOT NULL"
+  - "target_id != ''"
+  - "portfolio_id IS NOT NULL"
+  - "portfolio_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+    description: "Ensure at least one target-portfolio assignment exists"
+
+  - type: not_null
+    columns:
+      - target_id
+      - portfolio_id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Link keys and partition columns must not be NULL"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"

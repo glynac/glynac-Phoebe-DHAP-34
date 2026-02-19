@@ -1,0 +1,73 @@
+# Silver Layer - Black Diamond Contact Relationships (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.contact_relationships_raw
+# Relationships between contacts (spouse, beneficiary, advisor, etc.)
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond contact relationships data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "contact-relationships", "auto-mode"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: contact_relationships_raw
+
+target:
+  database: blackdiamond_silver
+  table: contact_relationships
+
+# Transform specifications
+transforms:
+  # Relationship descriptor
+  relationship_type:
+    transform: clean_string
+
+  relationship:
+    transform: clean_string
+
+  type:
+    transform: clean_string
+
+  role:
+    transform: clean_string
+
+# Deduplication - a contact can have multiple relationships to other contacts
+dedupe:
+  partition_by:
+    - contact_id
+    - related_contact_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "contact_id IS NOT NULL"
+  - "contact_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+    description: "Ensure at least one contact relationship record exists"
+
+  - type: not_null
+    columns:
+      - contact_id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Key columns must not be NULL"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"

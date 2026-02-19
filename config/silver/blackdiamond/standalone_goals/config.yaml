@@ -1,0 +1,94 @@
+# Silver Layer - Black Diamond Standalone Goals (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.standalone_goals_raw
+# Investment goals not attached to a portfolio (client-level goals)
+# Mirrors goals entity structure; differs in that these are portfolio-independent
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond standalone goals data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "standalone-goals", "auto-mode"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: standalone_goals_raw
+
+target:
+  database: blackdiamond_silver
+  table: standalone_goals
+
+# Transform specifications
+transforms:
+  # Goal name and description
+  name:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  goal_type:
+    transform: clean_string
+
+  # Status
+  status:
+    transform: normalize_status
+
+  # Benchmark reference
+  benchmark_name:
+    transform: clean_string
+
+  # Date fields
+  start_date:
+    transform: parse_date
+
+  end_date:
+    transform: parse_date
+
+  target_date:
+    transform: parse_date
+
+# Deduplication - goal_id is the primary key (Int64)
+dedupe:
+  partition_by:
+    - goal_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "goal_id IS NOT NULL"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+    description: "Ensure at least one standalone goal exists"
+
+  - type: not_null
+    columns:
+      - goal_id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Primary key and partition columns must not be NULL"
+
+  - type: unique
+    columns:
+      - goal_id
+      - processing_date
+    severity: warning
+    description: "Goal ID should be unique per processing date after dedup"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"

@@ -1,0 +1,88 @@
+# Silver Layer - Black Diamond Standalone Targets (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.standalone_targets_raw
+# Investment target models not attached to a portfolio (reusable model templates)
+# Mirrors targets entity structure; differs in portfolio independence
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond standalone targets data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "standalone-targets", "auto-mode"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: standalone_targets_raw
+
+target:
+  database: blackdiamond_silver
+  table: standalone_targets
+
+# Transform specifications
+transforms:
+  # Target name and description (matches targets schema pattern)
+  name:
+    transform: clean_string
+
+  description:
+    transform: clean_string
+
+  target_type:
+    transform: clean_string
+
+  # Date range for this target model
+  start_date:
+    transform: parse_date
+
+  end_date:
+    transform: parse_date
+
+  # Status
+  status:
+    transform: normalize_status
+
+# Deduplication - id is the primary key (String, from targets schema)
+dedupe:
+  partition_by:
+    - id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "id IS NOT NULL"
+  - "id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+    description: "Ensure at least one standalone target exists"
+
+  - type: not_null
+    columns:
+      - id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Primary key and partition columns must not be NULL"
+
+  - type: unique
+    columns:
+      - id
+      - processing_date
+    severity: warning
+    description: "Target ID should be unique per processing date after dedup"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"

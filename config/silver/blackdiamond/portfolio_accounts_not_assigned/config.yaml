@@ -1,0 +1,71 @@
+# Silver Layer - Black Diamond Portfolio Accounts Not Assigned (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.portfolio_accounts_not_assigned_raw
+# Portfolio accounts that have not been assigned to a goal or target model
+# Useful for identifying unmanaged account positions
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond portfolio accounts not assigned data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "portfolio-accounts-not-assigned", "auto-mode"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: portfolio_accounts_not_assigned_raw
+
+target:
+  database: blackdiamond_silver
+  table: portfolio_accounts_not_assigned
+
+# Transform specifications
+transforms:
+  # Account/portfolio labels
+  account_type:
+    transform: clean_string
+
+  custodian:
+    transform: clean_string
+
+  reason:
+    transform: clean_string
+
+# Deduplication
+dedupe:
+  partition_by:
+    - account_id
+    - portfolio_id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters
+filters:
+  - "account_id IS NOT NULL"
+  - "account_id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 0
+    severity: warning
+    description: "May be empty if all portfolio accounts are assigned (expected)"
+
+  - type: not_null
+    columns:
+      - account_id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Key columns must not be NULL"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"

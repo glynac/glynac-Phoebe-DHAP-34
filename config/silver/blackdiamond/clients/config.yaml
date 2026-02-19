@@ -1,0 +1,105 @@
+# Silver Layer - Black Diamond Clients (AUTO MODE)
+# Schema inferred from Bronze: blackdiamond.clients_raw
+# Settings inherited from _defaults.yaml unless overridden
+
+version: "1.0"
+
+dag:
+  description: "Transform and clean Black Diamond clients data from Bronze to Silver"
+  tags: ["silver", "blackdiamond", "clients", "auto-mode", "pii"]
+  schedule_interval: "dataset"
+
+source:
+  database: blackdiamond
+  table: clients_raw
+
+target:
+  database: blackdiamond_silver
+  table: clients
+
+# Transform specifications
+transforms:
+  # String cleaning - name/identity fields
+  first_name:
+    transform: clean_string
+
+  last_name:
+    transform: clean_string
+
+  name:
+    transform: clean_string
+
+  salutation:
+    transform: clean_string
+
+  suffix:
+    transform: clean_string
+
+  nickname:
+    transform: clean_string
+
+  # Email cleaning
+  email:
+    transform: clean_email
+
+  primary_email:
+    transform: clean_email
+
+  # Phone cleaning
+  phone:
+    transform: clean_phone
+
+  primary_phone:
+    transform: clean_phone
+
+  # Status normalization
+  status:
+    transform: normalize_status
+
+  client_type:
+    transform: clean_string
+
+# Deduplication
+dedupe:
+  partition_by:
+    - id
+    - processing_date
+  order_by:
+    - processing_timestamp DESC
+
+# Filters - require primary key
+filters:
+  - "id IS NOT NULL"
+  - "id != ''"
+  - "glynac_organization_id IS NOT NULL"
+  - "glynac_organization_id != ''"
+
+# Lookback days
+lookback_days: 90
+
+# Data quality tests
+tests:
+  - type: row_count
+    min: 1
+    severity: error
+    description: "Ensure at least one client record exists"
+
+  - type: not_null
+    columns:
+      - id
+      - glynac_organization_id
+      - processing_date
+    severity: error
+    description: "Primary key and partition columns must not be NULL"
+
+  - type: unique
+    columns:
+      - id
+      - processing_date
+    severity: warning
+    description: "Client ID should be unique per processing date after dedup"
+
+  - type: freshness
+    max_age_hours: 48
+    severity: warning
+    description: "Data should be refreshed within 48 hours"
