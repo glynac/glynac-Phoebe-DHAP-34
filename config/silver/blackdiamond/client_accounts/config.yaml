@@ -41,11 +41,10 @@ dedupe:
     - processing_date DESC
 
 # Filters
+# NOTE: user_id is Int64 - do NOT use != '' (causes type error in Parquet reader)
 filters:
   - "user_id IS NOT NULL"
-  - "user_id != ''"
   - "account_id IS NOT NULL"
-  - "account_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 

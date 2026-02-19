@@ -69,9 +69,9 @@ dedupe:
     - processing_date DESC
 
 # Filters - require primary key
+# NOTE: user_id is Int64 in clients_raw - do NOT use != '' (causes type error in Parquet reader)
 filters:
   - "user_id IS NOT NULL"
-  - "user_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 

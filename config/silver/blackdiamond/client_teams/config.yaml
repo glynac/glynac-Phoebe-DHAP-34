@@ -37,9 +37,9 @@ dedupe:
     - processing_date DESC
 
 # Filters
+# NOTE: user_id and team_id are likely Int64 - do NOT use != '' (causes type error in Parquet reader)
 filters:
   - "user_id IS NOT NULL"
-  - "user_id != ''"
   - "team_id IS NOT NULL"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
