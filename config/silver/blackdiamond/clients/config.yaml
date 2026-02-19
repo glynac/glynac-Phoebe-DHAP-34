@@ -60,17 +60,18 @@ transforms:
     transform: clean_string
 
 # Deduplication
+# NOTE: clients_raw primary key is user_id (not id); no processing_timestamp column
 dedupe:
   partition_by:
-    - id
+    - user_id
     - processing_date
   order_by:
-    - processing_timestamp DESC
+    - processing_date DESC
 
 # Filters - require primary key
 filters:
-  - "id IS NOT NULL"
-  - "id != ''"
+  - "user_id IS NOT NULL"
+  - "user_id != ''"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
 
@@ -86,7 +87,7 @@ tests:
 
   - type: not_null
     columns:
-      - id
+      - user_id
       - glynac_organization_id
       - processing_date
     severity: error
@@ -94,10 +95,10 @@ tests:
 
   - type: unique
     columns:
-      - id
+      - user_id
       - processing_date
     severity: warning
-    description: "Client ID should be unique per processing date after dedup"
+    description: "User ID should be unique per processing date after dedup"
 
   - type: freshness
     max_age_hours: 48

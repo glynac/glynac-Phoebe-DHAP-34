@@ -27,18 +27,19 @@ transforms:
     transform: clean_string
 
 # Deduplication - composite key for linking table
+# NOTE: client portal tables use user_id (not client_id) as the client FK
 dedupe:
   partition_by:
-    - client_id
+    - user_id
     - team_id
     - processing_date
   order_by:
-    - processing_timestamp DESC
+    - processing_date DESC
 
 # Filters
 filters:
-  - "client_id IS NOT NULL"
-  - "client_id != ''"
+  - "user_id IS NOT NULL"
+  - "user_id != ''"
   - "team_id IS NOT NULL"
   - "glynac_organization_id IS NOT NULL"
   - "glynac_organization_id != ''"
@@ -55,7 +56,7 @@ tests:
 
   - type: not_null
     columns:
-      - client_id
+      - user_id
       - team_id
       - glynac_organization_id
       - processing_date
