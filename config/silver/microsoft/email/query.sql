@@ -16,10 +16,10 @@ SELECT
     parseDateTime64BestEffortOrNull(toString(received_date_time)) AS received_date_time,
     parseDateTime64BestEffortOrNull(toString(sent_date_time))     AS sent_date_time,
 
-    -- Flags
-    has_attachments,
-    is_draft,
-    is_read,
+    -- Flags (Nullable(Bool) in Bronze — coalesce to false)
+    COALESCE(has_attachments, false) AS has_attachments,
+    COALESCE(is_draft, false)        AS is_draft,
+    COALESCE(is_read, false)         AS is_read,
 
     -- Sender / recipients
     trimBoth(COALESCE(from_address, ''))           AS from_address,

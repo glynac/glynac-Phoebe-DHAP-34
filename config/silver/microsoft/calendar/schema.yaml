@@ -9,6 +9,7 @@ metadata:
     Cleaned and transformed Microsoft 365 Calendar events from Bronze layer.
     Contains meeting and event details per user including organizer info,
     timing, and response tracking.
+    NOTE: event_id is currently NULL in source data — scan_id is used as PK.
   owner: data-engineering
   domain: microsoft
   tags:
@@ -37,9 +38,9 @@ clickhouse:
   order_by:
     - processing_date
     - glynac_organization_id
-    - event_id
+    - scan_id
   primary_key:
-    - event_id
+    - scan_id
     - glynac_organization_id
   ttl: "processing_date + INTERVAL 365 DAY"
   settings:
@@ -55,12 +56,12 @@ clickhouse:
       granularity: 4
 
 columns:
-  - name: event_id
+  - name: scan_id
     type: String
     nullable: false
-    description: "Microsoft Graph API event ID (primary key)"
+    description: "Scan batch identifier — used as primary key (event_id is NULL in current source data)"
     primary_key: true
-    example: "AAMkAGI2TG..."
+    example: "cbe56e8d-e09c-4adc-8f64-92f3fd42a38b"
 
   - name: glynac_organization_id
     type: String
@@ -68,7 +69,13 @@ columns:
     description: "Glynac organization identifier for data isolation"
     example: "org-xyz789"
 
-  # Tenant / user
+  # Tenant / user (and event_id — currently NULL in source, kept for future)
+  - name: event_id
+    type: String
+    nullable: false
+    description: "Microsoft Graph API event ID — NULL in current source data, will populate when upstream pipeline is fixed"
+    example: ""
+
   - name: tenant_id
     type: String
     nullable: false
