@@ -1,0 +1,123 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.MICROSOFT_EMAIL
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL or empty"
+    severity: error
+    query: |
+      SELECT
+        countIf(email_id IS NULL)               AS null_email_id,
+        countIf(email_id = '')                  AS empty_email_id,
+        countIf(glynac_organization_id IS NULL) AS null_org_id,
+        countIf(glynac_organization_id = '')    AS empty_org_id,
+        countIf(user_upn IS NULL)               AS null_user_upn,
+        countIf(user_upn = '')                  AS empty_user_upn,
+        countIf(processing_date IS NULL)        AS null_processing_date
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_email_id: 0
+      empty_email_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_user_upn: 0
+      empty_user_upn: 0
+      null_processing_date: 0
+
+  - name: email_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "email_id must be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT email_id, glynac_organization_id, processing_date, count() AS cnt
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY email_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+
+  - name: all_emails_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver emails should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() AS orphaned_emails
+      FROM microsoft_silver.email s
+      LEFT JOIN microsoft.email_raw b
+        ON s.email_id = b.email_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.email_id IS NULL
+    expect:
+      orphaned_emails: 0
+
+  - name: user_upn_email_format
+    type: assertion
+    description: "user_upn must be a valid email address (contains @)"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND user_upn != ''
+        AND position(user_upn, '@') = 0
+    expect:
+      invalid_count: 0
+
+  - name: from_address_email_format
+    type: assertion
+    description: "from_address must be a valid email address when present"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND from_address != ''
+        AND position(from_address, '@') = 0
+    expect:
+      invalid_count: 0
+
+  - name: valid_importance_values
+    type: assertion
+    description: "Importance must be low, normal, or high (or empty)"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND importance != ''
+        AND importance NOT IN ('low', 'normal', 'high')
+    expect:
+      invalid_count: 0
+
+  - name: sent_before_received
+    type: assertion
+    description: "Sent time should not be after received time"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND sent_date_time IS NOT NULL
+        AND received_date_time IS NOT NULL
+        AND sent_date_time > received_date_time + INTERVAL 5 MINUTE
+    expect:
+      invalid_count: 0
+
+  - name: drafts_not_received
+    type: assertion
+    description: "Draft emails should not have a received_date_time"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.email
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_draft = true
+        AND received_date_time IS NOT NULL
+    expect:
+      invalid_count: 0

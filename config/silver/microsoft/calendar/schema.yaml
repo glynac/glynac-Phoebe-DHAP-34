@@ -1,0 +1,197 @@
+version: "1.0"
+layer: silver
+database: microsoft_silver
+table: calendar
+
+metadata:
+  display_name: "Microsoft Calendar Events (Cleaned)"
+  description: |
+    Cleaned and transformed Microsoft 365 Calendar events from Bronze layer.
+    Contains meeting and event details per user including organizer info,
+    timing, and response tracking.
+  owner: data-engineering
+  domain: microsoft
+  tags:
+    - microsoft
+    - calendar
+    - microsoft365
+    - silver
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - user_upn
+    - organizer_email
+    - organizer_name
+    - description
+  update_frequency: daily
+  retention_days: 365
+  upstream_dependencies:
+    - microsoft.calendar_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - event_id
+  primary_key:
+    - event_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 365 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: user_upn_idx
+      expression: user_upn
+      type: set
+      granularity: 4
+    - name: organizer_email_idx
+      expression: organizer_email
+      type: set
+      granularity: 4
+
+columns:
+  - name: event_id
+    type: String
+    nullable: false
+    description: "Microsoft Graph API event ID (primary key)"
+    primary_key: true
+    example: "AAMkAGI2TG..."
+
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Glynac organization identifier for data isolation"
+    example: "org-xyz789"
+
+  # Tenant / user
+  - name: tenant_id
+    type: String
+    nullable: false
+    description: "Microsoft 365 tenant ID"
+    example: "tenant-abc123"
+
+  - name: user_upn
+    type: String
+    nullable: false
+    description: "User Principal Name — mailbox owner of this event"
+    pii: true
+    example: "john.doe@company.com"
+
+  # Organizer
+  - name: organizer_name
+    type: String
+    nullable: false
+    description: "Display name of the event organizer"
+    pii: true
+    example: "John Doe"
+
+  - name: organizer_email
+    type: String
+    nullable: false
+    description: "Email address of the event organizer"
+    pii: true
+    example: "john.doe@company.com"
+
+  - name: organizer_response
+    type: String
+    nullable: false
+    description: "Organizer's response status (accepted, tentative, etc.)"
+    example: "accepted"
+
+  # Event details
+  - name: title
+    type: String
+    nullable: false
+    description: "Event title / subject"
+    example: "Q1 Planning Meeting"
+
+  - name: description
+    type: String
+    nullable: false
+    description: "Event body / description"
+    pii: true
+    example: "Quarterly business review"
+
+  - name: location
+    type: String
+    nullable: false
+    description: "Event location"
+    example: "Conference Room A"
+
+  - name: is_virtual
+    type: Bool
+    nullable: false
+    description: "Whether the event is a virtual / online meeting"
+    example: true
+
+  - name: allow_new_time_proposals
+    type: Bool
+    nullable: false
+    description: "Whether attendees can propose alternative times"
+    example: false
+
+  # Date/time fields
+  - name: start_time
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Event start datetime (UTC)"
+    example: "2025-01-15 09:00:00.000"
+
+  - name: end_time
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Event end datetime (UTC)"
+    example: "2025-01-15 10:00:00.000"
+
+  - name: created_at
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "When the event was created in Microsoft Graph"
+    example: "2025-01-10 14:30:00.000"
+
+  - name: updated_at
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "When the event was last updated in Microsoft Graph"
+    example: "2025-01-14 09:00:00.000"
+
+  # Processing metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Processing date partition (YYYY-MM-DD)"
+    partition_key: true
+    example: "2025-01-20"
+
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when the record was processed by Glynac pipeline"
+    example: "2025-01-20 14:30:22.123"
+
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-20 15:30:45"
+
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source Bronze table"
+    system_column: true
+    example: "microsoft.calendar_raw"
+
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-20 14:30:22.123"

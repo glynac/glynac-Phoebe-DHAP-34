@@ -1,0 +1,410 @@
+version: "1.0"
+layer: silver
+database: microsoft_silver
+table: calendar_event
+
+metadata:
+  display_name: "Microsoft Calendar Events Normalized (Cleaned)"
+  description: |
+    Cleaned and normalized Microsoft 365 Calendar Event data from Bronze layer.
+    Expands the entity_data JSON blob into typed columns for efficient querying.
+    Includes full event details: attendees, recurrence, online meeting, sensitivity,
+    organizer, and timing information from the Microsoft Graph API.
+  owner: data-engineering
+  domain: microsoft
+  tags:
+    - microsoft
+    - calendar_event
+    - microsoft365
+    - silver
+    - json-normalized
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - calendar_owner_email
+    - organizer_email
+    - organizer_name
+    - online_meeting_url
+    - web_link
+  update_frequency: daily
+  retention_days: 365
+  upstream_dependencies:
+    - microsoft.calendar_event_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - event_id
+  primary_key:
+    - event_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 365 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: calendar_owner_email_idx
+      expression: calendar_owner_email
+      type: set
+      granularity: 4
+    - name: organizer_email_idx
+      expression: organizer_email
+      type: set
+      granularity: 4
+    - name: is_cancelled_idx
+      expression: is_cancelled
+      type: set
+      granularity: 4
+    - name: is_recurring_idx
+      expression: is_recurring
+      type: set
+      granularity: 4
+
+columns:
+  # Bronze record metadata
+  - name: record_id
+    type: String
+    nullable: false
+    description: "Unique Bronze record identifier"
+    example: "rec-abc123"
+
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Glynac organization identifier for data isolation"
+    example: "org-xyz789"
+
+  - name: tenant_id
+    type: String
+    nullable: false
+    description: "Microsoft 365 tenant ID"
+    example: "tenant-abc123"
+
+  - name: is_active
+    type: Bool
+    nullable: false
+    description: "Whether the Bronze record is active"
+    example: true
+
+  # Core event identity
+  - name: event_id
+    type: String
+    nullable: false
+    description: "Microsoft Graph API event ID (primary key)"
+    primary_key: true
+    example: "AAMkAGI2TG..."
+
+  - name: icalendar_uid
+    type: String
+    nullable: false
+    description: "iCalendar UID for cross-system event reference"
+    example: "040000008200E00074C5B7101A82E00800000000..."
+
+  # Calendar reference
+  - name: calendar_id
+    type: String
+    nullable: false
+    description: "Microsoft Graph calendar ID"
+    example: "AAMkAGI2..."
+
+  - name: calendar_name
+    type: String
+    nullable: false
+    description: "Name of the calendar containing this event"
+    example: "Calendar"
+
+  - name: calendar_owner_email
+    type: String
+    nullable: false
+    description: "Email address of the calendar owner"
+    pii: true
+    example: "owner@company.com"
+
+  - name: calendar_owner_id
+    type: String
+    nullable: false
+    description: "Azure AD object ID of the calendar owner"
+    example: "user-object-id"
+
+  # Event content
+  - name: subject
+    type: String
+    nullable: false
+    description: "Event subject / title"
+    example: "Team Standup"
+
+  - name: body_preview
+    type: String
+    nullable: false
+    description: "First 255 characters of the event body"
+    example: "Daily standup meeting to sync on progress"
+
+  - name: body_content_type
+    type: String
+    nullable: false
+    description: "Body content type (html, text)"
+    example: "html"
+
+  # Timing
+  - name: start_datetime
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Event start datetime (UTC)"
+    example: "2025-01-15 09:00:00.000"
+
+  - name: end_datetime
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Event end datetime (UTC)"
+    example: "2025-01-15 09:30:00.000"
+
+  - name: start_timezone
+    type: String
+    nullable: false
+    description: "IANA timezone of the event start"
+    example: "America/New_York"
+
+  - name: end_timezone
+    type: String
+    nullable: false
+    description: "IANA timezone of the event end"
+    example: "America/New_York"
+
+  - name: is_all_day
+    type: Bool
+    nullable: false
+    description: "Whether the event is an all-day event"
+    example: false
+
+  - name: duration_minutes
+    type: Int32
+    nullable: false
+    description: "Duration of the event in minutes"
+    example: 30
+
+  # Location
+  - name: location
+    type: String
+    nullable: false
+    description: "Event location string"
+    example: "Conference Room B"
+
+  - name: location_display_name
+    type: String
+    nullable: false
+    description: "Display name of the location"
+    example: "Building 2 - Conference Room B"
+
+  - name: location_type
+    type: String
+    nullable: false
+    description: "Type of location (default, conferenceRoom, etc.)"
+    example: "conferenceRoom"
+
+  # Organizer
+  - name: organizer_email
+    type: String
+    nullable: false
+    description: "Email address of the event organizer"
+    pii: true
+    example: "john.doe@company.com"
+
+  - name: organizer_name
+    type: String
+    nullable: false
+    description: "Display name of the event organizer"
+    pii: true
+    example: "John Doe"
+
+  - name: organizer_id
+    type: String
+    nullable: false
+    description: "Azure AD object ID of the organizer"
+    example: "user-object-id"
+
+  # Attendee counts
+  - name: attendee_count
+    type: Int32
+    nullable: false
+    description: "Total number of attendees"
+    example: 5
+
+  - name: required_attendee_count
+    type: Int32
+    nullable: false
+    description: "Number of required attendees"
+    example: 3
+
+  - name: optional_attendee_count
+    type: Int32
+    nullable: false
+    description: "Number of optional attendees"
+    example: 2
+
+  - name: resource_count
+    type: Int32
+    nullable: false
+    description: "Number of resource bookings (rooms, equipment)"
+    example: 1
+
+  # Online meeting
+  - name: is_online_meeting
+    type: Bool
+    nullable: false
+    description: "Whether the event has an online meeting link"
+    example: true
+
+  - name: online_meeting_provider
+    type: String
+    nullable: false
+    description: "Online meeting provider (teamsForBusiness, skypeForBusiness, etc.)"
+    example: "teamsForBusiness"
+
+  - name: online_meeting_url
+    type: String
+    nullable: false
+    description: "Join URL for the online meeting"
+    pii: true
+    example: "https://teams.microsoft.com/l/meetup-join/..."
+
+  # Status / flags
+  - name: show_as
+    type: String
+    nullable: false
+    description: "How the event appears in calendar (free, busy, tentative, oof)"
+    example: "busy"
+
+  - name: sensitivity
+    type: String
+    nullable: false
+    description: "Event sensitivity level (normal, personal, private, confidential)"
+    example: "normal"
+
+  - name: importance
+    type: String
+    nullable: false
+    description: "Event importance (low, normal, high)"
+    example: "normal"
+
+  - name: is_cancelled
+    type: Bool
+    nullable: false
+    description: "Whether the event has been cancelled"
+    example: false
+
+  - name: is_draft
+    type: Bool
+    nullable: false
+    description: "Whether the event is a draft"
+    example: false
+
+  - name: is_organizer
+    type: Bool
+    nullable: false
+    description: "Whether the calendar owner is the organizer"
+    example: true
+
+  - name: is_recurring
+    type: Bool
+    nullable: false
+    description: "Whether the event is part of a recurring series"
+    example: false
+
+  - name: series_master_id
+    type: String
+    nullable: false
+    description: "ID of the series master event (for recurring events)"
+    example: ""
+
+  - name: is_exception
+    type: Bool
+    nullable: false
+    description: "Whether this is an exception occurrence in a recurring series"
+    example: false
+
+  # Attachments / categories
+  - name: has_attachments
+    type: Bool
+    nullable: false
+    description: "Whether the event has file attachments"
+    example: false
+
+  - name: attachment_count
+    type: Int32
+    nullable: false
+    description: "Number of attachments"
+    example: 0
+
+  - name: category_count
+    type: Int32
+    nullable: false
+    description: "Number of categories assigned to the event"
+    example: 1
+
+  # Response / links
+  - name: response_status
+    type: String
+    nullable: false
+    description: "Response status of the calendar owner (accepted, declined, tentativelyAccepted, notResponded)"
+    example: "accepted"
+
+  - name: web_link
+    type: String
+    nullable: false
+    description: "Web URL to open the event in Outlook"
+    pii: true
+    example: "https://outlook.office365.com/owa/?itemid=..."
+
+  # Audit timestamps
+  - name: created_datetime
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "When the event was created in Microsoft Graph"
+    example: "2025-01-10 14:30:00.000"
+
+  - name: last_modified_datetime
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "When the event was last modified"
+    example: "2025-01-14 09:00:00.000"
+
+  # Processing metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Processing date partition (YYYY-MM-DD)"
+    partition_key: true
+    example: "2025-01-20"
+
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when the record was processed by Glynac pipeline"
+    example: "2025-01-20 14:30:22.123"
+
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-20 15:30:45"
+
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source Bronze table"
+    system_column: true
+    example: "microsoft.calendar_event_raw"
+
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-20 14:30:22.123"

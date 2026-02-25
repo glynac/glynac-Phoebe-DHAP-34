@@ -1,0 +1,116 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.MICROSOFT_CALENDAR
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL or empty"
+    severity: error
+    query: |
+      SELECT
+        countIf(event_id IS NULL)                  AS null_event_id,
+        countIf(event_id = '')                     AS empty_event_id,
+        countIf(glynac_organization_id IS NULL)    AS null_org_id,
+        countIf(glynac_organization_id = '')       AS empty_org_id,
+        countIf(processing_date IS NULL)           AS null_processing_date
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_event_id: 0
+      empty_event_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+
+  - name: event_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "event_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT event_id, glynac_organization_id, processing_date, count() AS cnt
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY event_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+
+  - name: all_events_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver calendar events should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() AS orphaned_events
+      FROM microsoft_silver.calendar s
+      LEFT JOIN microsoft.calendar_raw b
+        ON s.event_id = b.event_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.event_id IS NULL
+    expect:
+      orphaned_events: 0
+
+  - name: user_upn_not_empty
+    type: assertion
+    description: "user_upn should not be empty"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (user_upn IS NULL OR user_upn = '')
+    expect:
+      invalid_count: 0
+
+  - name: title_not_empty
+    type: assertion
+    description: "Event title should not be empty"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (title IS NULL OR title = '')
+    expect:
+      invalid_count: 0
+
+  - name: start_time_before_end_time
+    type: assertion
+    description: "Event start time must be before end time"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_time IS NOT NULL
+        AND end_time IS NOT NULL
+        AND start_time >= end_time
+    expect:
+      invalid_count: 0
+
+  - name: start_time_not_future_extreme
+    type: assertion
+    description: "Start time should not be more than 2 years in the future"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_time > now() + INTERVAL 730 DAY
+    expect:
+      invalid_count: 0
+
+  - name: organizer_email_format
+    type: assertion
+    description: "Organizer email should contain @ when present"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar
+      WHERE processing_date = toDate('{{ ds }}')
+        AND organizer_email != ''
+        AND position(organizer_email, '@') = 0
+    expect:
+      invalid_count: 0

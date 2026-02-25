@@ -1,0 +1,162 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.MICROSOFT_CALENDAR_EVENT
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL or empty"
+    severity: error
+    query: |
+      SELECT
+        countIf(event_id IS NULL)               AS null_event_id,
+        countIf(event_id = '')                  AS empty_event_id,
+        countIf(glynac_organization_id IS NULL) AS null_org_id,
+        countIf(glynac_organization_id = '')    AS empty_org_id,
+        countIf(processing_date IS NULL)        AS null_processing_date
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_event_id: 0
+      empty_event_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+
+  - name: event_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "event_id must be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT event_id, glynac_organization_id, processing_date, count() AS cnt
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY event_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+
+  - name: all_events_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver calendar events should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() AS orphaned_events
+      FROM microsoft_silver.calendar_event s
+      LEFT JOIN microsoft.calendar_event_raw b
+        ON s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+        AND s.record_id = b.record_id
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.record_id IS NULL
+    expect:
+      orphaned_events: 0
+
+  - name: valid_json_was_normalized
+    type: assertion
+    description: "event_id extracted from entity_data should not be empty"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (event_id IS NULL OR event_id = '')
+    expect:
+      invalid_count: 0
+
+  - name: start_before_end
+    type: assertion
+    description: "Event start_datetime must be before end_datetime"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_datetime IS NOT NULL
+        AND end_datetime IS NOT NULL
+        AND start_datetime >= end_datetime
+        AND is_all_day = false
+    expect:
+      invalid_count: 0
+
+  - name: duration_non_negative
+    type: assertion
+    description: "Event duration in minutes must not be negative"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND duration_minutes < 0
+    expect:
+      invalid_count: 0
+
+  - name: attendee_counts_non_negative
+    type: assertion
+    description: "All attendee counts must be non-negative"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (
+          attendee_count < 0
+          OR required_attendee_count < 0
+          OR optional_attendee_count < 0
+          OR resource_count < 0
+        )
+    expect:
+      invalid_count: 0
+
+  - name: valid_importance_values
+    type: assertion
+    description: "Importance must be one of: low, normal, high (or empty)"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND importance != ''
+        AND importance NOT IN ('low', 'normal', 'high')
+    expect:
+      invalid_count: 0
+
+  - name: valid_sensitivity_values
+    type: assertion
+    description: "Sensitivity must be one of: normal, personal, private, confidential (or empty)"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND sensitivity != ''
+        AND sensitivity NOT IN ('normal', 'personal', 'private', 'confidential')
+    expect:
+      invalid_count: 0
+
+  - name: organizer_email_format
+    type: assertion
+    description: "Organizer email should contain @ when present"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND organizer_email != ''
+        AND position(organizer_email, '@') = 0
+    expect:
+      invalid_count: 0
+
+  - name: recurring_events_have_series_or_exception
+    type: assertion
+    description: "Recurring events should have series_master_id or is_exception flag"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.calendar_event
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_recurring = true
+        AND series_master_id = ''
+        AND is_exception = false
+    expect:
+      invalid_count: 0

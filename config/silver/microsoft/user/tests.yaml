@@ -1,0 +1,108 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.MICROSOFT_USER
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL or empty"
+    severity: error
+    query: |
+      SELECT
+        countIf(user_id IS NULL)                      AS null_user_id,
+        countIf(user_id = '')                         AS empty_user_id,
+        countIf(glynac_organization_id IS NULL)       AS null_org_id,
+        countIf(glynac_organization_id = '')          AS empty_org_id,
+        countIf(user_principal_name IS NULL)          AS null_upn,
+        countIf(user_principal_name = '')             AS empty_upn,
+        countIf(processing_date IS NULL)              AS null_processing_date
+      FROM microsoft_silver.user
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_user_id: 0
+      empty_user_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_upn: 0
+      empty_upn: 0
+      null_processing_date: 0
+
+  - name: user_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "user_id must be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT user_id, glynac_organization_id, processing_date, count() AS cnt
+      FROM microsoft_silver.user
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY user_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+
+  - name: all_users_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver users should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() AS orphaned_users
+      FROM microsoft_silver.user s
+      LEFT JOIN microsoft.user_raw b
+        ON s.user_id = b.user_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.user_id IS NULL
+    expect:
+      orphaned_users: 0
+
+  - name: user_principal_name_email_format
+    type: assertion
+    description: "user_principal_name must be a valid UPN format (contains @)"
+    severity: error
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND user_principal_name != ''
+        AND position(user_principal_name, '@') = 0
+    expect:
+      invalid_count: 0
+
+  - name: mail_email_format
+    type: assertion
+    description: "mail address must be valid email format when present"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND mail != ''
+        AND position(mail, '@') = 0
+    expect:
+      invalid_count: 0
+
+  - name: display_name_not_empty
+    type: assertion
+    description: "display_name should not be empty"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (display_name IS NULL OR display_name = '')
+    expect:
+      invalid_count: 0
+
+  - name: user_id_valid_guid_format
+    type: assertion
+    description: "user_id should look like a GUID (contains hyphens)"
+    severity: warning
+    query: |
+      SELECT count() AS invalid_count
+      FROM microsoft_silver.user
+      WHERE processing_date = toDate('{{ ds }}')
+        AND user_id != ''
+        AND position(user_id, '-') = 0
+    expect:
+      invalid_count: 0

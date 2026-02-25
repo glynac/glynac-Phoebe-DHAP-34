@@ -1,0 +1,206 @@
+version: "1.0"
+layer: silver
+database: microsoft_silver
+table: email
+
+metadata:
+  display_name: "Microsoft Outlook Emails (Cleaned)"
+  description: |
+    Cleaned and transformed Microsoft 365 Outlook Email data from Bronze layer.
+    Contains message details per user mailbox including sender, recipients,
+    subject, preview, folder classification, and read/draft status.
+  owner: data-engineering
+  domain: microsoft
+  tags:
+    - microsoft
+    - email
+    - outlook
+    - microsoft365
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - user_upn
+    - subject
+    - body_preview
+    - from_address
+    - to_recipients_json
+    - cc_recipients_json
+  update_frequency: daily
+  retention_days: 365
+  upstream_dependencies:
+    - microsoft.email_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - email_id
+  primary_key:
+    - email_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 365 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: user_upn_idx
+      expression: user_upn
+      type: set
+      granularity: 4
+    - name: from_address_idx
+      expression: from_address
+      type: set
+      granularity: 4
+    - name: folder_name_idx
+      expression: folder_name
+      type: set
+      granularity: 4
+    - name: importance_idx
+      expression: importance
+      type: set
+      granularity: 4
+
+columns:
+  - name: email_id
+    type: String
+    nullable: false
+    description: "Microsoft Graph API message ID (primary key)"
+    primary_key: true
+    example: "AAMkAGVm..."
+
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Glynac organization identifier for data isolation"
+    example: "org-xyz789"
+
+  # Mailbox owner
+  - name: user_upn
+    type: String
+    nullable: false
+    description: "User Principal Name of the mailbox owner"
+    pii: true
+    example: "john.doe@company.com"
+
+  # Email content
+  - name: subject
+    type: String
+    nullable: false
+    description: "Email subject line"
+    pii: true
+    example: "Q1 Planning Update"
+
+  - name: body_preview
+    type: String
+    nullable: false
+    description: "First 255 characters of the email body"
+    pii: true
+    example: "Please find attached the Q1 planning document..."
+
+  - name: importance
+    type: String
+    nullable: false
+    description: "Email importance level (low, normal, high)"
+    example: "normal"
+
+  - name: folder_name
+    type: String
+    nullable: false
+    description: "Mailbox folder the email is stored in"
+    example: "Inbox"
+
+  # Date/time fields
+  - name: received_date_time
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "When the email was received (UTC)"
+    example: "2025-01-15 09:30:00.000"
+
+  - name: sent_date_time
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "When the email was sent (UTC)"
+    example: "2025-01-15 09:28:00.000"
+
+  # Flags
+  - name: has_attachments
+    type: Bool
+    nullable: false
+    description: "Whether the email has file attachments"
+    example: false
+
+  - name: is_draft
+    type: Bool
+    nullable: false
+    description: "Whether the email is a draft"
+    example: false
+
+  - name: is_read
+    type: Bool
+    nullable: false
+    description: "Whether the email has been read by the recipient"
+    example: true
+
+  # Sender / recipients
+  - name: from_address
+    type: String
+    nullable: false
+    description: "Email address of the sender"
+    pii: true
+    example: "sender@external.com"
+
+  - name: to_recipients_json
+    type: String
+    nullable: false
+    description: "JSON array of To recipients (emailAddress objects from Graph API)"
+    pii: true
+    example: '[{"emailAddress":{"name":"Jane Doe","address":"jane@company.com"}}]'
+
+  - name: cc_recipients_json
+    type: String
+    nullable: false
+    description: "JSON array of CC recipients (emailAddress objects from Graph API)"
+    pii: true
+    example: '[]'
+
+  # Processing metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Processing date partition (YYYY-MM-DD)"
+    partition_key: true
+    example: "2025-01-20"
+
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when the record was processed by Glynac pipeline"
+    example: "2025-01-20 14:30:22.123"
+
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-20 15:30:45"
+
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source Bronze table"
+    system_column: true
+    example: "microsoft.email_raw"
+
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-20 14:30:22.123"

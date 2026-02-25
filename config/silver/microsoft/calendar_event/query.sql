@@ -1,134 +1,96 @@
--- Silver Layer - Microsoft Calendar Event Transformation
--- Extracts 40+ fields from entity_data JSON and applies transformations
--- Source: microsoft.calendar_event_raw
-
+-- Silver transformation for microsoft.calendar_event_raw
+-- Normalizes the entity_data JSON blob into typed columns
 SELECT
-    -- Core record identifiers
-    record_id,
-    glynac_organization_id,
-    tenant_id,
+    -- Record metadata from Bronze
+    trimBoth(COALESCE(record_id, ''))              AS record_id,
+    trimBoth(COALESCE(glynac_organization_id, '')) AS glynac_organization_id,
+    trimBoth(COALESCE(tenant_id, ''))              AS tenant_id,
     is_active,
 
-    -- Extract core event identifiers from JSON
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'event_id'), '')) as event_id,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'icalendar_uid'), '')) as icalendar_uid,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'calendar_id'), '')) as calendar_id,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'calendar_name'), '')) as calendar_name,
+    -- ── Core event identity (from entity_data JSON) ──────────────────────────
+    trimBoth(JSONExtractString(entity_data, 'event_id'))         AS event_id,
+    trimBoth(JSONExtractString(entity_data, 'icalendar_uid'))    AS icalendar_uid,
 
-    -- Calendar owner info
-    multiIf(
-        JSONExtractString(entity_data, 'calendar_owner_email') LIKE '%@%',
-        toLower(trimBoth(JSONExtractString(entity_data, 'calendar_owner_email'))),
-        ''
-    ) as calendar_owner_email,
-    JSONExtractInt(entity_data, 'calendar_owner_id') as calendar_owner_id,
+    -- Calendar reference
+    trimBoth(JSONExtractString(entity_data, 'calendar_id'))           AS calendar_id,
+    trimBoth(JSONExtractString(entity_data, 'calendar_name'))         AS calendar_name,
+    trimBoth(JSONExtractString(entity_data, 'calendar_owner_email'))  AS calendar_owner_email,
+    trimBoth(JSONExtractString(entity_data, 'calendar_owner_id'))     AS calendar_owner_id,
 
-    -- Event details
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'subject'), '')) as subject,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'body_preview'), '')) as body_preview,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'body_content_type'), '')) as body_content_type,
+    -- Event content
+    trimBoth(JSONExtractString(entity_data, 'subject'))          AS subject,
+    trimBoth(JSONExtractString(entity_data, 'body_preview'))     AS body_preview,
+    trimBoth(JSONExtractString(entity_data, 'body_content_type')) AS body_content_type,
 
-    -- DateTime fields - parse ISO8601 timestamps
-    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'start_datetime')) as start_datetime,
-    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'end_datetime')) as end_datetime,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'start_timezone'), '')) as start_timezone,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'end_timezone'), '')) as end_timezone,
+    -- Timing
+    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'start_datetime'))  AS start_datetime,
+    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'end_datetime'))    AS end_datetime,
+    trimBoth(JSONExtractString(entity_data, 'start_timezone'))   AS start_timezone,
+    trimBoth(JSONExtractString(entity_data, 'end_timezone'))     AS end_timezone,
+    JSONExtractBool(entity_data, 'is_all_day')                   AS is_all_day,
+    JSONExtractInt(entity_data, 'duration_minutes')              AS duration_minutes,
 
-    -- Event properties
-    COALESCE(JSONExtractBool(entity_data, 'is_all_day'), false) as is_all_day,
-    COALESCE(JSONExtractInt(entity_data, 'duration_minutes'), 0) as duration_minutes,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'location'), '')) as location,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'location_display_name'), '')) as location_display_name,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'location_type'), '')) as location_type,
+    -- Location
+    trimBoth(JSONExtractString(entity_data, 'location'))              AS location,
+    trimBoth(JSONExtractString(entity_data, 'location_display_name')) AS location_display_name,
+    trimBoth(JSONExtractString(entity_data, 'location_type'))         AS location_type,
 
-    -- Organizer information
-    multiIf(
-        JSONExtractString(entity_data, 'organizer_email') LIKE '%@%',
-        toLower(trimBoth(JSONExtractString(entity_data, 'organizer_email'))),
-        ''
-    ) as organizer_email,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'organizer_name'), '')) as organizer_name,
-    JSONExtractInt(entity_data, 'organizer_id') as organizer_id,
+    -- Organizer
+    trimBoth(JSONExtractString(entity_data, 'organizer_email')) AS organizer_email,
+    trimBoth(JSONExtractString(entity_data, 'organizer_name'))  AS organizer_name,
+    trimBoth(JSONExtractString(entity_data, 'organizer_id'))    AS organizer_id,
 
     -- Attendee counts
-    COALESCE(JSONExtractInt(entity_data, 'attendee_count'), 0) as attendee_count,
-    COALESCE(JSONExtractInt(entity_data, 'required_attendee_count'), 0) as required_attendee_count,
-    COALESCE(JSONExtractInt(entity_data, 'optional_attendee_count'), 0) as optional_attendee_count,
-    COALESCE(JSONExtractInt(entity_data, 'resource_count'), 0) as resource_count,
+    JSONExtractInt(entity_data, 'attendee_count')           AS attendee_count,
+    JSONExtractInt(entity_data, 'required_attendee_count')  AS required_attendee_count,
+    JSONExtractInt(entity_data, 'optional_attendee_count')  AS optional_attendee_count,
+    JSONExtractInt(entity_data, 'resource_count')           AS resource_count,
 
-    -- Meeting properties
-    COALESCE(JSONExtractBool(entity_data, 'is_online_meeting'), false) as is_online_meeting,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'online_meeting_provider'), '')) as online_meeting_provider,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'online_meeting_url'), '')) as online_meeting_url,
+    -- Online meeting
+    JSONExtractBool(entity_data, 'is_online_meeting')                  AS is_online_meeting,
+    trimBoth(JSONExtractString(entity_data, 'online_meeting_provider')) AS online_meeting_provider,
+    trimBoth(JSONExtractString(entity_data, 'online_meeting_url'))      AS online_meeting_url,
 
-    -- Event status and flags
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'show_as'), '')) as show_as,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'sensitivity'), '')) as sensitivity,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'importance'), '')) as importance,
-    COALESCE(JSONExtractBool(entity_data, 'is_cancelled'), false) as is_cancelled,
-    COALESCE(JSONExtractBool(entity_data, 'is_draft'), false) as is_draft,
-    COALESCE(JSONExtractBool(entity_data, 'is_organizer'), false) as is_organizer,
+    -- Status / flags
+    trimBoth(JSONExtractString(entity_data, 'show_as'))      AS show_as,
+    trimBoth(JSONExtractString(entity_data, 'sensitivity'))  AS sensitivity,
+    trimBoth(JSONExtractString(entity_data, 'importance'))   AS importance,
+    JSONExtractBool(entity_data, 'is_cancelled')             AS is_cancelled,
+    JSONExtractBool(entity_data, 'is_draft')                 AS is_draft,
+    JSONExtractBool(entity_data, 'is_organizer')             AS is_organizer,
+    JSONExtractBool(entity_data, 'is_recurring')             AS is_recurring,
+    trimBoth(JSONExtractString(entity_data, 'series_master_id')) AS series_master_id,
+    JSONExtractBool(entity_data, 'is_exception')             AS is_exception,
 
-    -- Recurring event properties
-    COALESCE(JSONExtractBool(entity_data, 'is_recurring'), false) as is_recurring,
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'series_master_id'), '')) as series_master_id,
-    COALESCE(JSONExtractBool(entity_data, 'is_exception'), false) as is_exception,
+    -- Attachments / categories
+    JSONExtractBool(entity_data, 'has_attachments')         AS has_attachments,
+    JSONExtractInt(entity_data, 'attachment_count')         AS attachment_count,
+    JSONExtractInt(entity_data, 'category_count')           AS category_count,
 
-    -- Attachments and categories
-    COALESCE(JSONExtractBool(entity_data, 'has_attachments'), false) as has_attachments,
-    COALESCE(JSONExtractInt(entity_data, 'attachment_count'), 0) as attachment_count,
-    COALESCE(JSONExtractInt(entity_data, 'category_count'), 0) as category_count,
+    -- Response / links
+    trimBoth(JSONExtractString(entity_data, 'response_status')) AS response_status,
+    trimBoth(JSONExtractString(entity_data, 'web_link'))         AS web_link,
 
-    -- Response status
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'response_status'), '')) as response_status,
-
-    -- Links and metadata
-    trimBoth(COALESCE(JSONExtractString(entity_data, 'web_link'), '')) as web_link,
-    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'created_datetime')) as created_datetime,
-    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'last_modified_datetime')) as last_modified_datetime,
-
-    -- Bronze metadata fields (transformed)
-    parseDateTime64BestEffortOrNull(pii_masked_at) as pii_masked_datetime,
-
-    -- Scan metadata
-    scan_id,
-    batch_offset,
-    batch_size,
-    batch_number,
-    parseDateTime64BestEffortOrNull(scan_timestamp) as scan_datetime,
-    batch_status,
-    message_type,
-
-    -- Pagination metadata
-    pagination_total,
-    pagination_offset,
-    pagination_limit,
-    pagination_has_more,
+    -- Audit timestamps from entity_data
+    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'created_datetime'))       AS created_datetime,
+    parseDateTime64BestEffortOrNull(JSONExtractString(entity_data, 'last_modified_datetime')) AS last_modified_datetime,
 
     -- Processing metadata
-    parseDateTime64BestEffortOrNull(processing_timestamp) as processing_datetime,
     processing_date,
+    parseDateTime64BestEffortOrNull(toString(processing_timestamp)) AS processing_timestamp,
 
-    -- System audit columns
-    now() as _loaded_at,
-    'microsoft.calendar_event_raw' as _source_table,
-    parseDateTime64BestEffortOrNull(processing_timestamp) as _source_timestamp
+    -- System columns
+    now()                             AS _loaded_at,
+    'microsoft.calendar_event_raw'    AS _source_table,
+    parseDateTime64BestEffortOrNull(toString(processing_timestamp)) AS _source_timestamp
 
 FROM microsoft.calendar_event_raw
-
--- Apply filters
-WHERE record_id IS NOT NULL
-  AND record_id != ''
+WHERE entity_data IS NOT NULL
+  AND isValidJSON(entity_data)
+  AND JSONExtractString(entity_data, 'event_id') != ''
   AND glynac_organization_id IS NOT NULL
   AND glynac_organization_id != ''
-  AND tenant_id IS NOT NULL
-  AND tenant_id != ''
-  AND entity_data IS NOT NULL
-  AND isValidJSON(entity_data) = 1
-
--- Deduplication: Keep latest record per record_id and processing_date
 QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY record_id, processing_date
-    ORDER BY parseDateTime64BestEffortOrNull(processing_timestamp) DESC,
-             parseDateTime64BestEffortOrNull(scan_timestamp) DESC
+    PARTITION BY JSONExtractString(entity_data, 'event_id'), glynac_organization_id, processing_date
+    ORDER BY parseDateTime64BestEffortOrNull(toString(processing_timestamp)) DESC
 ) = 1

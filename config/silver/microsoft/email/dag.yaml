@@ -1,8 +1,8 @@
 version: "1.0"
 
 dag:
-  # dag_id derived from folder path: silver_microsoft_calendar_event
-  description: "Normalize Microsoft Calendar Event entity_data JSON from Bronze to Silver layer"
+  # dag_id derived from folder path: silver_microsoft_email
+  description: "Transform and clean Microsoft Outlook Email data from Bronze to Silver layer"
   schedule_interval: "dataset"
   start_date: "2025-01-01"
   catchup: false
@@ -10,8 +10,9 @@ dag:
   tags:
     - silver
     - microsoft
-    - calendar_event
+    - email
     - microsoft365
+    - outlook
     - dataset-aware
   default_args:
     owner: data-engineering
@@ -29,7 +30,7 @@ dag:
 
 
 task:
-  task_id: "transform_microsoft_calendar_event"
+  task_id: "transform_microsoft_email"
   task_type: clickhouse_transformation
   incremental:
     enabled: true
