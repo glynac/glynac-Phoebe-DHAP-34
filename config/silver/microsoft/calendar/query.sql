@@ -1,5 +1,4 @@
 -- Silver transformation for microsoft.calendar_raw
---
 -- NOTE: event_id, user_upn, title and all event-content fields are NULL in the
 -- current Bronze data (upstream Flink pipeline has not populated them yet).
 -- We use scan_id as the unique identifier instead of event_id.
