@@ -1,0 +1,149 @@
+version: "1.0"
+layer: bronze
+database: microsoft
+view: user_raw
+
+metadata:
+  description: "Raw Microsoft 365 User data from MinIO"
+  owner: data-engineering
+  source_system: microsoft_graph_api
+  notes: "Azure AD / Microsoft 365 user profiles extracted via ms-user-data-stream Kafka topic, processed by consolidated Flink job"
+
+source:
+  type: minio
+  bucket: main-data
+  path: microsoft/user
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    # User core identity fields
+    - name: user_id
+      type: String
+      comment: "Microsoft Graph API user ID / Azure AD object ID (from records[].id)"
+
+    - name: user_principal_name
+      type: String
+      comment: "User Principal Name (UPN) - typically the corporate email address"
+
+    - name: display_name
+      type: String
+      comment: "Full display name of the user in Azure AD"
+
+    - name: mail
+      type: String
+      comment: "Primary SMTP email address of the user"
+
+    # Name components
+    - name: given_name
+      type: String
+      comment: "User's first/given name"
+
+    - name: surname
+      type: String
+      comment: "User's last name / surname"
+
+    # Contact information
+    - name: mobile_phone
+      type: String
+      comment: "User's mobile phone number"
+
+    # Scan / batch metadata (Glynac pipeline standard)
+    - name: entity_type
+      type: String
+      comment: "Entity type identifier (always 'user')"
+
+    - name: scan_id
+      type: String
+      comment: "Unique identifier for the scan batch"
+
+    - name: batch_offset
+      type: Int64
+      comment: "Offset of this batch in the overall scan"
+
+    - name: batch_size
+      type: Int32
+      comment: "Number of records in this batch"
+
+    - name: batch_number
+      type: Int32
+      comment: "Batch number in the scan sequence"
+
+    - name: scan_timestamp
+      type: String
+      comment: "Timestamp when the scan was initiated"
+
+    - name: batch_status
+      type: String
+      comment: "Status of the batch (completed, failed, etc.)"
+
+    - name: message_type
+      type: String
+      comment: "Type of Kafka message (batch_data, etc.)"
+
+    # Pagination metadata
+    - name: pagination_total
+      type: Int32
+      comment: "Total number of records across all pages"
+
+    - name: pagination_offset
+      type: Int32
+      comment: "Pagination offset"
+
+    - name: pagination_limit
+      type: Int32
+      comment: "Pagination limit per page"
+
+    - name: pagination_has_more
+      type: Bool
+      comment: "Whether more pages are available"
+
+    # Processing metadata (Glynac standard fields)
+    - name: processing_timestamp
+      type: String
+      comment: "When the record was processed by Glynac Flink pipeline"
+
+    - name: glynac_organization_id
+      type: String
+      comment: "Glynac organization identifier (partition key)"
+
+    - name: processing_date
+      type: Date
+      comment: "Processing date partition (YYYY-MM-DD)"
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{view}"
+      description: "Ensure the table has at least one record"
+
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{view}"
+      description: "Ensure data is no older than 7 days"
+
+    - name: user_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE user_id IS NULL OR user_id = ''"
+      threshold: 0
+      description: "Ensure user_id is never NULL or empty"
+
+    - name: user_principal_name_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE user_principal_name IS NULL OR user_principal_name = ''"
+      threshold: 0
+      description: "Ensure user_principal_name is never NULL or empty"
+
+    - name: org_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE glynac_organization_id IS NULL"
+      threshold: 0
+      description: "Ensure glynac_organization_id is never NULL"

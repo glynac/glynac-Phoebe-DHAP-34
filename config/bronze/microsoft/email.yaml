@@ -1,0 +1,178 @@
+version: "1.0"
+layer: bronze
+database: microsoft
+view: email_raw
+
+metadata:
+  description: "Raw Microsoft Outlook Email data from MinIO"
+  owner: data-engineering
+  source_system: microsoft_graph_api
+  notes: "Outlook emails extracted via ms-outlook-data-stream Kafka topic, processed by consolidated Flink job"
+
+source:
+  type: minio
+  bucket: main-data
+  path: microsoft/email
+  format: orc
+  partitions:
+    - name: glynac_organization_id
+      type: String
+    - name: processing_date
+      type: Date
+
+clickhouse:
+  engine: S3
+  settings:
+    input_format_orc_allow_missing_columns: 1
+
+schema:
+  mode: manual
+  columns:
+    # Email core fields
+    - name: email_id
+      type: String
+      comment: "Microsoft Graph API message ID (from records[].id)"
+
+    - name: user_upn
+      type: String
+      comment: "User Principal Name (email address of the mailbox owner)"
+
+    - name: subject
+      type: String
+      comment: "Email subject line"
+
+    - name: body_preview
+      type: String
+      comment: "First 255 characters of the email body"
+
+    - name: importance
+      type: String
+      comment: "Email importance level (low, normal, high)"
+
+    # Date/time fields
+    - name: received_date_time
+      type: String
+      comment: "When the email was received (ISO 8601 format)"
+
+    - name: sent_date_time
+      type: String
+      comment: "When the email was sent (ISO 8601 format)"
+
+    # Email metadata
+    - name: folder_name
+      type: String
+      comment: "Mailbox folder the email is in (Inbox, Sent, etc.)"
+
+    - name: has_attachments
+      type: Bool
+      comment: "Whether the email has file attachments"
+
+    - name: is_draft
+      type: Bool
+      comment: "Whether the email is a draft"
+
+    - name: is_read
+      type: Bool
+      comment: "Whether the email has been read"
+
+    # Sender / recipients
+    - name: from_address
+      type: String
+      comment: "Email address of the sender"
+
+    - name: to_recipients_json
+      type: String
+      comment: "JSON array of To recipients (emailAddress objects)"
+
+    - name: cc_recipients_json
+      type: String
+      comment: "JSON array of CC recipients (emailAddress objects)"
+
+    # Scan / batch metadata (Glynac pipeline standard)
+    - name: entity_type
+      type: String
+      comment: "Entity type identifier (always 'email')"
+
+    - name: scan_id
+      type: String
+      comment: "Unique identifier for the scan batch"
+
+    - name: batch_offset
+      type: Int64
+      comment: "Offset of this batch in the overall scan"
+
+    - name: batch_size
+      type: Int32
+      comment: "Number of records in this batch"
+
+    - name: batch_number
+      type: Int32
+      comment: "Batch number in the scan sequence"
+
+    - name: scan_timestamp
+      type: String
+      comment: "Timestamp when the scan was initiated"
+
+    - name: batch_status
+      type: String
+      comment: "Status of the batch (completed, failed, etc.)"
+
+    - name: message_type
+      type: String
+      comment: "Type of Kafka message (batch_data, etc.)"
+
+    # Pagination metadata
+    - name: pagination_total
+      type: Int32
+      comment: "Total number of records across all pages"
+
+    - name: pagination_offset
+      type: Int32
+      comment: "Pagination offset"
+
+    - name: pagination_limit
+      type: Int32
+      comment: "Pagination limit per page"
+
+    - name: pagination_has_more
+      type: Bool
+      comment: "Whether more pages are available"
+
+    # Processing metadata (Glynac standard fields)
+    - name: processing_timestamp
+      type: String
+      comment: "When the record was processed by Glynac Flink pipeline"
+
+    - name: glynac_organization_id
+      type: String
+      comment: "Glynac organization identifier (partition key)"
+
+    - name: processing_date
+      type: Date
+      comment: "Processing date partition (YYYY-MM-DD)"
+
+validation:
+  enabled: true
+  checks:
+    - name: not_empty
+      query: "SELECT count() > 0 FROM {database}.{view}"
+      description: "Ensure the table has at least one record"
+
+    - name: has_recent_data
+      query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{view}"
+      description: "Ensure data is no older than 7 days"
+
+    - name: email_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE email_id IS NULL OR email_id = ''"
+      threshold: 0
+      description: "Ensure email_id is never NULL or empty"
+
+    - name: user_upn_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE user_upn IS NULL OR user_upn = ''"
+      threshold: 0
+      description: "Ensure user_upn is never NULL or empty"
+
+    - name: org_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE glynac_organization_id IS NULL"
+      threshold: 0
+      description: "Ensure glynac_organization_id is never NULL"
