@@ -25,7 +25,7 @@ metadata:
     - organizer_email
     - organizer_name
     - online_meeting_url
-    - web_link
+    - event_web_link
   update_frequency: daily
   retention_days: 365
   upstream_dependencies:
@@ -40,9 +40,9 @@ clickhouse:
   order_by:
     - processing_date
     - glynac_organization_id
-    - event_id
+    - event_web_link
   primary_key:
-    - event_id
+    - event_web_link
     - glynac_organization_id
   ttl: "processing_date + INTERVAL 365 DAY"
   settings:
@@ -90,6 +90,15 @@ columns:
     nullable: false
     description: "Whether the Bronze record is active"
     example: true
+
+  # Unique event identifier (primary key — event_id in source JSON is always empty)
+  - name: event_web_link
+    type: String
+    nullable: false
+    description: "Outlook web URL for this event — used as unique event identifier since event_id in entity_data is empty"
+    primary_key: true
+    pii: true
+    example: "https://outlook.office365.com/owa/?itemid=AAMkAGYxNmE1MWI2..."
 
   # Core event identity
   - name: event_id
@@ -352,13 +361,6 @@ columns:
     nullable: false
     description: "Response status of the calendar owner (accepted, declined, tentativelyAccepted, notResponded)"
     example: "accepted"
-
-  - name: web_link
-    type: String
-    nullable: false
-    description: "Web URL to open the event in Outlook"
-    pii: true
-    example: "https://outlook.office365.com/owa/?itemid=..."
 
   # Audit timestamps
   - name: created_datetime
