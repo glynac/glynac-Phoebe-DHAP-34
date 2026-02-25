@@ -55,16 +55,19 @@ tests:
     expect:
       orphaned_records: 0
 
-  - name: has_data_for_partition
+  - name: no_empty_partition
     type: assertion
     description: "Silver calendar must have at least one record per partition"
     severity: error
     query: |
-      SELECT count() AS total_records
-      FROM microsoft_silver.calendar
-      WHERE processing_date = toDate('{{ ds }}')
-    expect_min:
-      total_records: 1
+      SELECT countIf(total = 0) AS empty_partitions
+      FROM (
+        SELECT count() AS total
+        FROM microsoft_silver.calendar
+        WHERE processing_date = toDate('{{ ds }}')
+      )
+    expect:
+      empty_partitions: 0
 
   - name: start_time_before_end_time
     type: assertion

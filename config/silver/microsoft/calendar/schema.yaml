@@ -69,13 +69,7 @@ columns:
     description: "Glynac organization identifier for data isolation"
     example: "org-xyz789"
 
-  # Tenant / user (and event_id — currently NULL in source, kept for future)
-  - name: event_id
-    type: String
-    nullable: false
-    description: "Microsoft Graph API event ID — NULL in current source data, will populate when upstream pipeline is fixed"
-    example: ""
-
+  # Tenant / user
   - name: tenant_id
     type: String
     nullable: false
@@ -88,6 +82,13 @@ columns:
     description: "User Principal Name — mailbox owner of this event"
     pii: true
     example: "john.doe@company.com"
+
+  # Core event identifier (NULL in current source; populated when upstream pipeline is fixed)
+  - name: event_id
+    type: String
+    nullable: false
+    description: "Microsoft Graph API event ID — NULL in current source data, will populate when upstream pipeline is fixed"
+    example: ""
 
   # Organizer
   - name: organizer_name
