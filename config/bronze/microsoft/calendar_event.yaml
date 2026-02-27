@@ -4,10 +4,10 @@ database: microsoft
 view: calendar_event_raw
 
 metadata:
-  description: "Raw Microsoft Calendar Event data from MinIO with detailed event information"
+  description: "Raw Microsoft Calendar Event data from MinIO — flat expanded schema (event fields as individual columns)"
   owner: data-engineering
   source_system: microsoft_graph_api
-  notes: "Contains JSON entity_data field with detailed event properties"
+  notes: "Flink pipeline writes individual event fields as columns (not a single entity_data JSON blob)"
 
 source:
   type: minio
@@ -28,29 +28,163 @@ clickhouse:
 schema:
   mode: manual
   columns:
-    # Record identification
-    - name: record_id
+    # Core event identity
+    - name: event_id
       type: String
-      comment: "Unique record identifier"
+      comment: "Microsoft Graph event ID"
 
-    - name: tenant_id
+    - name: i_cal_uid
       type: String
-      comment: "Microsoft 365 tenant ID"
+      comment: "iCalendar unique identifier for the event"
 
-    - name: is_active
+    - name: calendar_id
+      type: String
+      comment: "ID of the calendar containing this event"
+
+    - name: calendar_name
+      type: String
+      comment: "Display name of the calendar"
+
+    - name: calendar_owner_email
+      type: String
+      comment: "Email of the calendar owner"
+
+    - name: user_id
+      type: String
+      comment: "Microsoft user ID (UPN) who owns the calendar"
+
+    # Event content
+    - name: subject
+      type: String
+      comment: "Subject/title of the calendar event"
+
+    - name: body_preview
+      type: String
+      comment: "Short text preview of the event body"
+
+    # JSON-encoded detail fields
+    - name: location_json
+      type: String
+      comment: "JSON: event location details (displayName, locationType, address)"
+
+    - name: organizer_json
+      type: String
+      comment: "JSON: organizer emailAddress object"
+
+    - name: attendees_json
+      type: String
+      comment: "JSON array: attendees with emailAddress, type, status"
+
+    - name: body_json
+      type: String
+      comment: "JSON: event body (contentType, content)"
+
+    - name: start_json
+      type: String
+      comment: "JSON: event start (dateTime, timeZone)"
+
+    - name: end_json
+      type: String
+      comment: "JSON: event end (dateTime, timeZone)"
+
+    # Timestamps
+    - name: created_date_time
+      type: String
+      comment: "ISO 8601 datetime when the event was created"
+
+    - name: last_modified_date_time
+      type: String
+      comment: "ISO 8601 datetime when the event was last modified"
+
+    - name: original_start_time_zone
+      type: String
+      comment: "Time zone of the original start time"
+
+    - name: original_end_time_zone
+      type: String
+      comment: "Time zone of the original end time"
+
+    # Boolean flags
+    - name: is_all_day
       type: Bool
-      comment: "Whether the record is active"
+      comment: "True if the event lasts all day"
 
+    - name: is_cancelled
+      type: Bool
+      comment: "True if the event has been cancelled"
+
+    - name: is_draft
+      type: Bool
+      comment: "True if the event is a draft"
+
+    - name: is_organizer
+      type: Bool
+      comment: "True if the calendar owner is the organizer"
+
+    - name: is_recurring
+      type: Bool
+      comment: "True if the event is part of a recurring series"
+
+    - name: is_online_meeting
+      type: Bool
+      comment: "True if the event is an online meeting"
+
+    - name: has_attachments
+      type: Bool
+      comment: "True if the event has file attachments"
+
+    # Categorical fields
+    - name: importance
+      type: String
+      comment: "Importance level: low, normal, high"
+
+    - name: sensitivity
+      type: String
+      comment: "Sensitivity level: normal, personal, private, confidential"
+
+    - name: show_as
+      type: String
+      comment: "Status shown in calendar: free, tentative, busy, oof, workingElsewhere, unknown"
+
+    # Online meeting
+    - name: online_meeting_provider
+      type: String
+      comment: "Online meeting provider (e.g. zoom, teamsForBusiness)"
+
+    - name: online_meeting_url
+      type: String
+      comment: "Join URL for the online meeting"
+
+    - name: web_link
+      type: String
+      comment: "Web link to open the event in Outlook"
+
+    # More JSON detail fields
+    - name: attachments_json
+      type: String
+      comment: "JSON array: file attachments (id, name, contentType, size)"
+
+    - name: response_status_json
+      type: String
+      comment: "JSON: response status of the calendar owner (response, time)"
+
+    - name: categories_json
+      type: String
+      comment: "JSON array: color-category labels applied to the event"
+
+    - name: recurrence_json
+      type: String
+      comment: "JSON: recurrence pattern and range (null if not recurring)"
+
+    # PII / scan metadata
     - name: pii_masked_at
       type: String
-      comment: "Timestamp when PII was masked"
+      comment: "Timestamp when PII fields were masked"
 
-    # Core event data (JSON)
-    - name: entity_data
+    - name: entity_type
       type: String
-      comment: "JSON string containing full event details from Microsoft Graph API"
+      comment: "Entity type label written by Flink (e.g. calendar_event)"
 
-    # Scan metadata
     - name: scan_id
       type: String
       comment: "Unique identifier for the scan batch"
@@ -120,15 +254,10 @@ validation:
       query: "SELECT max(processing_date) >= today() - 7 FROM {database}.{view}"
       description: "Ensure data is no older than 7 days"
 
-    - name: entity_data_not_null
-      query: "SELECT count() FROM {database}.{view} WHERE entity_data IS NULL"
+    - name: event_id_not_null
+      query: "SELECT count() FROM {database}.{view} WHERE event_id IS NULL"
       threshold: 0
-      description: "Ensure entity_data is never NULL"
-
-    - name: entity_data_valid_json
-      query: "SELECT count() FROM {database}.{view} WHERE NOT isValidJSON(entity_data)"
-      threshold: 0
-      description: "Ensure entity_data contains valid JSON"
+      description: "Ensure event_id is never NULL"
 
     - name: org_id_not_null
       query: "SELECT count() FROM {database}.{view} WHERE glynac_organization_id IS NULL"
