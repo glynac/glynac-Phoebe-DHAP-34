@@ -82,5 +82,3 @@ QUALIFY ROW_NUMBER() OVER (
         glynac_organization_id
     ORDER BY processing_date DESC
 ) = 1
-
-SETTINGS optimize_move_to_prewhere = 0
