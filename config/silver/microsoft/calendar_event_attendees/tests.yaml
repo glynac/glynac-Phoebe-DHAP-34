@@ -1,0 +1,233 @@
+version: "1.0"
+
+# =============================================================================
+# tests.yaml — microsoft_silver.calendar_event_attendees
+# =============================================================================
+# These tests validate the normalized attendee Silver table.
+# Grain: one row per (event_id, attendee_email, glynac_organization_id)
+#
+# Test types supported:
+#   schema         — column existence and type
+#   uniqueness     — no duplicate rows on key columns
+#   not_null       — column must never be NULL
+#   assertion      — custom SQL returning a count (threshold: 0 means zero bad rows)
+#   completeness   — % of non-null values must exceed a threshold
+#   freshness      — max(processing_date) must be recent
+# =============================================================================
+
+table:
+  database: microsoft_silver
+  name: calendar_event_attendees
+
+tests:
+
+  # ── Schema tests ─────────────────────────────────────────────────────────────
+  - name: schema_event_id_exists
+    type: schema
+    column: event_id
+    expected_type: "Nullable(String)"
+    description: "event_id column must exist with Nullable(String) type"
+
+  - name: schema_attendee_email_exists
+    type: schema
+    column: attendee_email
+    expected_type: "Nullable(String)"
+    description: "attendee_email column must exist"
+
+  - name: schema_attendee_domain_exists
+    type: schema
+    column: attendee_domain
+    expected_type: "LowCardinality(Nullable(String))"
+    description: "attendee_domain column must exist with LowCardinality type"
+
+  - name: schema_response_status_exists
+    type: schema
+    column: response_status
+    expected_type: "LowCardinality(Nullable(String))"
+    description: "response_status column must exist"
+
+  - name: schema_processing_date_exists
+    type: schema
+    column: processing_date
+    expected_type: "Date"
+    description: "processing_date partition column must be Date type"
+
+  - name: schema_glynac_org_id_exists
+    type: schema
+    column: glynac_organization_id
+    expected_type: "LowCardinality(String)"
+    description: "glynac_organization_id partition column must be LowCardinality(String)"
+
+  # ── Not-null tests ───────────────────────────────────────────────────────────
+  - name: event_id_not_null
+    type: not_null
+    column: event_id
+    description: "Every attendee row must have a parent event_id"
+
+  - name: attendee_email_not_null
+    type: not_null
+    column: attendee_email
+    description: "Every attendee row must have an email address (filter applied in query.sql)"
+
+  - name: org_id_not_null
+    type: not_null
+    column: glynac_organization_id
+    description: "glynac_organization_id must never be NULL"
+
+  - name: processing_date_not_null
+    type: not_null
+    column: processing_date
+    description: "processing_date must never be NULL"
+
+  # ── Uniqueness test ───────────────────────────────────────────────────────────
+  - name: unique_event_attendee_per_org
+    type: uniqueness
+    columns:
+      - event_id
+      - attendee_email
+      - glynac_organization_id
+    description: >
+      The combination (event_id, attendee_email, glynac_organization_id) must be unique.
+      The QUALIFY ROW_NUMBER() in query.sql deduplicates by taking the latest processing_date.
+    query: |
+      SELECT count() FROM (
+        SELECT
+          event_id,
+          attendee_email,
+          glynac_organization_id,
+          count() AS cnt
+        FROM {database}.{table}
+        GROUP BY event_id, attendee_email, glynac_organization_id
+        HAVING cnt > 1
+      )
+    threshold: 0
+
+  # ── Assertion tests ──────────────────────────────────────────────────────────
+  - name: no_empty_attendee_email
+    type: assertion
+    description: "attendee_email must never be empty string (query.sql WHERE clause ensures this)"
+    query: |
+      SELECT count() FROM {database}.{table}
+      WHERE attendee_email = '' OR trim(attendee_email) = ''
+    threshold: 0
+
+  - name: no_invalid_attendee_domain
+    type: assertion
+    description: "attendee_domain must contain a dot (valid domain format)"
+    query: |
+      SELECT count() FROM {database}.{table}
+      WHERE attendee_email != ''
+        AND attendee_domain != ''
+        AND attendee_domain IS NOT NULL
+        AND position(attendee_domain, '.') = 0
+    threshold: 0
+
+  - name: valid_response_status_values
+    type: assertion
+    description: >
+      response_status must be one of the known Microsoft Graph RSVP values:
+      none | accepted | declined | notresponded | tentativelyaccepted | organizer
+    query: |
+      SELECT count() FROM {database}.{table}
+      WHERE response_status IS NOT NULL
+        AND response_status NOT IN (
+          'none', 'accepted', 'declined',
+          'notresponded', 'tentativelyaccepted', 'organizer', ''
+        )
+    threshold: 0
+
+  - name: valid_attendee_type_values
+    type: assertion
+    description: "attendee_type must be required | optional | resource"
+    query: |
+      SELECT count() FROM {database}.{table}
+      WHERE attendee_type IS NOT NULL
+        AND attendee_type NOT IN ('required', 'optional', 'resource', '')
+    threshold: 0
+
+  - name: no_self_attendee_only_events
+    type: assertion
+    description: >
+      Sanity check: table should not consist entirely of events where attendee_email
+      matches calendar_owner_email (would indicate normalization error returning only
+      the organizer row).
+      Allow up to 80% self-attendance (organizer is always an attendee).
+    query: |
+      SELECT countIf(attendee_email = calendar_owner_email) * 100.0 / count() > 80
+      FROM {database}.{table}
+      WHERE calendar_owner_email IS NOT NULL AND calendar_owner_email != ''
+    threshold: 0
+    note: "Returns 1 (true) if >80% rows are self-attendees — would indicate a bug"
+
+  # ── Completeness tests ───────────────────────────────────────────────────────
+  - name: attendee_name_completeness
+    type: completeness
+    column: attendee_name
+    min_completeness_pct: 70
+    description: "At least 70% of attendee rows should have a display name"
+    query: |
+      SELECT countIf(attendee_name IS NOT NULL AND attendee_name != '') * 100.0 / count()
+      FROM {database}.{table}
+
+  - name: response_status_completeness
+    type: completeness
+    column: response_status
+    min_completeness_pct: 90
+    description: "At least 90% of attendee rows should have a response_status value"
+    query: |
+      SELECT countIf(response_status IS NOT NULL AND response_status != '') * 100.0 / count()
+      FROM {database}.{table}
+
+  - name: attendee_domain_completeness
+    type: completeness
+    column: attendee_domain
+    min_completeness_pct: 90
+    description: "At least 90% of attendee rows should have a parseable domain"
+    query: |
+      SELECT countIf(attendee_domain IS NOT NULL AND attendee_domain != '') * 100.0 / count()
+      FROM {database}.{table}
+
+  # ── Freshness test ───────────────────────────────────────────────────────────
+  - name: data_freshness
+    type: freshness
+    description: "Silver attendees data should be no older than 3 days"
+    query: |
+      SELECT max(processing_date) >= today() - 3
+      FROM {database}.{table}
+    expected: true
+
+  # ── Row count sanity ─────────────────────────────────────────────────────────
+  - name: has_data
+    type: assertion
+    description: "Table must have at least 1 row"
+    query: |
+      SELECT count() FROM {database}.{table}
+    threshold: 1
+    comparison: ">="
+
+  - name: attendees_exceed_events
+    type: assertion
+    description: >
+      There should be more attendee rows than distinct events
+      (each event has at least 1 attendee → ratio >= 1)
+    query: |
+      SELECT countDistinct(event_id) > 0 AND count() >= countDistinct(event_id)
+      FROM {database}.{table}
+    expected: true
+
+  # ── Cross-table consistency ───────────────────────────────────────────────────
+  - name: all_events_exist_in_calendar_event_silver
+    type: assertion
+    description: >
+      Every event_id in calendar_event_attendees should also exist in
+      microsoft_silver.calendar_event (ensures we haven't orphaned attendee rows).
+      Requires microsoft_silver.calendar_event to exist.
+    query: |
+      SELECT count() FROM {database}.{table} AS a
+      WHERE NOT EXISTS (
+        SELECT 1 FROM microsoft_silver.calendar_event AS e
+        WHERE e.event_id = a.event_id
+          AND e.glynac_organization_id = a.glynac_organization_id
+      )
+    threshold: 0
+    skip_if_missing_table: microsoft_silver.calendar_event

@@ -1,0 +1,111 @@
+version: "1.0"
+mode: manual
+
+# ── Table identity ────────────────────────────────────────────────────────────
+database: microsoft_silver
+table: calendar_event_attendees
+
+metadata:
+  description: >
+    Normalized attendee records from Microsoft Calendar events.
+    Each row represents one attendee of one calendar event.
+    Source: attendees_json array in microsoft.calendar_event_raw, exploded
+    with arrayJoin(JSONExtractArrayRaw(...)).
+  owner: data-engineering
+  source_table: microsoft.calendar_event_raw
+  grain: one row per (event_id, attendee_email, glynac_organization_id)
+
+# ── Column definitions ────────────────────────────────────────────────────────
+# Rules applied by generate_silver_s3_table_ddl:
+#   - nullable: true  (default) → type wrapped in Nullable(...)
+#     UNLESS type already starts with Nullable( or LowCardinality(
+#   - glynac_organization_id and processing_date are placed FIRST in the DDL
+#     (partition columns) regardless of their position here
+#
+columns:
+  # ── Partition columns ───────────────────────────────────────────────────────
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    pii: false
+    comment: "Glynac organization identifier — Hive partition key"
+
+  - name: processing_date
+    type: Date
+    nullable: false
+    pii: false
+    comment: "Date partition from Bronze source scan"
+
+  # ── Event context ────────────────────────────────────────────────────────────
+  - name: event_id
+    type: String
+    nullable: false
+    pii: false
+    comment: "Microsoft Graph calendar event ID (parent event)"
+
+  - name: calendar_id
+    type: String
+    nullable: true
+    pii: false
+    comment: "Microsoft Graph calendar ID that owns this event"
+
+  - name: calendar_owner_email
+    type: LowCardinality(String)
+    nullable: true
+    pii: true
+    pii_type: email
+    comment: "Email address of the calendar owner (from calendar_owner_email in Bronze)"
+
+  - name: calendar_owner_upn
+    type: LowCardinality(String)
+    nullable: true
+    pii: true
+    pii_type: email
+    comment: "User Principal Name (UPN) of the calendar owner (from user_id in Bronze, lowercased)"
+
+  - name: subject
+    type: String
+    nullable: true
+    pii: true
+    pii_type: free_text
+    comment: "Calendar event subject / title"
+
+  # ── Attendee identity ────────────────────────────────────────────────────────
+  - name: attendee_type
+    type: LowCardinality(String)
+    nullable: true
+    pii: false
+    comment: "Attendee type from Graph API: required | optional | resource"
+
+  - name: attendee_name
+    type: String
+    nullable: true
+    pii: true
+    pii_type: name
+    comment: "Display name of the attendee (trimmed, original casing preserved)"
+
+  - name: attendee_email
+    type: String
+    nullable: false
+    pii: true
+    pii_type: email
+    comment: "Email address of the attendee (lowercased, trimmed)"
+
+  - name: attendee_domain
+    type: LowCardinality(String)
+    nullable: true
+    pii: false
+    comment: "Email domain extracted from attendee_email (e.g. 'glynac.ai', 'acumen-strategy.com')"
+
+  # ── RSVP / response ──────────────────────────────────────────────────────────
+  - name: response_status
+    type: LowCardinality(String)
+    nullable: true
+    pii: false
+    comment: "Attendee RSVP response: none | accepted | declined | notresponded | tentativelyaccepted | organizer"
+
+  - name: response_time
+    type: String
+    nullable: true
+    pii: false
+    comment: "ISO 8601 datetime string when the attendee responded (e.g. '2026-02-25T10:00:00Z'). '0001-01-01T00:00:00Z' means no response."

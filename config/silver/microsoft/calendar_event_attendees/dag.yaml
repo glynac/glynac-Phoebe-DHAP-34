@@ -1,0 +1,82 @@
+version: "1.0"
+
+# ── DAG-level settings ─────────────────────────────────────────────────────────
+dag:
+  # dag_id is auto-derived from folder path:
+  # silver/microsoft/calendar_event_attendees → silver_microsoft_calendar_event_attendees
+  description: >
+    Normalize Microsoft Calendar Event attendees from Bronze to Silver.
+    Each calendar event's attendees_json array is exploded into individual rows
+    (one row per attendee per event) with RSVP response status.
+
+  schedule_interval: "dataset"
+  # Triggers automatically when microsoft.calendar_event_raw dataset is updated
+  # (i.e., when the Bronze microsoft calendar_event pipeline completes)
+
+  start_date: "2025-01-01"
+  catchup: false
+  max_active_runs: 1      # prevent overlapping runs — important for MinIO writes
+
+  tags:
+    - silver
+    - microsoft
+    - calendar_event_attendees
+    - microsoft365
+    - calendar
+    - attendees
+    - normalization
+    - dataset-aware
+
+  default_args:
+    owner: data-engineering
+    retries: 3
+    retry_delay_minutes: 5
+    execution_timeout_minutes: 90       # arrayJoin normalization can be heavier than simple SELECTs
+    email_on_failure: false
+    email_on_retry: false
+
+  sla:
+    enabled: true
+    duration_minutes: 240               # allow up to 4 hours for full lookback run
+
+  concurrency: 1
+  max_active_tasks_per_dag: 1
+
+# ── Task-level settings ────────────────────────────────────────────────────────
+task:
+  task_id: "transform_microsoft_calendar_event_attendees"
+  task_type: clickhouse_transformation
+
+  incremental:
+    enabled: true
+    strategy: partition_based
+    partition_column: processing_date   # column used to detect Bronze date partitions
+    lookback_days: 90                   # look back 90 days from execution_date
+
+  execution:
+    mode: insert_overwrite
+    batch_size: 100000
+    max_insert_threads: 4
+
+# ── Dependency settings ────────────────────────────────────────────────────────
+dependencies:
+  auto_detect: true
+  # Scans query.sql → finds "FROM microsoft.calendar_event_raw"
+  # Registers microsoft.calendar_event_raw as upstream dataset trigger
+
+  check_strategy:
+    - type: table_exists
+      description: "Check Bronze calendar_event_raw table exists"
+      fail_on_missing: true
+
+    - type: has_data
+      description: "Check Bronze has calendar_event data for this partition"
+      fail_on_empty: true
+      partition_column: processing_date
+
+    - type: freshness
+      description: "Check Bronze calendar_event data is recent (< 4 hours)"
+      max_age_hours: 4
+      fail_on_stale: false              # warn only — event data can be slow to arrive
+
+  mode: dataset_aware
