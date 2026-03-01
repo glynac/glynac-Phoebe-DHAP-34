@@ -1,2 +1,0 @@
--- Placeholder DDL - update after CSV download
--- CREATE TABLE IF NOT EXISTS public.tbd_dataset (...);

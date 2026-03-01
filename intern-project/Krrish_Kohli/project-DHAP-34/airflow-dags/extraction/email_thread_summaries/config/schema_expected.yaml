@@ -1,0 +1,11 @@
+table: public.email_thread_summaries
+primary_key: [thread_id]
+
+columns:
+  - name: thread_id
+    type: integer
+    nullable: false
+
+  - name: summary
+    type: text
+    nullable: false
