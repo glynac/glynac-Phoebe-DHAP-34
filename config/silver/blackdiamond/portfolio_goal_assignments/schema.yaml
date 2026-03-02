@@ -1,0 +1,106 @@
+# schema.yaml
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: portfolio_goal_assignments
+
+metadata:
+  display_name: "Black Diamond Portfolio Goal Assignments (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond portfolio goal assignment records from Bronze layer.
+    Links portfolios to financial goals with ordinal ranking for goal prioritization.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - portfolio_goal_assignments
+    - financial
+    - silver
+  data_classification: confidential
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.portfolio_goal_assignments_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - portfolio_id
+    - goal_id
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - portfolio_id
+    - goal_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: portfolio_id_idx
+      expression: portfolio_id
+      type: bloom_filter
+      granularity: 1
+    - name: goal_ordinal_idx
+      expression: goal_ordinal
+      type: minmax
+      granularity: 4
+
+columns:
+  - name: portfolio_id
+    type: String
+    nullable: false
+    description: "Portfolio identifier"
+    example: "PORT-12345"
+    
+  - name: goal_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Financial goal identifier"
+    example: 5001
+    
+  - name: goal_ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Goal priority/order within portfolio"
+    example: 1
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.portfolio_goal_assignments_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
