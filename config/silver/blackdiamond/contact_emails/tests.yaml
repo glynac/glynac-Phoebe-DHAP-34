@@ -1,0 +1,59 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(contact_id IS NULL) as null_contact_id,
+        countIf(contact_id = '') as empty_contact_id,
+        countIf(email IS NULL) as null_email,
+        countIf(email = '') as empty_email,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.contact_emails
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_contact_id: 0
+      empty_contact_id: 0
+      null_email: 0
+      empty_email: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: contact_email_unique_per_partition
+    type: uniqueness
+    description: "Contact email should be unique per contact_id, email, and processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT glynac_organization_id, contact_id, email, processing_date, count() as cnt
+      FROM blackdiamond_silver.contact_emails
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY glynac_organization_id, contact_id, email, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contact_emails_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contact emails should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_records
+      FROM blackdiamond_silver.contact_emails s
+      LEFT JOIN blackdiamond.contact_emails_raw b
+        ON s.contact_id = b.contact_id
+        AND s.email = b.email
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.contact_id IS NULL
+    expect:
+      orphaned_records: 0
+  
+  - name: valid_email_format
+    type: assertion
+    description: "Email addresses should contain @ symb

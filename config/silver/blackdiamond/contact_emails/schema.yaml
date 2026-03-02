@@ -1,0 +1,106 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: contact_emails
+
+metadata:
+  display_name: "Black Diamond Contact Emails (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond contact email records from Bronze layer.
+    Contains email addresses for contacts with labels and deduplication.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - contact_emails
+    - pii
+    - silver
+    - dataset-aware
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - contact_id
+    - email
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.contact_emails_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - contact_id
+    - email
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - contact_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: email_idx
+      expression: email
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: contact_id
+    type: String
+    nullable: false
+    description: "Contact identifier"
+    pii: true
+    example: "CNT-12345"
+    
+  - name: label
+    type: String
+    nullable: false
+    description: "Email label/type (e.g., Personal, Work, Primary)"
+    example: "Work"
+    
+  - name: email
+    type: String
+    nullable: false
+    description: "Email address"
+    pii: true
+    example: "john.doe@example.com"
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.contact_emails_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
