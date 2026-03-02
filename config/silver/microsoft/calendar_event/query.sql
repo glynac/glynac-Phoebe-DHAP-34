@@ -10,7 +10,6 @@
 --   location_json          → {"displayName": "...", "locationType": "..."}
 --   response_status_json   → {"response": "...", "time": "..."}
 --   attendees_json         → [{...}, ...] (exploded separately in calendar_event_attendees)
---
 -- Booleans (is_all_day, is_cancelled, etc.) are Nullable(Bool) → COALESCE to false.
 -- Duration is computed from start/end datetimes.
 -- SETTINGS optimize_move_to_prewhere = 0 is added by the generator at the outer level.
