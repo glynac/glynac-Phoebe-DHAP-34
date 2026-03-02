@@ -1,0 +1,90 @@
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.3
+  user: "${AIRFLOW_UID:-50000}:0"
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+
+    # Airflow metadata DB (internal)
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-db/airflow
+
+    # Install Python deps at container start (simple dev setup)
+    _PIP_ADDITIONAL_REQUIREMENTS: "-r /opt/airflow/requirements.txt"
+
+    # Target Postgres (for your pipeline later)
+    PG_HOST: pg-target
+    PG_PORT: "5432"
+    PG_DB: ${PG_DB:-dhap34}
+    PG_USER: ${PG_USER:-dhap}
+    PG_PASSWORD: ${PG_PASSWORD:-dhap}
+
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./requirements.txt:/opt/airflow/requirements.txt:ro
+
+  depends_on:
+    airflow-db:
+      condition: service_healthy
+
+services:
+  # Airflow's internal metadata database
+  airflow-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-time init: migrate DB and create admin user
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    user: "0:0"
+    command: -c "airflow db migrate && airflow users create --username airflow --password airflow --firstname Airflow --lastname Admin --role Admin --email airflow@example.com || true"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # Target Postgres (where your dataset will be loaded later)
+  pg-target:
+    image: postgres:15
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ${PG_DB:-dhap34}
+      POSTGRES_USER: ${PG_USER:-dhap}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-dhap}
+    volumes:
+      - target_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-dhap} -d ${PG_DB:-dhap34}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  airflow_db:
+  target_db:
