@@ -1,0 +1,69 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(entity_id IS NULL) as null_entity_id,
+        countIf(entity_id = '') as empty_entity_id,
+        countIf(value IS NULL) as null_value,
+        countIf(value = '') as empty_value,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.contact_outside_identifiers
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_entity_id: 0
+      empty_entity_id: 0
+      null_value: 0
+      empty_value: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: outside_identifier_unique_per_partition
+    type: uniqueness
+    description: "Outside identifier should be unique per entity_id, label, value, and processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT glynac_organization_id, entity_id, label, value, processing_date, count() as cnt
+      FROM blackdiamond_silver.contact_outside_identifiers
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY glynac_organization_id, entity_id, label, value, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_outside_identifiers_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver outside identifiers should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_records
+      FROM blackdiamond_silver.contact_outside_identifiers s
+      LEFT JOIN blackdiamond.contact_outside_identifiers_raw b
+        ON s.entity_id = b.entity_id
+        AND s.label = b.label
+        AND s.value = b.value
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.entity_id IS NULL
+    expect:
+      orphaned_records: 0
+  
+  - name: valid_entity_types
+    type: accepted_values
+    description: "Entity types should be from known set"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_outside_identifiers
+      WHERE processing_date = toDate('{{ ds }}')
+        AND entity_type != ''
+        AND entity_type NOT IN ('Contact', 'Account', 'Household', 'User')
+    expect:
+      invalid_count: 0
