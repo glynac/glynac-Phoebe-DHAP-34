@@ -44,7 +44,7 @@ SELECT
     coalesce(is_all_day, false)                                                                AS is_all_day,
     if(
         start_json IS NOT NULL AND end_json IS NOT NULL,
-        toInt32OrZero(dateDiff('minute',
+        toInt32(dateDiff('minute',
             assumeNotNull(parseDateTime64BestEffortOrNull(JSONExtractString(assumeNotNull(start_json), 'dateTime'))),
             assumeNotNull(parseDateTime64BestEffortOrNull(JSONExtractString(assumeNotNull(end_json),   'dateTime')))
         )),
