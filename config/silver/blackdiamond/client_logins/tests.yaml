@@ -1,0 +1,73 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(user_id IS NULL) as null_user_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.client_logins
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_user_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: login_unique_per_partition
+    type: uniqueness
+    description: "Login records should be unique per user, login_date, and processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT glynac_organization_id, user_id, login_date, processing_date, count() as cnt
+      FROM blackdiamond_silver.client_logins
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY glynac_organization_id, user_id, login_date, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_logins_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver login records should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_records
+      FROM blackdiamond_silver.client_logins s
+      LEFT JOIN blackdiamond.client_logins_raw b
+        ON s.user_id = b.user_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.user_id IS NULL
+    expect:
+      orphaned_records: 0
+  
+  - name: valid_user_ids
+    type: assertion
+    description: "User IDs should be positive integers"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.client_logins
+      WHERE processing_date = toDate('{{ ds }}')
+        AND user_id IS NOT NULL
+        AND user_id <= 0
+    expect:
+      invalid_count: 0
+  
+  - name: login_date_not_future
+    type: assertion
+    description: "Login date should not be in the future"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.client_logins
+      WHERE processing_date = toDate('{{ ds }}')
+        AND login_date > now()
+    expect:
+      invalid_count: 0

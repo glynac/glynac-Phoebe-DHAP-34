@@ -1,0 +1,116 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: client_logins
+
+metadata:
+  display_name: "Black Diamond Client Logins (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond client login records from Bronze layer.
+    Tracks user login activity including timestamps, IP addresses, and device information.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - client_logins
+    - security
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - user_id
+    - ip_address
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.client_logins_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - user_id
+    - login_date
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - user_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: login_date_idx
+      expression: login_date
+      type: minmax
+      granularity: 1
+    - name: ip_address_idx
+      expression: ip_address
+      type: set
+      granularity: 4
+
+columns:
+  - name: user_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Black Diamond user/client ID"
+    pii: true
+    example: 12345
+    
+  - name: login_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Login timestamp"
+    example: "2025-01-15 14:23:45.000"
+    
+  - name: ip_address
+    type: Nullable(Int32)
+    nullable: true
+    description: "IP address of login (encoded as integer)"
+    pii: true
+    example: 167772161
+    
+  - name: device
+    type: Nullable(Int32)
+    nullable: true
+    description: "Device identifier or type code"
+    example: 1
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.client_logins_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
