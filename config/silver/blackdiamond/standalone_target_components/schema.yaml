@@ -1,0 +1,146 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: standalone_target_components
+
+metadata:
+  display_name: "Black Diamond Standalone Target Components (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond standalone target component records from Bronze layer.
+    Contains asset allocation targets with component classifications and tolerance bands 
+    for portfolio rebalancing and compliance monitoring.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - standalone_target_components
+    - financial
+    - silver
+    - asset_allocation
+  data_classification: confidential
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.standalone_target_components_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - id
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: target_id_idx
+      expression: target_id
+      type: bloom_filter
+      granularity: 1
+    - name: class_idx
+      expression: class
+      type: set
+      granularity: 4
+    - name: segment_idx
+      expression: segment
+      type: set
+      granularity: 4
+
+columns:
+  - name: id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Target component ID (primary key)"
+    primary_key: true
+    example: 10001
+    
+  - name: target_id
+    type: String
+    nullable: false
+    description: "Target allocation identifier"
+    example: "TARGET-12345"
+    
+  - name: asset_id
+    type: Float64
+    nullable: false
+    description: "Asset identifier"
+    example: 5001.0
+    
+  - name: component_name
+    type: String
+    nullable: false
+    description: "Component name/description"
+    example: "US Large Cap Equity"
+    
+  - name: class
+    type: String
+    nullable: false
+    description: "Asset class (e.g., Equity, Fixed Income, Cash)"
+    example: "Equity"
+    
+  - name: segment
+    type: String
+    nullable: false
+    description: "Asset segment (e.g., Large Cap, Small Cap, International)"
+    example: "Large Cap"
+    
+  - name: allocation
+    type: Float64
+    nullable: false
+    description: "Target allocation percentage (0-100)"
+    example: 45.5
+    
+  - name: tolerance_lower
+    type: Float64
+    nullable: false
+    description: "Lower tolerance band (percentage points)"
+    example: -5.0
+    
+  - name: tolerance_upper
+    type: Float64
+    nullable: false
+    description: "Upper tolerance band (percentage points)"
+    example: 5.0
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.standalone_target_components_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
