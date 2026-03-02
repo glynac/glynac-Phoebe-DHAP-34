@@ -1,7 +1,7 @@
 version: "1.0"
 
 dag:
-  description: "Transform and clean Black Diamond relationship-contact mappings from Bronze to Silver layer"
+  description: "Transform and clean Black Diamond relationship-contact mappings"
   schedule_interval: "dataset" 
   start_date: "2025-01-01"
   catchup: false
