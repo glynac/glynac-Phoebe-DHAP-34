@@ -1,0 +1,253 @@
+# schema.yaml
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: contact_profiles
+
+metadata:
+  display_name: "Black Diamond Contact Profiles (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond contact profile records from Bronze layer.
+    Contains comprehensive contact information including personal details, demographics, 
+    financial data, team assignments, and user associations.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - contact_profiles
+    - pii
+    - silver
+    - dataset-aware
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - id
+    - first_name
+    - middle_name
+    - last_name
+    - nickname
+    - display_name
+    - full_name
+    - date_of_birth
+    - date_of_death
+    - income
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.contact_profiles_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - id
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: last_name_idx
+      expression: last_name
+      type: bloom_filter
+      granularity: 1
+    - name: team_id_idx
+      expression: team_id
+      type: bloom_filter
+      granularity: 1
+    - name: gender_idx
+      expression: gender
+      type: set
+      granularity: 4
+
+columns:
+  - name: id
+    type: String
+    nullable: false
+    description: "Contact ID (primary key)"
+    primary_key: true
+    pii: true
+    example: "CNT-12345"
+    
+  - name: internal_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Internal contact ID"
+    example: 100001
+    
+  - name: salutation
+    type: String
+    nullable: false
+    description: "Salutation (e.g., Mr., Ms., Dr.)"
+    example: "Mr."
+    
+  - name: first_name
+    type: String
+    nullable: false
+    description: "First name"
+    pii: true
+    example: "John"
+    
+  - name: middle_name
+    type: String
+    nullable: false
+    description: "Middle name"
+    pii: true
+    example: "Michael"
+    
+  - name: last_name
+    type: String
+    nullable: false
+    description: "Last name"
+    pii: true
+    example: "Smith"
+    
+  - name: suffix
+    type: String
+    nullable: false
+    description: "Name suffix (e.g., Jr., Sr., III)"
+    example: "Jr."
+    
+  - name: nickname
+    type: String
+    nullable: false
+    description: "Nickname"
+    pii: true
+    example: "Johnny"
+    
+  - name: display_name
+    type: String
+    nullable: false
+    description: "Display name"
+    pii: true
+    example: "John Smith"
+    
+  - name: full_name
+    type: String
+    nullable: false
+    description: "Full name"
+    pii: true
+    example: "Mr. John Michael Smith Jr."
+    
+  - name: date_of_birth
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date of birth"
+    pii: true
+    example: "1975-06-15 00:00:00.000"
+    
+  - name: date_of_death
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date of death"
+    pii: true
+    example: null
+    
+  - name: gender
+    type: String
+    nullable: false
+    description: "Gender"
+    example: "Male"
+    
+  - name: marital_status
+    type: String
+    nullable: false
+    description: "Marital status"
+    example: "Married"
+    
+  - name: income
+    type: Float64
+    nullable: false
+    description: "Annual income"
+    pii: true
+    example: 150000.0
+    
+  - name: retirement_age
+    type: Float64
+    nullable: false
+    description: "Expected retirement age"
+    example: 65.0
+    
+  - name: actual_retirement_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Actual retirement date"
+    example: null
+    
+  - name: is_disabled
+    type: UInt8
+    nullable: false
+    description: "Disability status flag (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: team_id
+    type: String
+    nullable: false
+    description: "Team identifier"
+    example: "TEAM-001"
+    
+  - name: team_internal_id
+    type: Float64
+    nullable: false
+    description: "Internal team ID"
+    example: 1001.0
+    
+  - name: team_name
+    type: String
+    nullable: false
+    description: "Team name"
+    example: "Wealth Management Team A"
+    
+  - name: user_id
+    type: Float64
+    nullable: false
+    description: "Associated user ID"
+    example: 5001.0
+    
+  - name: user_login
+    type: Nullable(Int32)
+    nullable: true
+    description: "User login identifier"
+    example: null
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.contact_profiles_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
