@@ -24,6 +24,7 @@ x-airflow-common: &airflow-common
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./requirements.txt:/opt/airflow/requirements.txt:ro
+    - ../extraction:/opt/airflow/dags/extraction:ro
 
   depends_on:
     airflow-db:
