@@ -1,0 +1,132 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: standalone_goals
+
+metadata:
+  display_name: "Black Diamond Standalone Goals (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond standalone goal records from Bronze layer.
+    Contains financial goals with associated benchmarks for performance tracking.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - standalone_goals
+    - financial
+    - silver
+  data_classification: confidential
+  contains_pii: false
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.standalone_goals_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - goal_id
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - goal_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: goal_external_id_idx
+      expression: goal_external_id
+      type: bloom_filter
+      granularity: 1
+    - name: goal_name_idx
+      expression: goal_name
+      type: bloom_filter
+      granularity: 1
+    - name: benchmark_external_id_idx
+      expression: benchmark_external_id
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: goal_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Financial goal identifier (primary key)"
+    primary_key: true
+    example: 5001
+    
+  - name: goal_external_id
+    type: String
+    nullable: false
+    description: "External goal identifier"
+    example: "GOAL-EXT-12345"
+    
+  - name: goal_name
+    type: String
+    nullable: false
+    description: "Goal name/description"
+    example: "Retirement Savings"
+    
+  - name: goal_ordinal
+    type: Nullable(Int64)
+    nullable: true
+    description: "Goal priority/order"
+    example: 1
+    
+  - name: benchmark_external_id
+    type: String
+    nullable: false
+    description: "External benchmark identifier"
+    example: "BENCH-SP500"
+    
+  - name: benchmark_long_name
+    type: String
+    nullable: false
+    description: "Benchmark full name"
+    example: "S&P 500 Total Return Index"
+    
+  - name: benchmark_short_name
+    type: String
+    nullable: false
+    description: "Benchmark short name"
+    example: "S&P 500"
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.standalone_goals_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
