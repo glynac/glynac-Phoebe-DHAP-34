@@ -1,0 +1,89 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(contact_id IS NULL) as null_contact_id,
+        countIf(contact_id = '') as empty_contact_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.contact_employments
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_contact_id: 0
+      empty_contact_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: contact_employment_unique_per_partition
+    type: uniqueness
+    description: "Contact employment should be unique per contact_id, occupation, start_date, and processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT glynac_organization_id, contact_id, occupation, start_date, processing_date, count() as cnt
+      FROM blackdiamond_silver.contact_employments
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY glynac_organization_id, contact_id, occupation, start_date, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contact_employments_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contact employments should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_records
+      FROM blackdiamond_silver.contact_employments s
+      LEFT JOIN blackdiamond.contact_employments_raw b
+        ON s.contact_id = b.contact_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.contact_id IS NULL
+    expect:
+      orphaned_records: 0
+  
+  - name: valid_boolean_flags
+    type: accepted_values
+    description: "Boolean flags must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_employments
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_current NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: current_employment_has_no_end_date
+    type: assertion
+    description: "Current employments (is_current=1) should not have end dates"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_employments
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_current = 1
+        AND end_date IS NOT NULL
+    expect:
+      invalid_count: 0
+  
+  - name: start_date_before_end_date
+    type: assertion
+    description: "Start date should be before end date when both exist"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_employments
+      WHERE processing_date = toDate('{{ ds }}')
+        AND start_date IS NOT NULL
+        AND end_date IS NOT NULL
+        AND start_date > end_date
+    expect:
+      invalid_count: 0
