@@ -1,0 +1,97 @@
+# tests.yaml
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(contact_id IS NULL) as null_contact_id,
+        countIf(contact_id = '') as empty_contact_id,
+        countIf(relationship_id IS NULL) as null_relationship_id,
+        countIf(relationship_id = '') as empty_relationship_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.contact_relationships
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_contact_id: 0
+      empty_contact_id: 0
+      null_relationship_id: 0
+      empty_relationship_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: contact_relationship_unique_per_partition
+    type: uniqueness
+    description: "Contact-relationship pair should be unique per processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT glynac_organization_id, contact_id, relationship_id, processing_date, count() as cnt
+      FROM blackdiamond_silver.contact_relationships
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY glynac_organization_id, contact_id, relationship_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contact_relationships_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contact relationships should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_records
+      FROM blackdiamond_silver.contact_relationships s
+      LEFT JOIN blackdiamond.contact_relationships_raw b
+        ON s.contact_id = b.contact_id
+        AND s.relationship_id = b.relationship_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.contact_id IS NULL
+    expect:
+      orphaned_records: 0
+  
+  - name: valid_boolean_flags
+    type: accepted_values
+    description: "Boolean flags must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_relationships
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (
+          is_primary NOT IN (0, 1)
+          OR is_secondary NOT IN (0, 1)
+        )
+    expect:
+      invalid_count: 0
+  
+  - name: not_both_primary_and_secondary
+    type: assertion
+    description: "Contact should not be both primary and secondary in same relationship"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_relationships
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_primary = 1
+        AND is_secondary = 1
+    expect:
+      invalid_count: 0
+  
+  - name: at_most_one_primary_per_relationship
+    type: assertion
+    description: "Each relationship should have at most one primary member"
+    severity: warning
+    query: |
+      SELECT relationship_id, count() as primary_count
+      FROM blackdiamond_silver.contact_relationships
+      WHERE processing_date = toDate('{{ ds }}')
+        AND is_primary = 1
+      GROUP BY glynac_organization_id, relationship_id
+      HAVING primary_count > 1
+    expect_empty: true

@@ -1,0 +1,155 @@
+# schema.yaml
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: contact_relationships
+
+metadata:
+  display_name: "Black Diamond Contact Relationships (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond contact relationship records from Bronze layer.
+    Contains relationship mappings between contacts including member types, roles, and 
+    hierarchy indicators (primary/secondary).
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - contact_relationships
+    - pii
+    - silver
+    - dataset-aware
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - contact_id
+    - relationship_id
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.contact_relationships_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - contact_id
+    - relationship_id
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - contact_id
+    - relationship_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: relationship_id_idx
+      expression: relationship_id
+      type: bloom_filter
+      granularity: 1
+    - name: member_role_idx
+      expression: member_role
+      type: bloom_filter
+      granularity: 1
+    - name: is_primary_idx
+      expression: is_primary
+      type: set
+      granularity: 4
+
+columns:
+  - name: contact_id
+    type: String
+    nullable: false
+    description: "Contact identifier"
+    pii: true
+    example: "CNT-12345"
+    
+  - name: relationship_id
+    type: String
+    nullable: false
+    description: "Relationship identifier (e.g., household, family)"
+    pii: true
+    example: "REL-67890"
+    
+  - name: relationship_internal_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Internal relationship ID"
+    example: 100001
+    
+  - name: member_type_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Member type identifier"
+    example: 1
+    
+  - name: member_role_id
+    type: Nullable(Int64)
+    nullable: true
+    description: "Member role identifier"
+    example: 101
+    
+  - name: member_role
+    type: String
+    nullable: false
+    description: "Member role name (e.g., Spouse, Dependent, Owner)"
+    example: "Spouse"
+    
+  - name: member_role_title
+    type: String
+    nullable: false
+    description: "Member role title"
+    example: "Primary Spouse"
+    
+  - name: is_primary
+    type: UInt8
+    nullable: false
+    description: "Primary member flag (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: is_secondary
+    type: UInt8
+    nullable: false
+    description: "Secondary member flag (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 0
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.contact_relationships_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
