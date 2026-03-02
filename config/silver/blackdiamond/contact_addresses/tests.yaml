@@ -1,0 +1,87 @@
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT 
+        countIf(contact_id IS NULL) as null_contact_id,
+        countIf(contact_id = '') as empty_contact_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM blackdiamond_silver.contact_addresses
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_contact_id: 0
+      empty_contact_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_processing_date: 0
+  
+  - name: contact_address_unique_per_partition
+    type: uniqueness
+    description: "Contact address should be unique per contact_id, label, ordinal, and processing_date (after dedup)"
+    severity: error
+    query: |
+      SELECT glynac_organization_id, contact_id, label, ordinal, processing_date, count() as cnt
+      FROM blackdiamond_silver.contact_addresses
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY glynac_organization_id, contact_id, label, ordinal, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+  
+  - name: all_contact_addresses_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver contact addresses should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_records
+      FROM blackdiamond_silver.contact_addresses s
+      LEFT JOIN blackdiamond.contact_addresses_raw b
+        ON s.contact_id = b.contact_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.contact_id IS NULL
+    expect:
+      orphaned_records: 0
+  
+  - name: valid_boolean_flags
+    type: accepted_values
+    description: "Boolean flags must be 0 or 1"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_addresses
+      WHERE processing_date = toDate('{{ ds }}')
+        AND mailing_address NOT IN (0, 1)
+    expect:
+      invalid_count: 0
+  
+  - name: valid_country_codes
+    type: assertion
+    description: "Country codes should be 2-character ISO codes"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_addresses
+      WHERE processing_date = toDate('{{ ds }}')
+        AND country_code != ''
+        AND length(country_code) != 2
+    expect:
+      invalid_count: 0
+  
+  - name: at_least_one_street_line
+    type: assertion
+    description: "At least street_line1 should be populated"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM blackdiamond_silver.contact_addresses
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (street_line1 IS NULL OR street_line1 = '')
+    expect:
+      invalid_count: 0

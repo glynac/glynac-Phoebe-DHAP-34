@@ -1,0 +1,185 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: contact_addresses
+
+metadata:
+  display_name: "Black Diamond Contact Addresses (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond contact address records from Bronze layer.
+    Contains physical and mailing addresses for contacts with full geographic details.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - contact_addresses
+    - pii
+    - silver
+    - dataset-aware
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - contact_id
+    - street_line1
+    - street_line2
+    - street_line3
+    - municipality
+    - postal_code
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.contact_addresses_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - contact_id
+    - ordinal
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - contact_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: postal_code_idx
+      expression: postal_code
+      type: bloom_filter
+      granularity: 1
+    - name: country_code_idx
+      expression: country_code
+      type: set
+      granularity: 4
+
+columns:
+  - name: contact_id
+    type: String
+    nullable: false
+    description: "Contact identifier"
+    pii: true
+    example: "CNT-12345"
+    
+  - name: label
+    type: String
+    nullable: false
+    description: "Address label/type (e.g., Home, Work, Mailing)"
+    example: "Home"
+    
+  - name: ordinal
+    type: Float64
+    nullable: false
+    description: "Sort order for multiple addresses"
+    example: 1.0
+    
+  - name: mailing_address
+    type: UInt8
+    nullable: false
+    description: "Primary mailing address flag (1=yes, 0=no)"
+    allowed_values: [0, 1]
+    example: 1
+    
+  - name: street_line1
+    type: String
+    nullable: false
+    description: "Street address line 1"
+    pii: true
+    example: "123 Main Street"
+    
+  - name: street_line2
+    type: String
+    nullable: false
+    description: "Street address line 2"
+    pii: true
+    example: "Apt 4B"
+    
+  - name: street_line3
+    type: String
+    nullable: false
+    description: "Street address line 3"
+    pii: true
+    example: ""
+    
+  - name: street_line4
+    type: Nullable(Int32)
+    nullable: true
+    description: "Street address line 4"
+    example: null
+    
+  - name: street_line5
+    type: Nullable(Int32)
+    nullable: true
+    description: "Street address line 5"
+    example: null
+    
+  - name: municipality
+    type: String
+    nullable: false
+    description: "City or municipality"
+    pii: true
+    example: "San Francisco"
+    
+  - name: administrative_area
+    type: String
+    nullable: false
+    description: "State, province, or administrative region"
+    example: "CA"
+    
+  - name: sub_administrative_area
+    type: String
+    nullable: false
+    description: "County or sub-administrative region"
+    example: "San Francisco County"
+    
+  - name: postal_code
+    type: String
+    nullable: false
+    description: "Postal/ZIP code"
+    pii: true
+    example: "94102"
+    
+  - name: country_code
+    type: String
+    nullable: false
+    description: "ISO country code"
+    example: "US"
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.contact_addresses_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
