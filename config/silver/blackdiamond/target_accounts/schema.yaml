@@ -1,0 +1,103 @@
+version: "1.0"
+layer: silver
+database: blackdiamond_silver
+table: target_accounts
+
+metadata:
+  display_name: "Black Diamond Target Accounts (Cleaned)"
+  description: |
+    Cleaned and transformed Black Diamond target account assignment records from Bronze layer.
+    Links allocation targets to specific accounts for portfolio rebalancing and compliance monitoring.
+  
+  owner: ai-team
+  domain: blackdiamond
+  tags:
+    - blackdiamond
+    - target_accounts
+    - financial
+    - silver
+    - pii
+  data_classification: confidential
+  contains_pii: true
+  pii_columns:
+    - account_number
+  update_frequency: daily
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - blackdiamond.target_accounts_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - glynac_organization_id
+    - target_id
+    - account_number
+    - processing_date
+  primary_key:
+    - glynac_organization_id
+    - target_id
+    - account_number
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192  
+  indexes:
+    - name: target_id_idx
+      expression: target_id
+      type: bloom_filter
+      granularity: 1
+    - name: account_number_idx
+      expression: account_number
+      type: bloom_filter
+      granularity: 1
+
+columns:
+  - name: target_id
+    type: String
+    nullable: false
+    description: "Target allocation identifier"
+    example: "TARGET-12345"
+    
+  - name: account_number
+    type: String
+    nullable: false
+    description: "Account number assigned to target"
+    pii: true
+    example: "ACC-67890"
+    
+  - name: glynac_organization_id
+    type: LowCardinality(String)
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-abc123"
+    
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-11-18"
+    
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-11-18 15:30:45"
+    
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "blackdiamond.target_accounts_raw"
+    
+  - name: _source_timestamp
+    type: Nullable(Date)
+    nullable: true
+    description: "Source processing date"
+    system_column: true
+    example: "2025-11-18"
