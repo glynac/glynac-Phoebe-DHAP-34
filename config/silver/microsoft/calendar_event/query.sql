@@ -15,6 +15,10 @@
 -- SETTINGS optimize_move_to_prewhere = 0 is added by the generator at the outer level.
 
 SELECT
+    -- Processing metadata
+    glynac_organization_id,
+    processing_date,
+    
     -- Core event identity
     trim(coalesce(event_id, ''))                                     AS event_id,
     trim(coalesce(i_cal_uid, ''))                                    AS icalendar_uid,
@@ -93,9 +97,6 @@ SELECT
     parseDateTime64BestEffortOrNull(ifNull(created_date_time, ''))               AS created_datetime,
     parseDateTime64BestEffortOrNull(ifNull(last_modified_date_time, ''))         AS last_modified_datetime,
 
-    -- Processing metadata
-    glynac_organization_id,
-    processing_date,
     parseDateTime64BestEffortOrNull(toString(processing_timestamp))  AS processing_timestamp,
 
     -- System columns

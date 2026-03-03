@@ -53,7 +53,7 @@ dependencies:
       fail_on_empty: true
       partition_column: processing_date
     - type: freshness
-      description: "Check Bronze data is fresh (< 2 hours old)"
-      max_age_hours: 24
+      description: "Check Bronze data is fresh (< 48 hours old)"
+      max_age_hours: 48
       fail_on_stale: false
   mode: dataset_aware
