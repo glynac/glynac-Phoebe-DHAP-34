@@ -2,8 +2,9 @@ SELECT
     rec_id,
     glynac_organization_id,
     
-    -- Family account identifiers
-    rec_id as family_account_id,
+    -- Family identifiers
+    rec_id as family_id, 
+    
     trimBoth(COALESCE(family_name, '')) as family_name,
     trimBoth(COALESCE(account_number, '')) as account_number,
     
@@ -16,7 +17,7 @@ SELECT
         account_status ILIKE '%inactive%', 'inactive',
         account_status ILIKE '%closed%', 'closed',
         account_status ILIKE '%suspended%', 'suspended',
-        account_status != '', toLower(trimBoth(account_status)),
+        account_status != '', lower(trimBoth(account_status)), 
         'active'
     ) as status_normalized,
     
