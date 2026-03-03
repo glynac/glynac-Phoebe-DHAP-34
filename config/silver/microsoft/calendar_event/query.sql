@@ -55,7 +55,7 @@ SELECT
     lower(trim(coalesce(JSONExtractString(ifNull(organizer_json, ''), 'emailAddress', 'address'), ''))) AS organizer_email,
     trim(coalesce(JSONExtractString(ifNull(organizer_json, ''), 'emailAddress', 'name'), ''))           AS organizer_name,
 
-    -- Attendee counts (Perbaikan Utama di Sini)
+    -- Attendee counts
     toInt32(length(JSONExtractArrayRaw(ifNull(attendees_json, '[]')))) AS attendee_count,
     
     toInt32(arrayCount(x -> lower(JSONExtractString(x, 'type')) = 'required',

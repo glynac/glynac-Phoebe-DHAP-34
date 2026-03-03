@@ -46,9 +46,9 @@ tests:
       LEFT JOIN microsoft.calendar_event_raw b
         ON s.glynac_organization_id = b.glynac_organization_id
         AND s.processing_date = b.processing_date
-        AND s.event_web_link = simpleJSONExtractString(b.entity_data, 'web_link')
+        AND s.event_id = b.event_id  -- Gunakan event_id karena lebih pasti
       WHERE s.processing_date = toDate('{{ ds }}')
-        AND b.record_id IS NULL
+        AND b.event_id IS NULL       -- Jika di Bronze tidak ada, berarti orphaned
     expect:
       orphaned_events: 0
 
