@@ -1,7 +1,7 @@
 version: "1.0"
 layer: silver
 database: microsoft_silver
-table: calendar_event
+table: calendar_event_v2
 
 metadata:
   display_name: "Microsoft Calendar Events (Silver)"

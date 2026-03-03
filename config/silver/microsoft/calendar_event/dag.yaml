@@ -32,7 +32,7 @@ task:
   task_id: "transform_microsoft_calendar_event"
   task_type: clickhouse_transformation
   incremental:
-    enabled: true
+    enabled: false
     strategy: partition_based
     partition_column: processing_date
     lookback_days: 90
