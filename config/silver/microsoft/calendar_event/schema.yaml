@@ -371,3 +371,4 @@ columns:
     description: "Source processing timestamp"
     system_column: true
     example: "2026-03-02 14:30:22.123"
+

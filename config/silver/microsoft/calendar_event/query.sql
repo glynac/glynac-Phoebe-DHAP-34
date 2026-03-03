@@ -30,6 +30,7 @@ SELECT
     lower(trim(coalesce(calendar_owner_email, '')))                  AS calendar_owner_email,
     trim(coalesce(user_id, ''))                                      AS user_id,
 
+
     -- Event content
     trim(coalesce(subject, ''))                                      AS subject,
     trim(coalesce(body_preview, ''))                                 AS body_preview,
