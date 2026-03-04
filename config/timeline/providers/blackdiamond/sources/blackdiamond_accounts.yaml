@@ -1,0 +1,119 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Accounts
+# ============================================================
+# Generates timeline events from blackdiamond_silver.accounts table
+# Events: account_created, account_opened, account_closed, account_reconciled,
+#         billing_period_started, billing_period_ended
+# Source Bronze: accounts_raw
+
+source:
+  database: blackdiamond_silver
+  table: accounts
+  primary_key: id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: account
+  mv_name: mv_blackdiamond_accounts_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: account_created
+    # Condition: create_date IS NOT NULL
+    # Priority: Phase 1 (Core)
+    - type: account_created
+      timestamp_field: create_date
+      timestamp_source: create_date
+      condition: "create_date IS NOT NULL"
+      description_template: "Account '{name}' ({account_number}) created in system"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        account_type: "COALESCE(account_type, '')"
+        account_category: "COALESCE(account_category, '')"
+        account_sub_category: "COALESCE(account_sub_category, '')"
+        custodian: "COALESCE(custodian, '')"
+        data_provider: "COALESCE(data_provider, '')"
+
+    # Event 2: account_opened
+    # Condition: start_date IS NOT NULL AND start_date != create_date
+    # Priority: Phase 1 (Core)
+    - type: account_opened
+      timestamp_field: start_date
+      timestamp_source: start_date
+      condition: "start_date IS NOT NULL AND (create_date IS NULL OR start_date != create_date)"
+      description_template: "Account '{name}' ({account_type}) opened at {custodian}"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        custodial_account_name: "COALESCE(custodial_account_name, '')"
+        account_type: "COALESCE(account_type, '')"
+        account_category: "COALESCE(account_category, '')"
+        account_sub_category: "COALESCE(account_sub_category, '')"
+        custodian: "COALESCE(custodian, '')"
+        discretionary: "toString(COALESCE(discretionary, false))"
+        billable: "toString(COALESCE(billable, false))"
+        supervised: "toString(COALESCE(supervised, false))"
+
+    # Event 3: account_closed
+    # Condition: closed_date IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: account_closed
+      timestamp_field: closed_date
+      timestamp_source: closed_date
+      condition: "closed_date IS NOT NULL"
+      description_template: "Account '{name}' ({account_number}) closed"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        account_type: "COALESCE(account_type, '')"
+        start_date: "toString(COALESCE(start_date, ''))"
+        custodian: "COALESCE(custodian, '')"
+
+    # Event 4: account_reconciled
+    # Condition: last_reconciled_date IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: account_reconciled
+      timestamp_field: last_reconciled_date
+      timestamp_source: last_reconciled_date
+      condition: "last_reconciled_date IS NOT NULL"
+      description_template: "Account '{name}' reconciled as of {as_of_date}"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        as_of_date: "toString(COALESCE(as_of_date, ''))"
+        custodian: "COALESCE(custodian, '')"
+
+    # Event 5: billing_period_started
+    # Condition: billing_start_date IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: billing_period_started
+      timestamp_field: billing_start_date
+      timestamp_source: billing_start_date
+      condition: "billing_start_date IS NOT NULL"
+      description_template: "Billing started for account '{name}'"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        billable: "toString(COALESCE(billable, false))"
+        billing_number: "COALESCE(billing_number, '')"
+
+    # Event 6: billing_period_ended
+    # Condition: billing_end_date IS NOT NULL
+    # Priority: Phase 3 (Enhanced)
+    - type: billing_period_ended
+      timestamp_field: billing_end_date
+      timestamp_source: billing_end_date
+      condition: "billing_end_date IS NOT NULL"
+      description_template: "Billing ended for account '{name}'"
+      metadata:
+        account_id: "toString(COALESCE(id, ''))"
+        name: "COALESCE(name, '')"
+        account_number: "COALESCE(account_number, '')"
+        billing_start_date: "toString(COALESCE(billing_start_date, ''))"

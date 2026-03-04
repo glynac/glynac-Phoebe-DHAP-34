@@ -1,0 +1,75 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Redtail Transaction
+# ============================================================
+# Generates timeline events from redtail_silver.transaction table
+# Events: transaction_created, transaction_executed, transaction_settled, transaction_updated
+
+source:
+  database: redtail_silver
+  table: transaction
+  primary_key: rec_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: transaction
+  mv_name: mv_redtail_transaction_to_timeline
+
+  events:
+    # Event 1: transaction_created [timestamp: rec_add]
+    - type: transaction_created
+      timestamp_field: rec_add
+      timestamp_source: rec_add
+      condition: "rec_add IS NOT NULL"
+      description_template: "{transaction_type} transaction recorded"
+      metadata:
+        transaction_number: "COALESCE(transaction_number, '')"
+        transaction_type: "COALESCE(transaction_type, '')"
+        account_id: "toString(COALESCE(account_id, 0))"
+        investment_id: "toString(COALESCE(investment_id, 0))"
+        amount: "toString(COALESCE(amount, 0))"
+
+    # Event 2: transaction_executed [timestamp: transaction_date] - business event
+    - type: transaction_executed
+      timestamp_field: transaction_date
+      timestamp_source: transaction_date
+      condition: "transaction_date IS NOT NULL AND (rec_add IS NULL OR transaction_date != rec_add)"
+      description_template: "{transaction_type} transaction: {quantity} units at ${price_per_unit} - Total: ${amount}"
+      metadata:
+        transaction_number: "COALESCE(transaction_number, '')"
+        transaction_type: "COALESCE(transaction_type, '')"
+        account_id: "toString(COALESCE(account_id, 0))"
+        investment_id: "toString(COALESCE(investment_id, 0))"
+        amount: "toString(COALESCE(amount, 0))"
+        fees: "toString(COALESCE(fees, 0))"
+        quantity: "toString(COALESCE(quantity, 0))"
+        price_per_unit: "toString(COALESCE(price_per_unit, 0))"
+        currency: "COALESCE(currency, 'USD')"
+        status: "COALESCE(status_normalized, '')"
+        reference_number: "COALESCE(reference_number, '')"
+
+    # Event 3: transaction_settled [timestamp: settlement_date]
+    - type: transaction_settled
+      timestamp_field: settlement_date
+      timestamp_source: settlement_date
+      condition: "settlement_date IS NOT NULL AND (transaction_date IS NULL OR settlement_date != transaction_date)"
+      description_template: "{transaction_type} transaction settled - ${amount}"
+      metadata:
+        transaction_number: "COALESCE(transaction_number, '')"
+        transaction_type: "COALESCE(transaction_type, '')"
+        account_id: "toString(COALESCE(account_id, 0))"
+        investment_id: "toString(COALESCE(investment_id, 0))"
+        amount: "toString(COALESCE(amount, 0))"
+        status: "COALESCE(status_normalized, '')"
+
+    # Event 4: transaction_updated [timestamp: rec_edit]
+    - type: transaction_updated
+      timestamp_field: rec_edit
+      timestamp_source: rec_edit
+      condition: "rec_edit IS NOT NULL AND rec_add IS NOT NULL AND rec_edit != rec_add"
+      description_template: "Transaction updated: {transaction_number}"
+      metadata:
+        transaction_type: "COALESCE(transaction_type, '')"
+        status: "COALESCE(status_normalized, '')"
+        updated_by: "toString(COALESCE(rec_edit_user, 0))"
+        represents: "'final_state'"

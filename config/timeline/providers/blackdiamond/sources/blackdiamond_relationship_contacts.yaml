@@ -1,0 +1,43 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Relationship Contacts
+# ============================================================
+# Generates timeline events from blackdiamond_silver.relationship_contacts table
+# Events: contact_assigned_primary, contact_assigned_secondary
+# Source Bronze: relationship_contacts_raw
+
+source:
+  database: blackdiamond_silver
+  table: relationship_contacts
+  primary_key: contact_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: contact
+  mv_name: mv_blackdiamond_relationship_contacts_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: contact_assigned_primary
+    # Condition: is_primary = true
+    # Priority: Phase 3 (Enhanced)
+    - type: contact_assigned_primary
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "is_primary = true"
+      description_template: "Contact assigned as primary"
+      metadata:
+        relationship_id: "toString(COALESCE(relationship_id, ''))"
+        contact_id: "toString(COALESCE(contact_id, ''))"
+
+    # Event 2: contact_assigned_secondary
+    # Condition: is_secondary = true
+    # Priority: Phase 3 (Enhanced)
+    - type: contact_assigned_secondary
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "is_secondary = true"
+      description_template: "Contact assigned as secondary"
+      metadata:
+        relationship_id: "toString(COALESCE(relationship_id, ''))"
+        contact_id: "toString(COALESCE(contact_id, ''))"

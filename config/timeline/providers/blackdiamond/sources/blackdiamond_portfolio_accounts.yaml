@@ -1,0 +1,35 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Portfolio-Account Assignments
+# ============================================================
+# Generates timeline events from blackdiamond_silver.portfolio_accounts table
+# Events: account_assigned_to_portfolio
+# Source Bronze: portfolio_accounts_raw
+
+source:
+  database: blackdiamond_silver
+  table: portfolio_accounts
+  primary_key: ["portfolio_id", "account_id"]  # Composite key
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: account
+  mv_name: mv_blackdiamond_portfolio_accounts_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: account_assigned_to_portfolio
+    # Condition: EXISTS (portfolio_accounts record)
+    # Priority: Phase 1 (Core)
+    # NOTE: Timestamp is derived from portfolio creation or account start_date, whichever is later
+    # For Phase 1, using processing_date as fallback
+    - type: account_assigned_to_portfolio
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "portfolio_id IS NOT NULL AND account_id IS NOT NULL"
+      description_template: "Account assigned to portfolio"
+      metadata:
+        portfolio_id: "toString(COALESCE(portfolio_id, ''))"
+        account_id: "toString(COALESCE(account_id, ''))"
+        ordinal: "toString(COALESCE(ordinal, 0))"
+        # Note: account_name and portfolio_name would require JOINs - not included in Phase 1

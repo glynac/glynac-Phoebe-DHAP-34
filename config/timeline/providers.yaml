@@ -1,0 +1,169 @@
+version: "1.0"
+# ============================================================
+# Timeline Pipeline - Provider Registry
+# ============================================================
+# Defines all data providers and their silver database sources.
+# The pipeline DAG reads this file at parse time to:
+#   1. Discover which silver databases to scan
+#   2. Find distinct org_ids per provider
+#   3. Build provisioning TaskGroups for each (provider, org) pair
+#
+# To add a new provider: add an entry here with its sources.
+# To disable a provider: set enabled: false.
+# To disable a single source: set enabled: false on the source entry.
+
+providers:
+
+  # ============================================================
+  # Redtail CRM
+  # ============================================================
+  - name: redtail
+    display_name: "Redtail CRM"
+    enabled: true
+    silver_database: redtail_silver
+    # Table used to discover distinct org_ids (should always have all orgs)
+    org_discovery_table: account
+    org_filter_column: glynac_organization_id
+
+    sources:
+      - name: redtail_account
+        config_path: "timeline/providers/redtail/sources/redtail_account.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Account lifecycle events (created, opened, updated)"
+
+      - name: redtail_activity
+        config_path: "timeline/providers/redtail/sources/redtail_activity.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Activity events (created, scheduled, updated)"
+
+      - name: redtail_call
+        config_path: "timeline/providers/redtail/sources/redtail_call.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Call events (created, made, updated)"
+
+      - name: redtail_client
+        config_path: "timeline/providers/redtail/sources/redtail_client.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Client lifecycle events (created, updated)"
+
+      - name: redtail_communication
+        config_path: "timeline/providers/redtail/sources/redtail_communication.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Communication events (created, sent, updated)"
+
+      - name: redtail_contact
+        config_path: "timeline/providers/redtail/sources/redtail_contact.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Contact lifecycle events (created, updated)"
+
+      - name: redtail_email
+        config_path: "timeline/providers/redtail/sources/redtail_email.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Email events (created, sent, updated)"
+
+      - name: redtail_transaction
+        config_path: "timeline/providers/redtail/sources/redtail_transaction.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Transaction events (created, executed, settled, updated)"
+
+  # ============================================================
+  # Black Diamond
+  # ============================================================
+  - name: blackdiamond
+    display_name: "Black Diamond"
+    enabled: true
+    silver_database: blackdiamond_silver
+    # Table used to discover distinct org_ids
+    org_discovery_table: accounts
+    org_filter_column: glynac_organization_id
+
+    sources:
+      # Phase 1: Core Events
+      - name: blackdiamond_relationships
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_relationships.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Relationship lifecycle events (created, terminated)"
+
+      - name: blackdiamond_contacts
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_contacts.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Contact lifecycle events (created)"
+
+      - name: blackdiamond_portfolios
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolios.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Portfolio lifecycle events (created)"
+
+      - name: blackdiamond_accounts
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_accounts.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Account lifecycle and billing events (Phase 1+2+3)"
+
+      - name: blackdiamond_portfolio_accounts
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolio_accounts.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Account-to-portfolio assignment events"
+
+      - name: blackdiamond_holdings
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_holdings.yaml"
+        enabled: true
+        expected_min_events: 1
+        description: "Holding and inferred transaction events"
+
+      # Phase 2: High Value Events
+      - name: blackdiamond_goals
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_goals.yaml"
+        enabled: true
+        expected_min_events: 0
+        description: "Goal lifecycle events (created)"
+
+      - name: blackdiamond_portfolio_account_goals
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolio_account_goals.yaml"
+        enabled: true
+        expected_min_events: 0
+        description: "Goal assignment events"
+
+      - name: blackdiamond_portfolio_benchmarks
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolio_benchmarks.yaml"
+        enabled: true
+        expected_min_events: 0
+        description: "Portfolio benchmark assignment/removal events"
+
+      - name: blackdiamond_portfolio_advisors
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolio_advisors.yaml"
+        enabled: true
+        expected_min_events: 0
+        description: "Portfolio advisor assignment events"
+
+      # Phase 3: Enhanced Events
+      - name: blackdiamond_relationship_contacts
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_relationship_contacts.yaml"
+        enabled: true
+        expected_min_events: 0
+        description: "Contact primary/secondary assignment events"
+
+      - name: blackdiamond_portfolio_group_members
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolio_group_members.yaml"
+        enabled: true
+        expected_min_events: 0
+        description: "Portfolio group assignment events"
+
+      # Disabled: table not yet available in blackdiamond_silver
+      - name: blackdiamond_tax_lots
+        config_path: "timeline/providers/blackdiamond/sources/blackdiamond_tax_lots.yaml"
+        enabled: false
+        expected_min_events: 0
+        description: "Tax lot lifecycle events (disabled - table not available)"

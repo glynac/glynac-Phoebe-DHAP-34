@@ -1,0 +1,37 @@
+version: "1.0"
+# ============================================================
+# Timeline Pipeline - Shared DAG Defaults
+# ============================================================
+# Shared configuration used by timeline_pipeline_dag.py.
+# Override individual fields as needed.
+
+dag:
+  dag_id: "timeline_pipeline"
+  description: "Unified Canonical Event Timeline Pipeline - All Providers and Orgs"
+  schedule_interval: "0 */3 * * *"  # Every 3 hours
+  start_date: "2026-01-01"
+  catchup: false
+  max_active_runs: 1
+  concurrency: 10  # Max parallel tasks across all org provisioning groups
+
+  tags:
+    - timeline
+    - canonical-events
+    - pipeline
+    - multi-provider
+
+  default_args:
+    owner: ai-team
+    retries: 2
+    retry_delay_minutes: 3
+    execution_timeout_minutes: 60
+    email_on_failure: false
+    email_on_retry: false
+
+# ============================================================
+# Timeline Table Defaults
+# ============================================================
+timeline_table:
+  name: timeline
+  template_path: "timeline/_templates/table.sql.j2"
+  ttl_days: 2555  # ~7 years

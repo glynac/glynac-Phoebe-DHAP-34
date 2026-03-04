@@ -1,0 +1,43 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Black Diamond Contacts
+# ============================================================
+# Generates timeline events from blackdiamond_silver.contacts table
+# Events: contact_created
+# Source Bronze: contacts_raw
+
+source:
+  database: blackdiamond_silver
+  table: contacts
+  primary_key: id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: contact
+  mv_name: mv_blackdiamond_contacts_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: contact_created
+    # Condition: id IS NOT NULL
+    # Priority: Phase 1 (Core)
+    # NOTE: Timestamp is derived from relationship inception or earliest account create_date
+    # For Phase 1, using processing_date as fallback
+    - type: contact_created
+      timestamp_field: processing_date
+      timestamp_source: derived
+      condition: "id IS NOT NULL"
+      description_template: "Contact '{first_name} {last_name}' created - {member_role}"
+      metadata:
+        contact_id: "toString(COALESCE(id, ''))"
+        salutation: "COALESCE(salutation, '')"
+        first_name: "COALESCE(first_name, '')"
+        last_name: "COALESCE(last_name, '')"
+        full_name: "concat(COALESCE(first_name, ''), ' ', COALESCE(last_name, ''))"
+        member_type: "toString(COALESCE(member_type, 0))"
+        member_role: "COALESCE(member_role, '')"
+        user_id: "COALESCE(user_id, '')"
+
+    # Phase 2/3 events (disabled for Phase 1):
+    # - contact_assigned_primary (from relationship_contacts table)
+    # - contact_assigned_secondary (from relationship_contacts table)
