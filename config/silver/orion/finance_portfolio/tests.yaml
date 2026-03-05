@@ -1,0 +1,207 @@
+# ============================================================
+# DATA QUALITY TESTS: SILVER.ORION_FINANCE_PORTFOLIO
+# ============================================================
+version: "1.0"
+
+tests:
+  - name: required_columns_not_null
+    type: schema
+    description: "Required columns must not be NULL"
+    severity: error
+    query: |
+      SELECT
+        countIf(portfolio_id IS NULL) as null_portfolio_id,
+        countIf(portfolio_id = '') as empty_portfolio_id,
+        countIf(glynac_organization_id IS NULL) as null_org_id,
+        countIf(glynac_organization_id = '') as empty_org_id,
+        countIf(portfolio_status IS NULL) as null_portfolio_status,
+        countIf(portfolio_status = '') as empty_portfolio_status,
+        countIf(processing_date IS NULL) as null_processing_date
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+    expect:
+      null_portfolio_id: 0
+      empty_portfolio_id: 0
+      null_org_id: 0
+      empty_org_id: 0
+      null_portfolio_status: 0
+      empty_portfolio_status: 0
+      null_processing_date: 0
+
+  - name: portfolio_id_unique_per_org_per_partition
+    type: uniqueness
+    description: "portfolio_id should be unique per org per processing_date"
+    severity: error
+    query: |
+      SELECT portfolio_id, glynac_organization_id, processing_date, count() as cnt
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+      GROUP BY portfolio_id, glynac_organization_id, processing_date
+      HAVING cnt > 1
+    expect_empty: true
+
+  - name: all_finance_portfolios_exist_in_bronze
+    type: referential_integrity
+    description: "All Silver finance portfolios should exist in Bronze source"
+    severity: warning
+    query: |
+      SELECT count() as orphaned_finance_portfolios
+      FROM orion_silver.finance_portfolio s
+      LEFT JOIN orion.finance_portfolio_raw b
+        ON s.portfolio_id = b.portfolio_id
+        AND s.glynac_organization_id = b.glynac_organization_id
+        AND s.processing_date = b.processing_date
+      WHERE s.processing_date = toDate('{{ ds }}')
+        AND b.portfolio_id IS NULL
+    expect:
+      orphaned_finance_portfolios: 0
+
+  - name: total_value_non_negative
+    type: assertion
+    description: "Total portfolio value should not be negative"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND total_value < 0
+    expect:
+      invalid_count: 0
+
+  - name: cash_balance_non_negative
+    type: assertion
+    description: "Cash balance should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND cash_balance < 0
+    expect:
+      invalid_count: 0
+
+  - name: investment_value_non_negative
+    type: assertion
+    description: "Investment value should not be negative"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND investment_value < 0
+    expect:
+      invalid_count: 0
+
+  - name: total_value_matches_components
+    type: assertion
+    description: "Total value should approximately equal cash balance plus investment value"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND total_value > 0
+        AND abs((cash_balance + investment_value) - total_value) / total_value > 0.01
+    expect:
+      invalid_count: 0
+
+  - name: valid_currency_code
+    type: assertion
+    description: "Currency should be 3-character code when present"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND currency != ''
+        AND length(currency) != 3
+    expect:
+      invalid_count: 0
+
+  - name: owner_id_not_empty
+    type: assertion
+    description: "Owner ID should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (owner_id IS NULL OR owner_id = '')
+    expect:
+      invalid_count: 0
+
+  - name: portfolio_type_not_empty
+    type: assertion
+    description: "Portfolio type should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (portfolio_type IS NULL OR portfolio_type = '')
+    expect:
+      invalid_count: 0
+
+  - name: name_not_empty
+    type: assertion
+    description: "Portfolio name should not be empty"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND (name IS NULL OR name = '')
+    expect:
+      invalid_count: 0
+
+  - name: inception_date_not_future
+    type: assertion
+    description: "Inception date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND inception_date > now()
+    expect:
+      invalid_count: 0
+
+  - name: last_rebalance_after_inception
+    type: assertion
+    description: "Last rebalance date should be after or equal to inception date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND inception_date IS NOT NULL
+        AND last_rebalance_date IS NOT NULL
+        AND last_rebalance_date < inception_date
+    expect:
+      invalid_count: 0
+
+  - name: created_date_not_future
+    type: assertion
+    description: "Created date should not be in the future"
+    severity: error
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date > now()
+    expect:
+      invalid_count: 0
+
+  - name: modified_date_after_created
+    type: assertion
+    description: "Modified date should be after or equal to created date"
+    severity: warning
+    query: |
+      SELECT count() as invalid_count
+      FROM orion_silver.finance_portfolio
+      WHERE processing_date = toDate('{{ ds }}')
+        AND created_date IS NOT NULL
+        AND modified_date IS NOT NULL
+        AND modified_date < created_date
+    expect:
+      invalid_count: 0

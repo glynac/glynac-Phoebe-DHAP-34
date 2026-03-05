@@ -1,0 +1,311 @@
+version: "1.0"
+layer: silver
+database: orion_silver
+table: finance_portfolio
+
+
+metadata:
+  display_name: "Orion Finance Portfolios (Cleaned)"
+  description: |
+    Cleaned and transformed Orion financial portfolio data from Bronze layer.
+    Represents investment portfolios with ownership details, performance metrics,
+    and associations to accounts.
+
+  owner: ai-team
+  domain: orion
+  tags:
+    - orion
+    - finance_portfolio
+    - financial
+    - portfolios
+    - silver
+    - pii
+  data_classification: highly_confidential
+  contains_pii: true
+  pii_columns:
+    - total_value
+    - cash_balance
+    - investment_value
+    - owner_name
+    - ytd_return
+    - one_year_return
+  update_frequency: hourly
+  retention_days: 2555  # ~7 years for financial records
+  upstream_dependencies:
+    - orion.finance_portfolio_raw
+  downstream_dependencies: []
+
+clickhouse:
+  engine: ReplacingMergeTree
+  engine_params:
+    version_column: _loaded_at
+  partition_by: toYYYYMM(processing_date)
+  order_by:
+    - processing_date
+    - glynac_organization_id
+    - portfolio_id
+  primary_key:
+    - portfolio_id
+    - glynac_organization_id
+  ttl: "processing_date + INTERVAL 2555 DAY"
+  settings:
+    index_granularity: 8192
+  indexes:
+    - name: portfolio_status_idx
+      expression: portfolio_status
+      type: set
+      granularity: 4
+    - name: portfolio_type_idx
+      expression: portfolio_type
+      type: set
+      granularity: 4
+    - name: risk_profile_idx
+      expression: risk_profile
+      type: set
+      granularity: 4
+    - name: owner_id_idx
+      expression: owner_id
+      type: minmax
+      granularity: 2
+    - name: account_id_idx
+      expression: account_id
+      type: minmax
+      granularity: 2
+
+columns:
+  - name: portfolio_id
+    type: String
+    nullable: false
+    description: "Unique portfolio identifier (primary key)"
+    primary_key: true
+    example: "port-abc123"
+
+  - name: glynac_organization_id
+    type: String
+    nullable: false
+    description: "Organization identifier for data isolation"
+    example: "org-xyz789"
+
+  # Portfolio identification
+  - name: name
+    type: String
+    nullable: false
+    description: "Portfolio name"
+    example: "Growth Portfolio 2025"
+
+  - name: portfolio_type
+    type: String
+    nullable: false
+    description: "Type of portfolio"
+    example: "investment"
+
+  - name: portfolio_status
+    type: String
+    nullable: false
+    description: "Current portfolio status"
+    example: "active"
+
+  # Account and ownership
+  - name: account_id
+    type: String
+    nullable: false
+    description: "Reference to account"
+    example: "acc-def456"
+
+  - name: owner_id
+    type: String
+    nullable: false
+    description: "Portfolio owner identifier"
+    example: "usr-mno345"
+
+  - name: owner_name
+    type: String
+    nullable: false
+    description: "Portfolio owner name"
+    pii: true
+    example: "John Smith"
+
+  # Financial details
+  - name: total_value
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Total portfolio value"
+    pii: true
+    example: 500000.00
+
+  - name: currency
+    type: String
+    nullable: false
+    description: "Currency code"
+    example: "USD"
+
+  - name: cash_balance
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Cash balance in portfolio"
+    pii: true
+    example: 50000.00
+
+  - name: investment_value
+    type: Decimal(15, 2)
+    nullable: false
+    description: "Total investment value"
+    pii: true
+    example: 450000.00
+
+  # Investment profile
+  - name: risk_profile
+    type: String
+    nullable: false
+    description: "Portfolio risk profile"
+    example: "moderate"
+
+  - name: investment_objective
+    type: String
+    nullable: false
+    description: "Investment objective"
+    example: "growth"
+
+  - name: benchmark
+    type: String
+    nullable: false
+    description: "Portfolio benchmark index"
+    example: "S&P 500"
+
+  # Performance
+  - name: ytd_return
+    type: Decimal(15, 4)
+    nullable: false
+    description: "Year-to-date return"
+    pii: true
+    example: 850.0000
+
+  - name: one_year_return
+    type: Decimal(15, 4)
+    nullable: false
+    description: "One-year return"
+    pii: true
+    example: 1200.0000
+
+  # Additional information
+  - name: description
+    type: String
+    nullable: false
+    description: "Portfolio description"
+    example: "Long-term growth focused portfolio"
+
+  - name: tags
+    type: String
+    nullable: false
+    description: "Portfolio tags"
+    example: "growth,long-term"
+
+  # Raw message metadata
+  - name: portfolio_type_field
+    type: String
+    nullable: false
+    description: "Portfolio type field from raw message"
+    example: "investment"
+
+  - name: portfolio_id_field
+    type: String
+    nullable: false
+    description: "Portfolio ID field from raw message"
+    example: "port-abc123"
+
+  - name: message_type
+    type: String
+    nullable: false
+    description: "Message type from raw source"
+    example: "portfolio_update"
+
+  - name: entity_type
+    type: String
+    nullable: false
+    description: "Entity type from raw source"
+    example: "portfolio"
+
+  - name: scan_id
+    type: String
+    nullable: false
+    description: "Scan identifier from raw source"
+    example: "scan-001"
+
+  - name: batch_number
+    type: Int32
+    nullable: false
+    description: "Batch number"
+    example: 42
+
+  - name: batch_offset
+    type: Int64
+    nullable: false
+    description: "Batch offset"
+    example: 1000
+
+  - name: batch_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Batch processing timestamp"
+    example: "2025-01-17 14:30:00.000"
+
+  # Dates
+  - name: inception_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Portfolio inception date"
+    example: "2020-01-01 00:00:00.000"
+
+  - name: last_rebalance_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Date of last portfolio rebalance"
+    example: "2025-01-01 00:00:00.000"
+
+  - name: created_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Record creation date"
+    example: "2025-01-15 10:30:00.000"
+
+  - name: modified_date
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Last modification date"
+    example: "2025-01-17 14:20:00.000"
+
+  # Batch metadata
+  - name: processing_date
+    type: Date
+    nullable: false
+    description: "Date when data was processed (partition key)"
+    partition_key: true
+    example: "2025-01-17"
+
+  - name: processing_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Timestamp when data was processed"
+    example: "2025-01-17 14:30:22.123"
+
+  # System columns
+  - name: _loaded_at
+    type: DateTime
+    nullable: false
+    description: "Timestamp when loaded into Silver layer"
+    system_column: true
+    example: "2025-01-17 15:30:45"
+
+  - name: _source_table
+    type: String
+    nullable: false
+    description: "Source table name"
+    system_column: true
+    example: "orion.finance_portfolio_raw"
+
+  - name: _source_timestamp
+    type: Nullable(DateTime64(3))
+    nullable: true
+    description: "Source processing timestamp"
+    system_column: true
+    example: "2025-01-17 14:30:22.123"
