@@ -13,7 +13,7 @@ SELECT
         account_status ILIKE '%active%', 'active',
         account_status ILIKE '%closed%', 'closed',
         account_status ILIKE '%pending%', 'pending',
-        account_status != '', toLower(trimBoth(account_status)),
+        account_status != '', lower(trimBoth(account_status)),
         'unknown'
     ) as status_normalized,
     
