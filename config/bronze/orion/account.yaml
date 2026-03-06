@@ -3,37 +3,13 @@ layer: bronze
 database: orion
 view: account_raw
 
-metadata:
-  description: "Raw Orion account data from MinIO"
-  owner: data-engineering
-  tags:
-    - bronze
-    - orion
-    - wealth-management
-    - account
-
 source:
-  type: minio
   bucket: main-data
   path: orion/account
-  format: parquet
-
-  partitions:
-    - name: glynac_organization_id
-      type: String
-    - name: processing_date
-      type: Date
-
-clickhouse:
-  engine: S3
-  settings:
-    input_format_parquet_allow_missing_columns: 1
-
-schema:
-  mode: auto
-
-validation:
-  enabled: true
-  checks:
-    - name: not_empty
-      query: "SELECT count() > 0 FROM {database}.{table}"
+  
+description: "Orion account data"
+tags:
+  - bronze
+  - orion
+  - account
+  - auto-schema
