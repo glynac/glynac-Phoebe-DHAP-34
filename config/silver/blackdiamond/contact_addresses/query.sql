@@ -2,7 +2,7 @@ SELECT
     -- Contact address identifiers
     trimBoth(COALESCE(contact_id, '')) as contact_id,
     trimBoth(COALESCE(label, '')) as label,
-    toFloat64OrZero(ordinal) as ordinal,
+    COALESCE(toFloat64(ordinal), 0.0) as ordinal,
     
     -- Address classification
     COALESCE(mailing_address, false) as mailing_address,
