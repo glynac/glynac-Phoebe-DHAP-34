@@ -51,4 +51,4 @@ WHERE id IS NOT NULL
 QUALIFY ROW_NUMBER() OVER (
     PARTITION BY glynac_organization_id, id
     ORDER BY processing_date DESC
-) = 1;
+) = 1
