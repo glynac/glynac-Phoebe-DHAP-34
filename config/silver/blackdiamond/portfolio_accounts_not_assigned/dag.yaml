@@ -11,7 +11,7 @@ dag:
     - silver
     - blackdiamond
     - portfolio_accounts_not_assigned
-    - financial
+    - mapping
     - dataset-aware
   default_args:
     owner: ai-team
