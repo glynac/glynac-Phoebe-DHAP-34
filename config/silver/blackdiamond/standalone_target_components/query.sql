@@ -2,7 +2,8 @@ SELECT
     -- Target component identifiers
     id,
     trimBoth(COALESCE(target_id, '')) as target_id,
-    toFloat64OrZero(asset_id) as asset_id,
+    COALESCE(toFloat64(asset_id), 0.0) as asset_id,
+    
     
     -- Component classification
     trimBoth(COALESCE(component_name, '')) as component_name,
@@ -10,9 +11,10 @@ SELECT
     trimBoth(COALESCE(segment, '')) as segment,
     
     -- Allocation and tolerance
-    toFloat64OrZero(allocation) as allocation,
-    toFloat64OrZero(tolerance_lower) as tolerance_lower,
-    toFloat64OrZero(tolerance_upper) as tolerance_upper,
+    COALESCE(toFloat64(allocation), 0.0) as allocation,
+    COALESCE(toFloat64(tolerance_lower), 0.0) as tolerance_lower,
+    COALESCE(toFloat64(tolerance_upper), 0.0) as tolerance_upper,
+
     
     -- Organization and partition keys
     glynac_organization_id,
