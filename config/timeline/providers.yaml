@@ -101,9 +101,9 @@ providers:
 
       - name: blackdiamond_portfolios
         config_path: "timeline/providers/blackdiamond/sources/blackdiamond_portfolios.yaml"
-        enabled: true
+        enabled: false
         expected_min_events: 1
-        description: "Portfolio lifecycle events (created)"
+        description: "Portfolio lifecycle events (created) — disabled: config file missing"
 
       - name: blackdiamond_accounts
         config_path: "timeline/providers/blackdiamond/sources/blackdiamond_accounts.yaml"
