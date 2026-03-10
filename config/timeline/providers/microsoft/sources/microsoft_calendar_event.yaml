@@ -1,0 +1,76 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Microsoft Calendar Event
+# ============================================================
+# Generates timeline events from microsoft_silver.calendar_event table
+# Events: calendar_event_scheduled, calendar_event_cancelled
+# Source Bronze: microsoft.calendar_event_raw
+
+source:
+  database: microsoft_silver
+  table: calendar_event
+  primary_key: event_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: calendar_event
+  mv_name: mv_microsoft_calendar_event_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: calendar_event_scheduled
+    # Condition: start_datetime IS NOT NULL AND is_cancelled = false
+    # Priority: Phase 1 (Core)
+    - type: calendar_event_scheduled
+      timestamp_field: start_datetime
+      timestamp_source: start_datetime
+      condition: "start_datetime IS NOT NULL AND is_cancelled = false"
+      description_template: "Calendar event '{subject}' scheduled by {calendar_owner_email} ({duration_minutes} min)"
+      metadata:
+        event_id: "COALESCE(event_id, '')"
+        calendar_owner_email: "COALESCE(calendar_owner_email, '')"
+        calendar_id: "COALESCE(calendar_id, '')"
+        calendar_name: "COALESCE(calendar_name, '')"
+        subject: "COALESCE(subject, '')"
+        start_datetime: "toString(COALESCE(start_datetime, ''))"
+        end_datetime: "toString(COALESCE(end_datetime, ''))"
+        start_timezone: "COALESCE(start_timezone, '')"
+        duration_minutes: "toString(COALESCE(duration_minutes, 0))"
+        location_display_name: "COALESCE(location_display_name, '')"
+        location_type: "COALESCE(location_type, '')"
+        organizer_email: "COALESCE(organizer_email, '')"
+        organizer_name: "COALESCE(organizer_name, '')"
+        attendee_count: "toString(COALESCE(attendee_count, 0))"
+        required_attendee_count: "toString(COALESCE(required_attendee_count, 0))"
+        optional_attendee_count: "toString(COALESCE(optional_attendee_count, 0))"
+        is_online_meeting: "toString(COALESCE(is_online_meeting, false))"
+        online_meeting_provider: "COALESCE(online_meeting_provider, '')"
+        is_all_day: "toString(COALESCE(is_all_day, false))"
+        is_recurring: "toString(COALESCE(is_recurring, false))"
+        sensitivity: "COALESCE(sensitivity, '')"
+        importance: "COALESCE(importance, '')"
+        response_status: "COALESCE(response_status, '')"
+
+    # Event 2: calendar_event_cancelled
+    # Condition: is_cancelled = true AND start_datetime IS NOT NULL
+    # Priority: Phase 2 (High Value)
+    - type: calendar_event_cancelled
+      timestamp_field: start_datetime
+      timestamp_source: start_datetime
+      condition: "is_cancelled = true AND start_datetime IS NOT NULL"
+      description_template: "Calendar event '{subject}' cancelled (was scheduled for {start_datetime})"
+      metadata:
+        event_id: "COALESCE(event_id, '')"
+        calendar_owner_email: "COALESCE(calendar_owner_email, '')"
+        calendar_id: "COALESCE(calendar_id, '')"
+        calendar_name: "COALESCE(calendar_name, '')"
+        subject: "COALESCE(subject, '')"
+        start_datetime: "toString(COALESCE(start_datetime, ''))"
+        end_datetime: "toString(COALESCE(end_datetime, ''))"
+        duration_minutes: "toString(COALESCE(duration_minutes, 0))"
+        organizer_email: "COALESCE(organizer_email, '')"
+        organizer_name: "COALESCE(organizer_name, '')"
+        attendee_count: "toString(COALESCE(attendee_count, 0))"
+        is_online_meeting: "toString(COALESCE(is_online_meeting, false))"
+        sensitivity: "COALESCE(sensitivity, '')"
+        importance: "COALESCE(importance, '')"
