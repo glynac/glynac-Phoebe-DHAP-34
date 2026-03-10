@@ -1,0 +1,58 @@
+version: "1.0"
+# ============================================================
+# Timeline Source: Microsoft Email
+# ============================================================
+# Generates timeline events from microsoft_silver.email table
+# Events: email_sent, email_received
+# Source Bronze: microsoft.email_raw
+
+source:
+  database: microsoft_silver
+  table: email
+  primary_key: email_id
+  org_filter_column: glynac_organization_id
+
+timeline:
+  entity_type: email
+  mv_name: mv_microsoft_email_to_timeline
+
+  # Event definitions
+  events:
+    # Event 1: email_sent
+    # Condition: sent_date_time IS NOT NULL AND folder_name = 'Sent Items'
+    # Priority: Phase 1 (Core)
+    - type: email_sent
+      timestamp_field: sent_date_time
+      timestamp_source: sent_date_time
+      condition: "sent_date_time IS NOT NULL AND folder_name = 'Sent Items'"
+      description_template: "Email '{subject}' sent by {user_upn} to {to_recipients_json}"
+      metadata:
+        email_id: "COALESCE(email_id, '')"
+        user_upn: "COALESCE(user_upn, '')"
+        subject: "COALESCE(subject, '')"
+        from_address: "COALESCE(from_address, '')"
+        to_recipients_json: "COALESCE(to_recipients_json, '')"
+        cc_recipients_json: "COALESCE(cc_recipients_json, '')"
+        importance: "COALESCE(importance, '')"
+        has_attachments: "toString(COALESCE(has_attachments, false))"
+        folder_name: "COALESCE(folder_name, '')"
+
+    # Event 2: email_received
+    # Condition: received_date_time IS NOT NULL AND folder_name != 'Sent Items'
+    # Priority: Phase 1 (Core)
+    - type: email_received
+      timestamp_field: received_date_time
+      timestamp_source: received_date_time
+      condition: "received_date_time IS NOT NULL AND folder_name != 'Sent Items'"
+      description_template: "Email '{subject}' received by {user_upn} from {from_address}"
+      metadata:
+        email_id: "COALESCE(email_id, '')"
+        user_upn: "COALESCE(user_upn, '')"
+        subject: "COALESCE(subject, '')"
+        from_address: "COALESCE(from_address, '')"
+        to_recipients_json: "COALESCE(to_recipients_json, '')"
+        cc_recipients_json: "COALESCE(cc_recipients_json, '')"
+        importance: "COALESCE(importance, '')"
+        has_attachments: "toString(COALESCE(has_attachments, false))"
+        is_read: "toString(COALESCE(is_read, false))"
+        folder_name: "COALESCE(folder_name, '')"
