@@ -9,7 +9,7 @@ metadata:
     Cleaned and transformed Black Diamond firm user records from Bronze layer.
     Contains advisor/employee information with login credentials and contact details.
     HIGHLY SENSITIVE - Contains PII.
-  
+
   owner: ai-team
   domain: blackdiamond
   tags:
@@ -43,9 +43,10 @@ clickhouse:
     - id
   primary_key:
     - id
+    - glynac_organization_id
   ttl: "processing_date + INTERVAL 2555 DAY"
   settings:
-    index_granularity: 8192  
+    index_granularity: 8192
   indexes:
     - name: email_idx
       expression: email
@@ -58,68 +59,68 @@ clickhouse:
 
 columns:
   - name: id
-    type: Nullable(Int64)
-    nullable: true
+    type: Int64
+    nullable: false
     description: "Black Diamond firm user ID (primary key)"
     primary_key: true
-    pii: true
     example: 9000001
-    
+
   - name: first_name
     type: String
     nullable: false
     description: "User first name"
     pii: true
     example: "Steven"
-    
+
   - name: last_name
     type: String
     nullable: false
     description: "User last name"
     pii: true
     example: "Jose"
-    
+
   - name: login
     type: String
     nullable: false
     description: "User login username"
     pii: true
     example: "steven.jose"
-    
+
   - name: email
     type: String
     nullable: false
     description: "User email address"
     pii: true
     example: "steven.jose@blackdiamond.com"
-    
+
   - name: glynac_organization_id
     type: LowCardinality(String)
     nullable: false
     description: "Organization identifier for data isolation"
+    primary_key: true
     example: "org-abc123"
-    
+
   - name: processing_date
     type: Date
     nullable: false
     description: "Date when data was processed (partition key)"
     partition_key: true
     example: "2025-11-18"
-    
+
   - name: _loaded_at
     type: DateTime
     nullable: false
     description: "Timestamp when loaded into Silver layer"
     system_column: true
     example: "2025-11-18 15:30:45"
-    
+
   - name: _source_table
     type: String
     nullable: false
     description: "Source table name"
     system_column: true
     example: "blackdiamond.firm_users_raw"
-    
+
   - name: _source_timestamp
     type: Nullable(Date)
     nullable: true
