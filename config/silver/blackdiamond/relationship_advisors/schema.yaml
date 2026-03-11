@@ -9,7 +9,7 @@ metadata:
     Cleaned and transformed Black Diamond relationship-advisor mapping from Bronze layer.
     Links advisors (firm users) to client relationships with primary advisor designation.
     Each relationship typically has one primary advisor responsible for the account.
-  
+
   owner: ai-team
   domain: blackdiamond
   tags:
@@ -25,8 +25,6 @@ metadata:
   retention_days: 2555  # ~7 years for financial records
   upstream_dependencies:
     - blackdiamond.relationship_advisors_raw
-    - blackdiamond_silver.relationships
-    - blackdiamond_silver.users
   downstream_dependencies: []
 
 clickhouse:
@@ -41,66 +39,68 @@ clickhouse:
   primary_key:
     - relationship_id
     - firm_user_id
+    - glynac_organization_id
   ttl: "processing_date + INTERVAL 2555 DAY"
   settings:
     index_granularity: 8192
   indexes:
     - name: primary_advisor_idx
       expression: is_primary
-      type: set
-      granularity: 1
+      type: set(0)
+      granularity: 4
 
 columns:
   - name: relationship_id
     type: String
     nullable: false
-    description: "Black Diamond relationship ID (foreign key to relationships)"
+    description: "Black Diamond relationship ID"
     primary_key: true
     example: "z0150001"
-    
+
   - name: firm_user_id
     type: Int64
     nullable: false
-    description: "Firm user ID (foreign key to users/advisors)"
+    description: "Firm user ID (foreign key to firm_users)"
     primary_key: true
     example: 1001
-    
+
   - name: is_primary
     type: Bool
     nullable: false
-    description: "Primary advisor flag - main advisor responsible for this relationship"
+    description: "Primary advisor flag"
     example: true
-    
+
   - name: glynac_organization_id
     type: LowCardinality(String)
     nullable: false
     description: "Organization identifier for data isolation"
+    primary_key: true
     example: "org-abc123"
-    
+
   - name: processing_date
     type: Date
     nullable: false
     description: "Date when data was processed (partition key)"
     partition_key: true
     example: "2025-11-18"
-    
+
   - name: _loaded_at
     type: DateTime
     nullable: false
     description: "Timestamp when loaded into Silver layer"
     system_column: true
     example: "2025-11-18 15:30:45"
-    
+
   - name: _source_table
     type: String
     nullable: false
     description: "Source table name"
     system_column: true
     example: "blackdiamond.relationship_advisors_raw"
-    
+
   - name: _source_timestamp
-    type: Date
-    nullable: false
+    type: Nullable(Date)
+    nullable: true
     description: "Source processing date"
     system_column: true
     example: "2025-11-18"

@@ -8,7 +8,7 @@ metadata:
   description: |
     Cleaned and transformed Black Diamond asset tags from Bronze layer.
     Contains custom tag name-value pairs for assets used in categorization and filtering.
-  
+
   owner: ai-team
   domain: blackdiamond
   tags:
@@ -36,13 +36,14 @@ clickhouse:
   primary_key:
     - asset_id
     - name
+    - glynac_organization_id
   ttl: "processing_date + INTERVAL 2555 DAY"
   settings:
-    index_granularity: 8192  
+    index_granularity: 8192
   indexes:
     - name: tag_name_idx
       expression: name
-      type: set
+      type: set(0)
       granularity: 4
     - name: tag_value_idx
       expression: value
@@ -51,52 +52,53 @@ clickhouse:
 
 columns:
   - name: asset_id
-    type: Nullable(Int64)
-    nullable: true
+    type: String
+    nullable: false
     description: "Black Diamond asset ID (foreign key)"
     primary_key: true
-    example: 1001
-    
+    example: "ASSET-001"
+
   - name: name
     type: String
     nullable: false
     description: "Tag name/key"
     primary_key: true
     example: "sector"
-    
+
   - name: value
     type: String
     nullable: false
     description: "Tag value"
     example: "Technology"
-    
+
   - name: glynac_organization_id
     type: LowCardinality(String)
     nullable: false
     description: "Organization identifier for data isolation"
+    primary_key: true
     example: "org-abc123"
-    
+
   - name: processing_date
     type: Date
     nullable: false
     description: "Date when data was processed (partition key)"
     partition_key: true
     example: "2025-11-18"
-    
+
   - name: _loaded_at
     type: DateTime
     nullable: false
     description: "Timestamp when loaded into Silver layer"
     system_column: true
     example: "2025-11-18 15:30:45"
-    
+
   - name: _source_table
     type: String
     nullable: false
     description: "Source table name"
     system_column: true
     example: "blackdiamond.asset_tags_raw"
-    
+
   - name: _source_timestamp
     type: Nullable(Date)
     nullable: true
