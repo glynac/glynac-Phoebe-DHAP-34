@@ -9,7 +9,7 @@ metadata:
     Cleaned and transformed Black Diamond holdings from Bronze layer.
     Contains position-level data linking accounts to assets with quantities, values,
     and investment characteristics.
-  
+
   owner: ai-team
   domain: blackdiamond
   tags:
@@ -18,7 +18,6 @@ metadata:
     - positions
     - financial
     - silver
-    - pii
   data_classification: confidential
   contains_pii: false
   update_frequency: daily
@@ -38,9 +37,10 @@ clickhouse:
     - id
   primary_key:
     - id
+    - glynac_organization_id
   ttl: "processing_date + INTERVAL 2555 DAY"
   settings:
-    index_granularity: 8192  
+    index_granularity: 8192
   indexes:
     - name: account_id_idx
       expression: account_id
@@ -57,178 +57,168 @@ columns:
     nullable: false
     description: "Black Diamond holding ID (primary key)"
     primary_key: true
-    pii: true
     example: "70000001"
-    
+
   - name: account_id
     type: String
     nullable: false
     description: "Account ID (foreign key)"
-    pii: true
     example: "6000001"
-    
+
   - name: asset_id
-    type: Nullable(Int64)
-    nullable: true
+    type: Int64
+    nullable: false
     description: "Asset ID (foreign key)"
     example: 1009
-    
+
   - name: as_of_date
     type: Nullable(DateTime64(3))
     nullable: true
     description: "Date of holding snapshot"
     example: "2025-12-31 00:00:00.000"
-    
+
   - name: units
-    type: Float64
+    type: Int64
     nullable: false
     description: "Number of units/shares held"
-    pii: true
-    example: 250000.0
-    
+    example: 250000
+
   - name: market_value
-    type: Float64
+    type: Decimal64(4)
     nullable: false
     description: "Market value of holding"
-    pii: true
-    example: 250000.0
-    
+    example: 250000.0000
+
   - name: discretionary
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is discretionary holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 0
-    
+    description: "Is discretionary holding"
+    example: false
+
   - name: supervised
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is supervised holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 1
-    
+    description: "Is supervised holding"
+    example: true
+
   - name: billable
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is billable holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 0
-    
+    description: "Is billable holding"
+    example: false
+
   - name: money_market
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is money market holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 0
-    
+    description: "Is money market holding"
+    example: false
+
   - name: cash
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is cash holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 1
-    
+    description: "Is cash holding"
+    example: false
+
   - name: long_holding
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is long-term holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 1
-    
+    description: "Is long-term holding"
+    example: true
+
   - name: is_manual
-    type: UInt8
+    type: Bool
     nullable: false
-    description: "Is manually entered holding (1=yes, 0=no)"
-    allowed_values: [0, 1]
-    example: 0
-    
+    description: "Is manually entered holding"
+    example: false
+
   - name: investment_discretion
     type: String
     nullable: false
     description: "Investment discretion level"
     example: "Full"
-    
+
   - name: voting_authority
     type: String
     nullable: false
     description: "Voting authority level"
     example: "Full"
-    
+
   - name: price_factor
-    type: Float64
+    type: Decimal64(6)
     nullable: false
-    description: "Price factor multiplier"
-    example: 1.0
-    
+    description: "Price factor multiplier (default 1.0)"
+    example: 1.000000
+
   - name: paydown_factor
-    type: Float64
+    type: Decimal64(6)
     nullable: false
-    description: "Paydown factor"
-    example: 1.0
-    
+    description: "Paydown factor (default 1.0)"
+    example: 1.000000
+
   - name: coupon_rate
-    type: Nullable(Int32)
-    nullable: true
-    description: "Coupon rate for fixed income"
-    example: null
-    
-  - name: muni_state
-    type: Nullable(Int32)
-    nullable: true
-    description: "Municipal state code"
-    example: null
-    
-  - name: call_date
-    type: String
+    type: Int32
     nullable: false
-    description: "Call date for bonds"
-    example: ""
-    
-  - name: yield
-    type: Nullable(Int64)
-    nullable: true
-    description: "Yield percentage"
+    description: "Coupon rate for fixed income"
     example: 0
-    
+
+  - name: muni_state
+    type: Int32
+    nullable: false
+    description: "Municipal state code"
+    example: 0
+
+  - name: call_date
+    type: Int32
+    nullable: false
+    description: "Call date for bonds (YYYYMMDD numeric)"
+    example: 0
+
+  - name: yield
+    type: Decimal64(6)
+    nullable: false
+    description: "Yield percentage"
+    example: 0.000000
+
   - name: maturity_date
     type: String
     nullable: false
     description: "Maturity date for fixed income"
     example: ""
-    
+
   - name: accrual
-    type: Float64
+    type: Decimal64(6)
     nullable: false
     description: "Accrued interest/income"
-    example: 0.0
-    
+    example: 0.000000
+
   - name: glynac_organization_id
     type: LowCardinality(String)
     nullable: false
     description: "Organization identifier for data isolation"
+    primary_key: true
     example: "org-abc123"
-    
+
   - name: processing_date
     type: Date
     nullable: false
     description: "Date when data was processed (partition key)"
     partition_key: true
     example: "2025-11-18"
-    
+
   - name: _loaded_at
     type: DateTime
     nullable: false
     description: "Timestamp when loaded into Silver layer"
     system_column: true
     example: "2025-11-18 15:30:45"
-    
+
   - name: _source_table
     type: String
     nullable: false
     description: "Source table name"
     system_column: true
     example: "blackdiamond.holdings_raw"
-    
+
   - name: _source_timestamp
     type: Nullable(Date)
     nullable: true
