@@ -1,0 +1,12 @@
+# from SharePoint move to Postgres task
+dag_id: "phoebe_csv_to_postgres_dag"
+description: "Phoebe's data pipeline for DHAP-34"
+schedule_interval: "@daily"
+source:
+  type: "sharepoint_csv"
+  file_path: "path/to/your/file.csv"  # modify later
+target:
+  type: "postgres"
+  schema: "intern_project"
+  table: "stg_phoebe_users"
+config_file: "schema.yaml"
