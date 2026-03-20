@@ -4,7 +4,7 @@ description: "Phoebe's data pipeline for DHAP-34"
 schedule_interval: "@daily"
 source:
   type: "sharepoint_csv"
-  file_path: "path/to/your/file.csv"  # modify later
+  file_path: "/opt/airflow/dags/customer_care_emails_sample.csv"  # modify later
 target:
   type: "postgres"
   schema: "intern_project"
