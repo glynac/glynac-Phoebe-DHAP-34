@@ -41,6 +41,7 @@ def transform_data():
     # Strip whitespace and fill NaN
     df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
     df = df.fillna("")
+    os.makedirs(f"{BASE_PATH}/logs", exist_ok=True)
 
     output_path = f"{BASE_PATH}/logs/cleaned.csv"
     df.to_csv(output_path, index=False)
@@ -49,12 +50,17 @@ def transform_data():
 def load_to_postgres():
     print(f"Connecting to Postgres at {PG_HOST}:{PG_PORT}, db={PG_DB}, user={PG_USER}")
     df = pd.read_csv(f"{BASE_PATH}/logs/cleaned.csv")
+    
+    # Fix: Replace empty strings with None to avoid type mismatch in Postgres
+    df = df.replace({"": None})
     print(f"Loaded {len(df)} rows from cleaned.csv")
 
     conn = psycopg2.connect(
         host=PG_HOST, port=PG_PORT, dbname=PG_DB,
         user=PG_USER, password=PG_PASSWORD
     )
+    # Fix: Ensure each insertion is committed even if others fail, or handle rollback
+    conn.autocommit = True
     cur = conn.cursor()
 
     # Ensure table exists
@@ -62,7 +68,7 @@ def load_to_postgres():
         cur.execute(ddl_file.read())
 
     # Insert rows with explicit mapping
-    for _, row in df.iterrows():
+    for i, row in df.iterrows():
       try:
         cur.execute("""
             INSERT INTO public.customer_care_emails
@@ -77,9 +83,10 @@ def load_to_postgres():
             row["agent_effectivity"], row["agent_efficiency"], row["customer_satisfaction"]
         ))
       except Exception as e:
-        print(f"Failed to insert row {row.to_dict()}: {e}")
+        # Fix: Raise exception so Airflow marks the task as failed
+        print(f"Failed to insert row {i}: {e}")
+        raise
 
-    conn.commit()
     cur.close()
     conn.close()
 

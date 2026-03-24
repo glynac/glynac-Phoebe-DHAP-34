@@ -1,11 +1,15 @@
-CREATE SCHEMA IF NOT EXISTS intern_project;
-
-CREATE TABLE IF NOT EXISTS intern_project.stg_phoebe_users (
-    id INTEGER PRIMARY KEY,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    email VARCHAR(255),
-    gender VARCHAR(20),
-    ip_address VARCHAR(50),
-    ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS public.customer_care_emails (
+    subject TEXT,
+    sender TEXT,
+    receiver TEXT,
+    timestamp TIMESTAMP,
+    message_body TEXT,
+    thread_id TEXT,
+    email_types TEXT,
+    email_status TEXT,
+    email_criticality TEXT,
+    product_types TEXT,
+    agent_effectivity TEXT,
+    agent_efficiency TEXT,
+    customer_satisfaction TEXT
 );
