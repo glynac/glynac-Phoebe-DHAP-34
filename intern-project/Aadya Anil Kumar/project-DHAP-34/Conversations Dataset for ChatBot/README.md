@@ -42,3 +42,36 @@ The pipeline DAG is located at:
 `extraction/chatbot-conversations/dags/chatbot_conversations_ingest.py`
 
 ### Task Flow
+file_check → validate_schema → transform → load_to_postgres
+
+### Task Details
+- **file_check** — Verifies CSV exists in `sample_data/`
+- **validate_schema** — Compares CSV columns against `config/schema_expected.yaml`
+- **transform** — Strips whitespace, handles nulls
+- **load_to_postgres** — Inserts clean data into `public.chatbot_conversations`
+
+## Environment Variables
+See `.env.example` for all required variables:
+
+| Variable | Description |
+|----------|-------------|
+| EXT_PG_HOST | PostgreSQL host |
+| EXT_PG_PORT | PostgreSQL port (default 5432) |
+| EXT_PG_DB | Database name |
+| EXT_PG_USER | Database user |
+| EXT_PG_PASSWORD | Database password |
+| EXT_PG_SSLMODE | SSL mode (default prefer) |
+
+## Troubleshooting
+
+**Schema mismatch error**
+Check that your CSV columns match `config/schema_expected.yaml` exactly.
+
+**Missing CSV error**
+Make sure your CSV is in `extraction/chatbot-conversations/sample_data/`.
+
+**Invalid credentials**
+Double check your `.env` file has the correct PostgreSQL credentials.
+
+**Reset a DAG run**
+In Airflow UI → DAGs → chatbot_conversations_ingest → Clear all tasks.
